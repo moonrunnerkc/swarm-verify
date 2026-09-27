@@ -1,0 +1,8 @@
+- id: swarm-verify
+  name: swarm-verify (staged tree)
+  description: Verify the staged tree with swarm-verify before the commit; the working tree is never touched.
+  entry: swarm-verify pre-commit
+  language: node
+  pass_filenames: false
+  always_run: true
+  stages: [pre-commit]
