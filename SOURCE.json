@@ -1,7 +1,7 @@
 {
   "repository": "moonrunnerkc/swarm-orchestrator",
-  "commit": "eced3116c28ce4c9523b3135da7801c7cbe1e488",
+  "commit": "8f4a76e9d476ab72413b591f8f53b6c3c48129b1",
   "package": "swarm-verify",
-  "version": "1.0.0-rc.1",
-  "integrity": "sha512-F3Hi6Us9b/vucWHWJNoWvVpRFpekxByPWFkj57eqY/GfP2Gm2CBhgt1OjiwyIAAd8af2DCf/IS9SruYZ3UHTPg=="
+  "version": "1.0.0-rc.4",
+  "integrity": "sha512-Flcb0d+4hX1/ZIfMqXg1p57trqHyCd5+rNqSMcWS80NzReaMWUks1rOFRCvL5sgxRwBVHVcmr4bpmP8STKZiMg=="
 }
