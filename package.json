@@ -1,10 +1,10 @@
 {
   "name": "swarm-verify-action",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
-  "description": "The swarm-verify GitHub Action: installs swarm-verify@1.0.1 and runs its action steps.",
+  "description": "The swarm-verify GitHub Action: installs swarm-verify@1.0.2 and runs its action steps.",
   "license": "ISC",
   "dependencies": {
-    "swarm-verify": "1.0.1"
+    "swarm-verify": "1.0.2"
   }
 }
