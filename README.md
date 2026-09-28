@@ -3,9 +3,9 @@
 Independently verify what an AI-written pull request actually ran, in a network-disabled
 container, and post one signed comment bound to the exact head. This repository holds only
 the Action manifest and a lockfile pinning the published `swarm-verify` package at
-`1.0.0-rc.9`; the implementation is
+`1.0.0`; the implementation is
 [moonrunnerkc/swarm-orchestrator](https://github.com/moonrunnerkc/swarm-orchestrator) at
-`b723e1182fd2764adb8ad06d000b3344d7c8d779`, under `src/action/`.
+`9f9d48394f16851dc89b7ae1abe1072d9a571fc3`, under `src/action/`.
 
 ```yaml
 name: swarm-verify
