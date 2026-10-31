@@ -40,7 +40,11 @@
       "types": "./dist/execution.d.ts",
       "default": "./dist/execution.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./cli": {
+      "types": "./dist/cli-commands.d.ts",
+      "default": "./dist/cli-commands.js"
+    }
   },
   "engines": {
     "node": ">=22.0.0"

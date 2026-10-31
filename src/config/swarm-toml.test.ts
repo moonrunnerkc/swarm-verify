@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MalformedSwarmTomlError, parseSwarmToml } from "./swarm-toml.ts";
 
 describe("swarm.toml", () => {
-  it("reads checks, the allowance and the agent settings", () => {
+  it("reads checks and the allowance, and leaves the agent's table to the agent", () => {
     const parsed = parseSwarmToml(
       [
         "[checks]",
@@ -15,6 +15,7 @@ describe("swarm.toml", () => {
         'endpoint = "http://localhost:11434/v1"',
         'api_key_env = "OPENAI_API_KEY"',
         "max_steps = 40",
+        'anything_the_agent_adds = "later"',
       ].join("\n"),
       "swarm.toml",
     );
@@ -24,16 +25,11 @@ describe("swarm.toml", () => {
       ["lint", "other"],
     ]);
     expect(parsed.allow).toEqual(["tests"]);
-    expect(parsed.agent).toMatchObject({
-      maxSteps: 40,
-      apiKeyEnv: "OPENAI_API_KEY",
-      maxTokens: null,
-      turnTokens: null,
-    });
+    expect(parsed).not.toHaveProperty("agent");
   });
 
-  it("refuses a key written into the committed file", () => {
-    expect(() => parseSwarmToml('[agent]\napi_key = "sk-live"', "swarm.toml")).toThrow(
+  it("refuses a table it does not know", () => {
+    expect(() => parseSwarmToml('[checkz]\ntest = "npm test"', "swarm.toml")).toThrow(
       MalformedSwarmTomlError,
     );
   });

@@ -26,21 +26,8 @@ const fileSchema = z.strictObject({
   verify: z
     .strictObject({ setup: nonEmpty.optional(), timeout_minutes: positive.optional() })
     .optional(),
-  agent: z
-    .strictObject({
-      endpoint: z.url({ protocol: /^https?$/ }).optional(),
-      model: nonEmpty.optional(),
-      // The name of the variable holding the key, never the key: this file is committed.
-      api_key_env: z
-        .string()
-        .regex(/^[A-Z_][A-Z0-9_]*$/)
-        .optional(),
-      max_steps: positive.optional(),
-      max_tokens: positive.optional(),
-      turn_tokens: positive.optional(),
-      approval: z.enum(["ask", "auto"]).optional(),
-    })
-    .optional(),
+  // The coding agent's own table. The verifier never reads it, and leaves validating it to the agent.
+  agent: z.record(z.string(), z.unknown()).optional(),
 });
 
 export interface DeclaredCheck {
@@ -56,16 +43,6 @@ export interface SwarmToml {
   readonly allow: readonly ProtectedCategory[];
   readonly setup: string | null;
   readonly timeoutMinutes: number;
-  readonly agent: {
-    readonly endpoint: string | null;
-    readonly model: string | null;
-    readonly apiKeyEnv: string | null;
-    readonly maxSteps: number | null;
-    readonly maxTokens: number | null;
-    readonly turnTokens: number | null;
-    /** Whether off-allowlist commands are approved by the run (auto) or by a person (ask). */
-    readonly approval: "ask" | "auto" | null;
-  };
 }
 
 export class MalformedSwarmTomlError extends Error {
@@ -100,15 +77,6 @@ export function parseSwarmToml(text: string, source: string): SwarmToml {
     allow: raw.protect?.allow ?? [],
     setup: raw.verify?.setup ?? null,
     timeoutMinutes: raw.verify?.timeout_minutes ?? 20,
-    agent: {
-      endpoint: raw.agent?.endpoint ?? null,
-      model: raw.agent?.model ?? null,
-      apiKeyEnv: raw.agent?.api_key_env ?? null,
-      maxSteps: raw.agent?.max_steps ?? null,
-      maxTokens: raw.agent?.max_tokens ?? null,
-      turnTokens: raw.agent?.turn_tokens ?? null,
-      approval: raw.agent?.approval ?? null,
-    },
   };
 }
 
