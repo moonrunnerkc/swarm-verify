@@ -140,26 +140,48 @@ if (statement !== null) {
 }
 
 /**
- * The state the recorded evidence supports, by the rule the verifier applies: complete only when
- * the change applied, every required requirement is satisfied with passing evidence, nothing
- * regressed or stayed unresolved, no check or held-out check failed, and the execution policy
- * was met. A recorded `blocked` stands: it can only withhold acceptance, never grant it.
+ * The state the recorded evidence supports, by the rule the verifier applies (src/verify/
+ * requirements.ts and assess.ts): complete only when the change applied, every required
+ * requirement is satisfied by evidence that holds (a fix or feature by a test failing before and
+ * passing after, a refactor and an upgrade with nothing regressed, an upgrade by a resolved
+ * package on a fresh install), nothing regressed or stayed unresolved, no check failed, the
+ * held-out checks passed and the execution policy was met. A recorded `blocked` stands: it can
+ * only withhold acceptance, never grant it.
  */
+const witnessing = new Set(["fixed", "witness", "superseded"]);
+const holding = new Set([
+  ...witnessing,
+  "preserved",
+  "pass",
+  "observed",
+  "passes before and after",
+]);
+
+function satisfied(one, predicate) {
+  const evidence = one.evidence ?? [];
+  if (one.status !== "satisfied" || evidence.length === 0) return false;
+  if (!evidence.every((ref) => holding.has(ref.outcome))) return false;
+  const quiet = predicate.regression?.status === "none";
+  if (one.kind === "fix" || one.kind === "feature")
+    return evidence.some((ref) => witnessing.has(ref.outcome));
+  if (one.kind === "refactor") return quiet;
+  if (one.kind === "upgrade") {
+    const fresh = predicate.execution?.dependencies?.mode === "prepared";
+    return quiet && fresh && evidence.some((ref) => ref.kind === "package");
+  }
+  return true;
+}
+
 function derivedState(predicate) {
   if (predicate.state === "blocked") return "blocked";
-  const passing = new Set(["fixed", "pass", "observed", "added-passing", "preserved", "resolved"]);
   const required = (predicate.requirements ?? []).filter((one) => one.required);
-  const satisfied = required.every(
-    (one) =>
-      one.status === "satisfied" &&
-      (one.evidence ?? []).length > 0 &&
-      one.evidence.every((ref) => passing.has(ref.outcome)),
+  const checksHold = (predicate.checks ?? []).every(
+    (check) => check.result === "pass" || check.result === "inherited-failures",
   );
-  const checksHold = (predicate.checks ?? []).every((check) => check.result === "pass");
   const heldOut = predicate.heldOut;
   const heldOutHolds = heldOut?.status !== "measured" || heldOut.heldOutPassRate === 1;
   return predicate.change?.applied === true &&
-    satisfied &&
+    required.every((one) => satisfied(one, predicate)) &&
     predicate.regression?.status === "none" &&
     predicate.execution?.policyMet === true &&
     checksHold &&

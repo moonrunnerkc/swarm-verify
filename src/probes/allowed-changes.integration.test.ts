@@ -1,9 +1,26 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { Requirement } from "../api/request.ts";
+import type { VerifyResult } from "../api/result.ts";
 import { halfTest, probeFixture, requirement } from "./fixture.ts";
+
+const checker = join(import.meta.dirname, "..", "..", "verify.mjs");
+
+/** The dependency-free checker re-derives the same complete state from the signed evidence. */
+function checksOffline(result: VerifyResult): void {
+  const { bundle, publicKey, patch } = result.evidence;
+  const ran = spawnSync(
+    process.execPath,
+    [checker, bundle ?? "", "--key", publicKey ?? "", "--patch", patch ?? ""],
+    {
+      encoding: "utf8",
+    },
+  );
+  expect(ran.stdout).toContain("ok     state     complete, supported by the recorded evidence");
+  expect(ran.status).toBe(0);
+}
 
 /**
  * Legitimate engineering the verifier must accept for a stated reason, so it cannot look safe by
@@ -33,6 +50,7 @@ describe("changes the verifier accepts for a valid reason", () => {
       outcome: "witness",
       authority: "implementation-authored",
     });
+    checksOffline(result);
   });
 
   it("accepts a refactor that moves source and tests, matching tests by identity", async () => {
@@ -71,6 +89,7 @@ describe("changes the verifier accepts for a valid reason", () => {
     expect(result.regression.status).toBe("none");
     expect(result.requirements[0]?.status).toBe("satisfied");
     expect(result.state).toBe("complete");
+    checksOffline(result);
   });
 
   it("accepts an upgrade that changes the manifest and lockfile, each side installed from its own", async () => {
@@ -132,5 +151,6 @@ describe("changes the verifier accepts for a valid reason", () => {
     });
     expect(result.requirements[0]?.status).toBe("satisfied");
     expect(result.state).toBe("complete");
+    checksOffline(result);
   });
 });
