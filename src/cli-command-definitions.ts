@@ -8,13 +8,19 @@ export interface CommandDefinition {
 export const commandDefinitions: readonly CommandDefinition[] = [
   {
     name: "verify",
-    syntax: "verify [--base <ref>] [--patch <file> | --range <a..b>] [--out <dir>] [--sigstore]",
+    syntax:
+      "verify [--base <ref>] [--patch <file> | --range <a..b>] [--isolation isolated|host] [--dependencies prepare|linked|none] [--requirements <file>] [--out <dir>] [--sigstore] [--json]",
     description: "rerun the declared checks on a change in a clean checkout and sign the verdict",
   },
   {
     name: "init",
     syntax: "init [--seal <glob>]",
     description: "write swarm.toml from the project's manifests, or seal held-out checks",
+  },
+  {
+    name: "replay",
+    syntax: "replay <evidence-dir> [--workspace <repo>] [--out <dir>] [--json]",
+    description: "run a recorded verification again in a container and compare every result",
   },
   {
     name: "ci",

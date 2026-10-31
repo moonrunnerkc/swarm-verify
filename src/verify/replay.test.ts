@@ -29,6 +29,7 @@ const run = (exitCode: number): CheckRun => ({
     durationMs: 1,
     outputSha256: "0".repeat(64),
   },
+  output: "",
   outputTail: "",
   notRun: null,
 });

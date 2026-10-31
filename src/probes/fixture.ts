@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { Requirement } from "../api/request.ts";
-import { requestVersion } from "../api/request.ts";
+import { requestVersion, type VerifyRequestInput } from "../api/request.ts";
 import type { VerifyResult } from "../api/result.ts";
 import { snapshotWorkingTree, verify } from "../api/verify.ts";
 
@@ -26,12 +26,15 @@ export interface Probe {
   verify(
     requirements?: readonly Requirement[],
     extra?: Partial<RequestExtras>,
+    producer?: VerifyRequestInput["producer"],
   ): Promise<VerifyResult>;
 }
 
 interface RequestExtras {
   readonly behaviorChange: "none" | "authorized";
   readonly dependencies: "prepare" | "linked" | "none";
+  readonly mode: "isolated" | "host";
+  readonly network: "open" | "closed";
 }
 
 process.env.SWARM_SIGNING_KEY ??= generateKeyPairSync("ed25519")
@@ -41,8 +44,10 @@ process.env.SWARM_SIGNING_KEY ??= generateKeyPairSync("ed25519")
 export async function probeFixture(
   files: Readonly<Record<string, string>>,
   command = "node --test",
+  parent: string = tmpdir(),
 ): Promise<Probe> {
-  const root = await mkdtemp(join(tmpdir(), "probe-"));
+  await mkdir(parent, { recursive: true });
+  const root = await mkdtemp(join(parent, "probe-"));
   const repo = join(root, "repo");
   const home = join(root, "home");
   await mkdir(repo, { recursive: true });
@@ -69,7 +74,7 @@ export async function probeFixture(
     home,
     put,
     git,
-    async verify(requirements = [], extra = {}) {
+    async verify(requirements = [], extra = {}, producer = { instructions: [] }) {
       runs += 1;
       const out = join(root, `out-${runs}`);
       await mkdir(out, { recursive: true });
@@ -84,12 +89,13 @@ export async function probeFixture(
           policy: {
             behaviorChange: extra.behaviorChange ?? "none",
             execution: {
-              mode: "host",
-              network: "open",
+              mode: extra.mode ?? "host",
+              network: extra.network ?? "open",
               dependencies: extra.dependencies ?? "linked",
             },
           },
           artifacts: { directory: join(out, "evidence") },
+          producer,
         },
         { verifierVersion: "probe", swarmHome: home },
       );

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import type { ExecutionPolicy, Producer, Requirement, TrustedCheck } from "../api/request.ts";
 import { detectChecks } from "../config/detect.ts";
 import { readSwarmToml } from "../config/swarm-toml.ts";
@@ -10,7 +10,8 @@ import { applyChange, cloneBase } from "./checkout.ts";
 import { allChecks, environmentOf, prepareDependencies, privateHome } from "./checks.ts";
 import type { TestOutcome } from "./compare.ts";
 import { dependencyIdentity } from "./deps.ts";
-import { measureBase, readSealed, swarmHome } from "./held-out.ts";
+import { alteredSealed, measureBase, readSealed, swarmHome } from "./held-out.ts";
+import { isolate } from "./isolate.ts";
 import { artifactsOf } from "./paths.ts";
 import { type MeasuredRun, reportPlans } from "./per-test.ts";
 import type {
@@ -42,6 +43,8 @@ export interface VerifyOptions {
 export interface VerifyOutcome {
   readonly statement: Statement;
   readonly patch: Buffer;
+  /** The files the statement's `logs` name, for the caller to write beside it. */
+  readonly logs: readonly { readonly name: string; readonly text: string }[];
   /** What failed, as the checks printed it: the text a person or the agent acts on. */
   readonly failureText: string;
 }
@@ -57,8 +60,11 @@ const noTestFiles = {
 
 export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcome> {
   const change = options.change;
-  const checkout = await cloneBase(options.workspace, change.baseCommit);
   const home = options.swarmHome ?? swarmHome();
+  // A container mounts the scratch directory, and a docker VM (colima, Docker Desktop) shares the
+  // user's home with it but not the system's temporary directory.
+  const parent = options.policy.mode === "isolated" ? join(home, "work") : undefined;
+  const checkout = await cloneBase(options.workspace, change.baseCommit, parent);
   try {
     // Read from the base before the change is applied, so the change cannot rewrite its judges.
     const config = await readSwarmToml(checkout.dir);
@@ -68,25 +74,40 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
     );
     const sealed = await readSealed(options.workspace, home);
     const scratch = dirname(checkout.dir);
+    const isolation =
+      options.policy.mode === "isolated"
+        ? await isolate(options.policy, checkout.dir, scratch, home)
+        : null;
     const context = {
       dir: checkout.dir,
       home: await privateHome(scratch),
       timeoutMs: (config?.timeoutMinutes ?? 20) * 60_000,
       signal: options.signal,
+      sandbox: isolation !== null && "sandbox" in isolation ? isolation.sandbox : null,
+      checkNetwork: options.policy.network,
     };
     const reasons: string[] = [];
     const failures: string[] = [];
     const inheritedText: string[] = [];
     const unmeasuredChecks: string[] = [];
     const blocked: string[] = [];
+    const tamperedTree: string[] = [];
+    const logs: { readonly name: string; readonly text: string }[] = [];
     if ((config?.allow.length ?? 0) > 0)
       reasons.push(
         "swarm.toml [protect] allow has no effect: candidate artifacts may change together",
       );
-    if (options.policy.mode === "isolated")
+    if (isolation !== null && "unavailable" in isolation) blocked.push(isolation.unavailable);
+    // An oracle whose sealed bytes changed judges nothing: the run stops before any check.
+    const altered = sealed === null ? [] : await alteredSealed(options.workspace, sealed, home);
+    if (altered.length > 0)
       blocked.push(
-        "isolated execution was requested and this verifier build runs only on the host",
+        `the sealed held-out files changed after they were sealed: ${altered.join(", ")}; seal them again`,
       );
+    const isolated =
+      isolation !== null && "sandbox" in isolation
+        ? { image: isolation.sandbox.image, imageId: isolation.imageId }
+        : null;
     let runs: CheckResult[] = [];
     let outcomes: TestOutcome[] = [];
     let baseline: Baseline = skipped("no checks are declared");
@@ -103,7 +124,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
     const plans = await reportPlans(checkout.dir, checks);
     let baseRuns: readonly MeasuredRun[] = [];
     if (checks.length > 0 && prepared.failure === null && blocked.length === 0) {
-      const environment = await environmentOf(checkout.dir, checks, dependencies);
+      const environment = await environmentOf(checkout.dir, checks, dependencies, isolated);
       const workspace = options.workspace;
       const measured = await measureBase({
         checkout,
@@ -174,8 +195,11 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
         artifacts,
         workspace: options.workspace,
         candidateTree: applied.result.gitTree,
+        candidateSha256: applied.result.treeSha256,
         behaviorChange: options.behaviorChange ?? "none",
       });
+      tamperedTree.push(...judged.problems);
+      logs.push(...judged.logs);
       ({ runs, outcomes, coverage, mutation, heldOut } = judged);
       reasons.push(...judged.reasons);
       failures.push(...judged.failures);
@@ -201,7 +225,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       regression,
       freshDependencies: dependencies.mode === "prepared" && depsChanged && candidateSetup === null,
     });
-    const execution = executionOf(options.policy, dependencies);
+    const execution = executionOf(options.policy, dependencies, isolated, tamperedTree);
     reasons.unshift(...blocked);
     const state = stateOf({ blocked, requirements, regression, execution, failed });
     const predicate: Predicate = {
@@ -230,7 +254,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       coverage,
       mutation,
       producer: options.producer ?? { instructions: [] },
-      environment: await environmentOf(checkout.dir, checks, dependencies),
+      environment: await environmentOf(checkout.dir, checks, dependencies, isolated),
       execution,
       unmeasured: unmeasuredOf({
         checks: runs,
@@ -240,6 +264,10 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
         coverage,
         mutation,
       }),
+      logs: logs.map(({ name, text }) => ({
+        name,
+        sha256: createHash("sha256").update(text).digest("hex"),
+      })),
       verifier: { name: "swarm-verify", version: options.version },
     };
     const statement = buildStatement({
@@ -248,11 +276,8 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       patchName: "change.patch",
       predicate,
     });
-    return {
-      statement,
-      patch: change.patch,
-      failureText: [...failures, ...inheritedText].join("\n\n"),
-    };
+    const failureText = [...failures, ...inheritedText].join("\n\n");
+    return { statement, patch: change.patch, logs, failureText };
   } finally {
     await checkout.remove();
   }

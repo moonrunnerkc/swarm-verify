@@ -1,11 +1,13 @@
 import type { DeclaredCheck } from "../config/swarm-toml.ts";
-import { type BaseCheckout, restoreFrom } from "./checkout.ts";
+import { type BaseCheckout, restoreFrom, treeDigest } from "./checkout.ts";
 import type { CheckContext } from "./checks.ts";
 import type { TestFileChanges } from "./compare.ts";
 import { type MeasuredRun, runMeasured, type Wrap } from "./per-test.ts";
 import type { ReportPlan } from "./report-plan.ts";
 
 export interface CandidateRuns {
+  /** Runs that changed tracked files they were measuring, which makes them measure something else. */
+  readonly rewrites: readonly string[];
   readonly candidate: readonly MeasuredRun[];
   /** The candidate's source with the base's versions of the test files it modified or deleted. */
   readonly obligation: readonly MeasuredRun[];
@@ -27,12 +29,25 @@ interface RunInput {
   readonly otherPaths: readonly string[];
 }
 
-async function runAll(input: RunInput, label: string, wrap: Wrap | null): Promise<MeasuredRun[]> {
+/**
+ * Every check on the tree as it stands, each read before and after: a check that rewrites a
+ * tracked file is named, since what it then measures is not the tree it was given.
+ */
+async function runAll(
+  input: RunInput,
+  label: string,
+  wrap: Wrap | null,
+  rewrites: string[],
+): Promise<MeasuredRun[]> {
   const runs: MeasuredRun[] = [];
   for (const [at, check] of input.checks.entries()) {
     const plan = input.plans[at] ?? null;
     const { context, scratch } = input;
+    const before = await treeDigest(input.checkout.dir);
     runs.push(await runMeasured({ check, plan, context, scratch, label, judge: true, wrap }));
+    if ((await treeDigest(input.checkout.dir)) !== before) {
+      rewrites.push(`check ${check.name} rewrote tracked files during the ${label} run`);
+    }
   }
   return runs;
 }
@@ -45,12 +60,13 @@ async function runAll(input: RunInput, label: string, wrap: Wrap | null): Promis
  */
 export async function measureCandidate(input: RunInput): Promise<CandidateRuns> {
   const { checkout, changes, candidateTree } = input;
-  const candidate = await runAll(input, "candidate", input.wrap);
+  const rewrites: string[] = [];
+  const candidate = await runAll(input, "candidate", input.wrap, rewrites);
   const rewritten = [...changes.modified, ...changes.deleted];
   let obligation: readonly MeasuredRun[] = candidate;
   if (rewritten.length > 0) {
     await restoreFrom(checkout, checkout.baseCommit, rewritten);
-    obligation = await runAll(input, "obligation", null);
+    obligation = await runAll(input, "obligation", null, rewrites);
     await restoreFrom(checkout, candidateTree, rewritten);
   }
   const authored = [
@@ -65,8 +81,8 @@ export async function measureCandidate(input: RunInput): Promise<CandidateRuns> 
     witness = candidate;
   } else if (authored.length > 0) {
     await restoreFrom(checkout, checkout.baseCommit, input.otherPaths);
-    witness = await runAll(input, "witness", null);
+    witness = await runAll(input, "witness", null, rewrites);
     await restoreFrom(checkout, candidateTree, input.otherPaths);
   }
-  return { candidate, obligation, witness };
+  return { candidate, obligation, witness, rewrites };
 }

@@ -196,7 +196,11 @@ export interface Judge {
   readonly report: string;
 }
 
-/** Writes the judge into the run's scratch directory, outside the checkout `root`. */
+/**
+ * Writes the judge into the run's scratch directory, outside the checkout `root`, once: its code
+ * never changes within a verification, and a file replaced between runs can read as missing
+ * through a docker VM's shared filesystem. One that differs from the judge's code is replaced.
+ */
 export async function prepareJudge(scratch: string, name: string, root: string): Promise<Judge> {
   const dir = join(scratch, "judge");
   await mkdir(dir, { recursive: true, mode: 0o700 });
@@ -205,11 +209,16 @@ export async function prepareJudge(scratch: string, name: string, root: string):
     ["judge-hooks.mjs", nodeHooks],
     ["sitecustomize.py", pythonJudge],
   ] as const) {
-    await rm(join(dir, file), { force: true });
-    await writeFile(join(dir, file), text, { mode: 0o600 });
-    await chmod(join(dir, file), 0o400);
+    const path = join(dir, file);
+    if ((await readFile(path, "utf8").catch(() => null)) === text) continue;
+    await rm(path, { force: true });
+    await writeFile(path, text, { mode: 0o600 });
+    await chmod(path, 0o400);
   }
-  const report = join(dir, `${name.replace(/[^\w.-]/g, "_")}-${Date.now()}.report`);
+  // Reports go beside the judge, not in its directory, which a container mounts read-only.
+  const reports = join(scratch, "judge-reports");
+  await mkdir(reports, { recursive: true, mode: 0o700 });
+  const report = join(reports, `${name.replace(/[^\w.-]/g, "_")}-${Date.now()}.report`);
   return {
     report,
     env: {

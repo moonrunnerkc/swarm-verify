@@ -62,6 +62,8 @@ async function run(
   values: SharedValues,
 ): Promise<{ readonly code: number; readonly result: VerifyResult }> {
   const out = resolve(values.out ?? join(workspace, ".swarm", "verify"));
+  // Isolated unless the host is asked for by name: a host run is reported as not isolated.
+  const mode = choice(values.isolation, ["isolated", "host"] as const, "isolated", "--isolation");
   const request: VerifyRequestInput = {
     version: requestVersion,
     repository: workspace,
@@ -73,12 +75,13 @@ async function run(
     policy: {
       behaviorChange: values["authorize-behavior-change"] === true ? "authorized" : "none",
       execution: {
-        mode: choice(values.isolation, ["host", "isolated"] as const, "host", "--isolation"),
-        network: "open",
+        mode,
+        // Isolated checks run with the network closed; a host run cannot close it.
+        network: mode === "isolated" ? "closed" : "open",
         dependencies: choice(
           values.dependencies,
           ["prepare", "linked", "none"] as const,
-          "linked",
+          mode === "isolated" ? "prepare" : "linked",
           "--dependencies",
         ),
       },

@@ -44,6 +44,18 @@ tagged there but never published to npm.
 - **Requirements by kind.** A fix or feature needs a test failing before and passing after; a
   refactor needs preserved behavior and structural evidence, never a failing baseline; an upgrade
   needs resolved versions, a fresh install and no regression.
+- **Isolated by default.** Every command runs in a fresh container from a pinned image
+  (`node:24` or uv on Python 3.12, by digest), seeing only the verification's scratch directory,
+  with the judge read-only, the checkout's `.git` hidden, and the network closed except while
+  dependencies are installed. `--isolation host` is explicit and reported `host, not isolated`;
+  an unreachable docker daemon blocks rather than falling back. A check that rewrites the tracked
+  files it measures is named and takes the result's assurance away.
+- **`swarm-verify replay <evidence-dir>`** reruns a recorded verification in a container with
+  dependencies installed fresh and names every divergence from what was recorded.
+- **More bound into the signature.** The predicate lists each check's full output as a log by
+  digest, each requirement's expected evidence, and the producer's command ledger prefix
+  (`ledgerSha256`, `ledgerRecords`). `verify.mjs` checks them with `--evidence`, `--ledger` and
+  `--report`. A sealed held-out file altered after sealing blocks the run.
 - A working tree whose repository ignores `.swarm/` can be snapshotted: git 2.51 and later refuse
   an add pathspec that names an ignored path, so the tree is added whole and `.swarm` removed
   from the private index.

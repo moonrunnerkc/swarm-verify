@@ -196,6 +196,8 @@ export const predicateSchema = z.object({
   }),
   execution: executionSchema,
   unmeasured: z.array(z.string()),
+  /** The log files written beside the statement (each check's full output), by digest. */
+  logs: z.array(z.object({ name: z.string().min(1), sha256 })),
   verifier: z.object({ name: z.literal("swarm-verify"), version: z.string() }),
 });
 export type Predicate = z.infer<typeof predicateSchema>;

@@ -50,7 +50,7 @@ afterAll(async () => {
 
 describe("swarm verify and verify.mjs", () => {
   it("verifies a ref range, signs it, and the dependency-free script agrees", async () => {
-    const ran = node([cli, "verify", "--range", "main..fix", "--out", out]);
+    const ran = node([cli, "verify", "--isolation", "host", "--range", "main..fix", "--out", out]);
     expect(ran.stdout).toMatch(/^state\s+complete/m);
     expect(ran.status).toBe(0);
 
@@ -90,9 +90,18 @@ describe("swarm verify and verify.mjs", () => {
   });
 
   it("exits 1 for a failing change and 2 for a command line it cannot read", () => {
-    expect(node([cli, "verify", "--range", "fix..main", "--out", join(root, "out-2")]).status).toBe(
-      1,
-    );
+    expect(
+      node([
+        cli,
+        "verify",
+        "--isolation",
+        "host",
+        "--range",
+        "fix..main",
+        "--out",
+        join(root, "out-2"),
+      ]).status,
+    ).toBe(1);
     const unread = node([cli, "verify", "--patch", "a", "--range", "b..c"]);
     expect(unread.status).toBe(2);
     expect(unread.stderr).toContain("not both");
@@ -101,6 +110,6 @@ describe("swarm verify and verify.mjs", () => {
   it("lists exactly the commands it has", () => {
     const help = node([cli, "--help"]).stdout;
     const listed = [...help.matchAll(/^ {2}swarm-verify (\S+)/gm)].map((match) => match[1]);
-    expect(listed).toEqual(["verify", "init", "ci"]);
+    expect(listed).toEqual(["verify", "init", "replay", "ci"]);
   });
 });

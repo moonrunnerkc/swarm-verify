@@ -91,7 +91,9 @@ export const producerSchema = z.strictObject({
   version: z.string().min(1).optional(),
   model: z.string().min(1).optional(),
   promptSha256: sha256Schema.optional(),
+  /** The producer's command ledger: the digest of its first `ledgerRecords` lines, as written. */
   ledgerSha256: sha256Schema.optional(),
+  ledgerRecords: z.number().int().nonnegative().optional(),
   reportSha256: sha256Schema.optional(),
   instructions: z
     .array(z.strictObject({ path: z.string().min(1), sha256: sha256Schema }))

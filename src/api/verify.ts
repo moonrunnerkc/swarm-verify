@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { ZodError } from "zod";
 import { commitOf, git, type ResolvedChange, resolveChange } from "../verify/change.ts";
 import { writeAttestation } from "../verify/dsse.ts";
@@ -107,6 +107,10 @@ export async function verify(
     if (written.notice !== null) problems.push(written.notice);
   } catch (error) {
     problems.push(error instanceof Error ? error.message : String(error));
+  }
+  for (const log of outcome.logs) {
+    await mkdir(dirname(join(directory, log.name)), { recursive: true, mode: 0o700 });
+    await writeFile(join(directory, log.name), log.text, { mode: 0o600 });
   }
   const statementText = `${JSON.stringify(outcome.statement, null, 2)}\n`;
   const statementPath = join(directory, "statement.json");

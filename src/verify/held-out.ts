@@ -113,6 +113,22 @@ export async function readSealed(
   return sealedSchema.parse(JSON.parse(text));
 }
 
+/** The sealed files whose bytes no longer match what was sealed, by path. */
+export async function alteredSealed(
+  workspace: string,
+  sealed: SealedSet,
+  home: string = swarmHome(),
+): Promise<string[]> {
+  const directory = await sealedDirectory(workspace, home);
+  const altered: string[] = [];
+  for (const file of sealed.files) {
+    const content = await readFile(join(directory, "files", file.path)).catch(() => null);
+    const digest = content === null ? null : createHash("sha256").update(content).digest("hex");
+    if (digest !== file.sha256) altered.push(file.path);
+  }
+  return altered;
+}
+
 /** Copies the sealed files into a checkout, refusing any whose bytes changed in the store. */
 export async function overlaySealed(
   workspace: string,
@@ -208,7 +224,7 @@ export async function measureBase(input: {
   if (cached !== null) {
     const { checks, heldOut, tests } = cached;
     const runs = checks.map((result, at) => ({
-      run: { result, outputTail: "", notRun: null },
+      run: { result, output: "", outputTail: "", notRun: null },
       evidence: tests[at] ?? { runner: null, report: null, unreadable: null, judge: null },
     }));
     return {

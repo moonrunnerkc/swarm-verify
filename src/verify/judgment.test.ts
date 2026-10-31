@@ -44,6 +44,7 @@ const checkRun = (exitCode: number | null, notRun: string | null = null): CheckR
     durationMs: 1,
     outputSha256: "0".repeat(64),
   },
+  output: "1 failed, 3 passed",
   outputTail: "1 failed, 3 passed",
   notRun,
 });

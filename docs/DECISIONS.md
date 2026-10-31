@@ -39,3 +39,19 @@ Open choices made while building Swarm Verify, dated, with the reason. Append on
 ## 2026-10-31: offline re-derivation
 
 - verify.mjs re-derives a complete state with the same kind rules as src/verify/requirements.ts. The rule is written twice (TypeScript and the dependency-free checker) because the checker must run with nothing installed; allowed-changes.integration.test.ts runs the checker on every complete result so the two cannot drift silently.
+
+## 2026-10-31: execution trust
+
+- Docker is the one isolated backend, used through its CLI; there is no backend abstraction. Images: `node:24` and `ghcr.io/astral-sh/uv:python3.12-bookworm`, pinned by their multi-architecture index digests (both resolved to arm64 on the development machine), chosen by whether the base has a package.json. A request may name its own image.
+- Pulling a missing image happens in the verifier before any check, as part of preparing the execution environment; the image's content digest goes into the environment identity.
+- The scratch directory of an isolated verification lives under `$SWARM_HOME/work`: colima and Docker Desktop share the user's home with their VM and not `/var/folders`, so a mount from the system temporary directory fails with "bind source path does not exist" (observed on colima 2026-10-31).
+- The container runs as the invoking user's uid and gid, so files it writes into the scratch directory can be removed by the verifier on Linux; on colima the mapping is the same.
+- The judge's code is written once per verification and never replaced: replacing it between runs made the file read as missing inside the next container through colima's shared filesystem (observed: ENOENT for judge.mjs on the second run). Its reports moved to `judge-reports/` so the judge directory can be mounted read-only.
+- In isolation, a Python project without uv.lock is resolved with `uv lock` during the dependency stage and the generated lock's digest is recorded; with uv.lock it is `uv sync --frozen --all-extras`. pnpm and yarn go through corepack, which may fetch the manager during that same stage.
+- A dependency cache under the verifier's home is mounted only during the dependency stage. Its entries are content-addressed by the package managers, so a candidate's install scripts cannot substitute bytes another lockfile resolves.
+- Tracked files are digested before and after every check of every run (candidate, obligation, witness), because restoring the candidate's files between runs would otherwise erase the evidence of a check that rewrote them. The cost is one tree digest per check per run.
+- `restoreFrom` now removes a path from the index as well as the disk when the tree it restores from lacks the path; the tree recheck found that an index entry outlived its file after a witness run of a refactor.
+- `replay` compares states, regression, every check's result and test lists, every requirement status and the lockfile digests. It reruns with the request's own checks and the base's declared ones, and with the recorded image.
+- Mutants' Python syntax is checked with the host's `python3`, since a checkout's `.venv` may hold the container's Linux binaries.
+- The tamper suite runs on the host by default (`SWARM_TAMPER_ISOLATION=isolated` runs it in containers) so it measures the verifier's judgment apart from the isolation it adds.
+- Gates now need a docker daemon for the isolated integration tests; isolated is the default execution, so a test suite that skipped it would not test the product.

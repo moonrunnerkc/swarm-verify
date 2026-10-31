@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { access, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { stripTypeScriptTypes } from "node:module";
 import { join } from "node:path";
 import type { ChangedFile } from "./checkout.ts";
@@ -53,7 +53,7 @@ const run = (file: string, args: readonly string[], cwd: string) =>
 
 /**
  * Whether a mutated file still parses: `node --check` for JavaScript, Node's own TypeScript
- * transform for TypeScript, and Python's `ast.parse` with the checkout's interpreter. Nothing is
+ * transform for TypeScript, and Python's `ast.parse` with the host's interpreter. Nothing is
  * executed and nothing is written.
  */
 export async function parses(path: string, text: string, dir: string): Promise<boolean> {
@@ -66,13 +66,9 @@ export async function parses(path: string, text: string, dir: string): Promise<b
     }
   }
   if (path.endsWith(".py")) {
-    const venv = join(dir, ".venv", "bin", "python");
-    const python = await access(venv).then(
-      () => venv,
-      () => "python3",
-    );
+    // The host's interpreter: a checkout's .venv may hold a container's binaries.
     const script = "import ast,sys; ast.parse(open(sys.argv[1], encoding='utf-8').read())";
-    return run(python, ["-c", script, join(dir, path)], dir);
+    return run("python3", ["-c", script, join(dir, path)], dir);
   }
   return run(process.execPath, ["--check", join(dir, path)], dir);
 }

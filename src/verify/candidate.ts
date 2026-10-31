@@ -1,5 +1,5 @@
 import type { DeclaredCheck } from "../config/swarm-toml.ts";
-import { type BaseCheckout, type ChangedFile, restoreFrom } from "./checkout.ts";
+import { type BaseCheckout, type ChangedFile, restoreFrom, treeDigest } from "./checkout.ts";
 import { type CheckContext, passRate } from "./checks.ts";
 import type { TestFileChanges, TestOutcome } from "./compare.ts";
 import { instrument } from "./coverage.ts";
@@ -26,6 +26,8 @@ export interface CandidateInput {
   readonly changed: readonly ChangedFile[];
   readonly artifacts: readonly ChangedArtifact[];
   readonly candidateTree: string;
+  /** The candidate tree's digest when it was applied, to tell whether a check rewrote it. */
+  readonly candidateSha256: string;
   readonly behaviorChange: "none" | "authorized";
 }
 
@@ -39,6 +41,10 @@ export interface CandidateJudgment {
   readonly failures: string[];
   readonly inherited: string[];
   readonly unmeasured: string[];
+  /** Why the measurement cannot be trusted as one of the delivered candidate. */
+  readonly problems: string[];
+  /** Each check's full output against the candidate, and against the base's tests where they differ. */
+  readonly logs: { readonly name: string; readonly text: string }[];
 }
 
 const skipped = (reason: string) => ({ status: "unmeasured" as const, reason });
@@ -116,6 +122,19 @@ export async function judgeCandidate(input: CandidateInput): Promise<CandidateJu
   const mutation: Mutation = runs.every((run) => run.result !== "fail" && run.result !== "error")
     ? await mutationWitness(source, coverage, tests.length === 0 ? null : outcome, context)
     : skipped("a check failed, so no mutant can be told apart from that failure");
+  // Read again after every candidate-side run: a check that rewrote the candidate's tracked files
+  // measured something other than what was delivered.
+  const after = await treeDigest(checkout.dir);
+  const rewritten =
+    after === input.candidateSha256
+      ? []
+      : [
+          `the checks rewrote tracked files of the candidate (tree sha256 ${after}, delivered ${input.candidateSha256}), so this measurement is not of the delivered candidate`,
+        ];
+  const problems = [
+    ...sets.rewrites.map((one) => `${one}, so the checks did not measure the delivered candidate`),
+    ...rewritten,
+  ];
   let heldOut: HeldOut = skipped("no held-out checks are sealed for this workspace");
   if (input.sealed !== null) {
     // The base's tests and test configuration judge the held-out run, not the candidate's.
@@ -148,5 +167,17 @@ export async function judgeCandidate(input: CandidateInput): Promise<CandidateJu
     failures,
     inherited: judged.flatMap((one) => (one.inherited === null ? [] : [one.inherited])),
     unmeasured: judged.flatMap((one) => (one.unmeasured === null ? [] : [one.unmeasured])),
+    problems,
+    logs: checks.flatMap((check, at) => {
+      const candidate = sets.candidate[at] as MeasuredRun;
+      const obligation = sets.obligation[at] as MeasuredRun;
+      const name = check.name.replace(/[^\w.-]/g, "_");
+      return [
+        { name: `logs/${name}.txt`, text: candidate.run.output },
+        ...(obligation === candidate
+          ? []
+          : [{ name: `logs/${name}.base-tests.txt`, text: obligation.run.output }]),
+      ];
+    }),
   };
 }

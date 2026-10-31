@@ -55,9 +55,24 @@ export interface PreparedDependencies {
   readonly treeSha256: string | null;
 }
 
-/** What the execution policy asked for against what the run did. */
-export function executionOf(policy: ExecutionPolicy, prepared: PreparedDependencies): Execution {
-  const problems: string[] = [];
+/** The container the checks ran in, or null for a host run. */
+export interface Isolation {
+  readonly image: string;
+  /** The image's content digest and architecture as the daemon reports them. */
+  readonly imageId: string;
+}
+
+/**
+ * What the execution policy asked for against what the run did. A host run is never reported as
+ * isolated, and a request for isolation is never met by one.
+ */
+export function executionOf(
+  policy: ExecutionPolicy,
+  prepared: PreparedDependencies,
+  isolation: Isolation | null,
+  problems: readonly string[] = [],
+): Execution {
+  const found = [...problems];
   const reproducible = prepared.mode === "prepared" && prepared.treeSha256 !== null;
   const note =
     prepared.mode === "linked"
@@ -69,17 +84,21 @@ export function executionOf(policy: ExecutionPolicy, prepared: PreparedDependenc
           : reproducible
             ? "prepared from the lockfile and digested"
             : "prepared from the lockfile; the installed tree was not digested";
-  if (policy.mode === "isolated") {
-    problems.push("isolated execution was requested and this run did not provide it");
+  if (policy.mode === "isolated" && isolation === null) {
+    found.push("isolated execution was requested and this run did not provide it");
   }
-  if (policy.network === "closed") {
-    problems.push("a closed network was requested and a host run cannot close it");
+  if (isolation === null && policy.network === "closed") {
+    found.push("a closed network was requested and a host run cannot close it");
   }
+  const network = isolation !== null && policy.network === "closed" ? "closed" : "open";
   return {
-    mode: "host",
-    statement: "host, not isolated",
-    network: "open",
-    image: null,
+    mode: isolation === null ? "host" : "isolated",
+    statement:
+      isolation === null
+        ? "host, not isolated"
+        : `isolated: docker ${isolation.image}, network ${network} for checks and open only while dependencies were prepared`,
+    network,
+    image: isolation === null ? null : `${isolation.image} (${isolation.imageId})`,
     dependencies: {
       mode: prepared.mode,
       reproducible,
@@ -87,8 +106,8 @@ export function executionOf(policy: ExecutionPolicy, prepared: PreparedDependenc
       treeSha256: prepared.treeSha256,
       note,
     },
-    policyMet: problems.length === 0,
-    problems,
+    policyMet: found.length === 0,
+    problems: found,
   };
 }
 

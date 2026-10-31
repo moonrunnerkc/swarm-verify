@@ -1,7 +1,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { generateKeyPairSync } from "node:crypto";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildFixture, fixtures } from "./fixtures.mjs";
@@ -17,6 +17,7 @@ const exitStates = { 0: "complete", 1: "incomplete", 4: "incomplete", 5: "blocke
 
 function verifyPatch(patch, workspace, out, env) {
   const args = [cli, "verify", "--workspace", workspace, "--patch", patch.path];
+  args.push("--isolation", process.env.SWARM_TAMPER_ISOLATION ?? "host");
   args.push("--base", "HEAD", "--out", out, "--json");
   const ran = spawnSync(process.execPath, args, { cwd: repoRoot, env, encoding: "utf8" });
   const line = ran.stdout.trim().split("\n").at(-1) ?? "";
@@ -81,7 +82,11 @@ export function renderTable(summary) {
 
 async function main() {
   const keep = process.argv.includes("--keep");
-  const scratch = await mkdtemp(join(tmpdir(), "swarm-tamper-"));
+  // Isolated runs mount the verifier's home, which docker VMs share only under the user's home.
+  const isolated = process.env.SWARM_TAMPER_ISOLATION === "isolated";
+  const parent = isolated ? join(homedir(), ".swarm", "tamper-work") : tmpdir();
+  await mkdir(parent, { recursive: true });
+  const scratch = await mkdtemp(join(parent, "swarm-tamper-"));
   const signingKey = generateKeyPairSync("ed25519")
     .privateKey.export({ type: "pkcs8", format: "pem" })
     .toString();

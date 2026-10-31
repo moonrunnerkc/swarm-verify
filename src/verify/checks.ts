@@ -8,10 +8,13 @@ import { childEnvironment } from "../exec/child-environment.ts";
 import { runProcessGroup } from "../exec/run-process.ts";
 import { gitText } from "./change.ts";
 import { type CheckResult, checkResultSchema, type Predicate } from "./predicate.ts";
+import { runInSandbox, type Sandbox } from "./sandbox.ts";
 import { collectedFromOutput, testEvidenceSchema } from "./test-report.ts";
 
 export interface CheckRun {
   readonly result: CheckResult;
+  /** Everything the check printed, capped at 4 MiB; written to the evidence as a log. */
+  readonly output: string;
   /** The end of what the check printed, for the person or agent reading a failure. */
   readonly outputTail: string;
   /** Why the command could not run (it timed out, was cancelled or never started), or null. */
@@ -24,6 +27,10 @@ export interface CheckContext {
   readonly home: string;
   readonly timeoutMs: number;
   readonly signal?: AbortSignal | undefined;
+  /** The container every command runs in, or null to run on the host. */
+  readonly sandbox?: Sandbox | null | undefined;
+  /** Whether checks may reach the network inside the container. */
+  readonly checkNetwork?: "closed" | "open" | undefined;
 }
 
 const maxOutputBytes = 4 * 1024 * 1024;
@@ -34,18 +41,23 @@ export async function runCheck(
   check: DeclaredCheck,
   context: CheckContext,
   extraEnv: Readonly<Record<string, string>> = {},
+  stage: "prepare" | "check" = "check",
 ): Promise<CheckRun> {
-  const { variables } = childEnvironment(process.env, { homeDir: context.home });
   const started = Date.now();
-  const ran = await runProcessGroup("/bin/sh", ["-c", check.command], {
-    cwd: context.dir,
-    // The base run, the change and the mutant rewrite the same files within seconds, often at the
-    // same size; a .pyc written by one run would be trusted by the next.
-    env: { ...variables, PYTHONDONTWRITEBYTECODE: "1", ...extraEnv },
-    timeoutMs: context.timeoutMs,
-    maxOutputBytes,
-    signal: context.signal,
-  });
+  // The base run, the change and the mutant rewrite the same files within seconds, often at the
+  // same size; a .pyc written by one run would be trusted by the next.
+  const env = { PYTHONDONTWRITEBYTECODE: "1", ...extraEnv };
+  const sandbox = context.sandbox ?? null;
+  const ran =
+    sandbox === null
+      ? await runProcessGroup("/bin/sh", ["-c", check.command], {
+          cwd: context.dir,
+          env: { ...childEnvironment(process.env, { homeDir: context.home }).variables, ...env },
+          timeoutMs: context.timeoutMs,
+          maxOutputBytes,
+          signal: context.signal,
+        })
+      : await runInSandbox(sandbox, check.command, { ...context, maxOutputBytes }, env, stage);
   const output = `${ran.stdout}${ran.stderr}`;
   const notRun = ran.timedOut
     ? "it timed out"
@@ -73,14 +85,19 @@ export async function runCheck(
       durationMs: Date.now() - started,
       outputSha256: createHash("sha256").update(output).digest("hex"),
     },
+    output,
     outputTail: `${output.slice(-tailBytes)}${note}`,
   };
 }
 
 const linkable = ["node_modules", ".venv"];
 
-/** The install command a lockfile in `dir` asks for, or null where there is none. */
-export async function lockfileInstall(dir: string): Promise<string | null> {
+/**
+ * The install command a lockfile in `dir` asks for, or null where there is none. In a container
+ * (`isolated`), a Python project without uv.lock is resolved with `uv lock` first, and the
+ * generated lock is what the identity records.
+ */
+export async function lockfileInstall(dir: string, isolated = false): Promise<string | null> {
   const has = (name: string) =>
     lstat(join(dir, name)).then(
       () => true,
@@ -88,13 +105,15 @@ export async function lockfileInstall(dir: string): Promise<string | null> {
     );
   if (await has("package-lock.json")) return "npm ci --no-audit --no-fund";
   if (await has("npm-shrinkwrap.json")) return "npm ci --no-audit --no-fund";
-  if (await has("pnpm-lock.yaml")) return "pnpm install --frozen-lockfile";
+  const manager = isolated ? "corepack " : "";
+  if (await has("pnpm-lock.yaml")) return `${manager}pnpm install --frozen-lockfile`;
   if (await has("yarn.lock"))
     return (await has(".yarnrc.yml"))
-      ? "yarn install --immutable"
-      : "yarn install --frozen-lockfile";
+      ? `${manager}yarn install --immutable`
+      : `${manager}yarn install --frozen-lockfile`;
   if ((await has("bun.lock")) || (await has("bun.lockb"))) return "bun install --frozen-lockfile";
-  if (await has("uv.lock")) return "uv sync --frozen";
+  if (await has("uv.lock")) return isolated ? "uv sync --frozen --all-extras" : "uv sync --frozen";
+  if (isolated && (await has("pyproject.toml"))) return "uv lock && uv sync --frozen --all-extras";
   return null;
 }
 
@@ -117,9 +136,10 @@ export async function prepareDependencies(
 ): Promise<Preparation> {
   if (mode === "none") return { mode: "none", failure: null };
   if (mode === "prepare") {
-    const command = setup ?? (await lockfileInstall(context.dir));
+    const isolated = (context.sandbox ?? null) !== null;
+    const command = setup ?? (await lockfileInstall(context.dir, isolated));
     if (command === null) return { mode: "none", failure: null };
-    const ran = await runCheck({ name: "setup", command, kind: "other" }, context);
+    const ran = await runCheck({ name: "setup", command, kind: "other" }, context, {}, "prepare");
     return {
       mode: setup === null ? "prepared" : "setup",
       failure: ran.result.result === "pass" ? null : ran,
@@ -189,11 +209,14 @@ export async function environmentOf(
     readonly treeSha256: string | null;
     readonly reproducible: boolean;
   },
+  isolation: { readonly image: string; readonly imageId: string } | null = null,
 ): Promise<Predicate["environment"]> {
   const git = (await gitText(dir, ["--version"])).replace(/^git version /, "");
+  const [imageId = "", architecture = ""] = isolation?.imageId.split(" ") ?? [];
   const described = {
-    node: process.version,
-    platform: `${process.platform}-${process.arch}`,
+    // In a container the runtime is the image's; its content digest names it exactly.
+    node: isolation === null ? process.version : `in ${isolation.image} (${imageId})`,
+    platform: isolation === null ? `${process.platform}-${process.arch}` : `linux-${architecture}`,
     git,
     dependencies: dependencies.mode,
     checks: checks.map(({ name, command }) => ({ name, command })),

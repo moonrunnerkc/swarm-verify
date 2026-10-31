@@ -4,7 +4,12 @@
 // re-derived from the recorded evidence.
 //
 //   node verify.mjs <attestation.sigstore.json> --key <public.pem> [--patch <file>] [--tree <dir>]
+//                   [--evidence <dir>] [--ledger <ledger.jsonl>] [--report <report.json>]
 //                   [--integrity-only]
+//
+// --evidence checks every log the statement lists, --ledger checks the producer's command ledger
+// against the prefix the statement bound, and --report checks that a producer's report states
+// the signed snapshot, state and requirement statuses and nothing else.
 //
 // Integrity and acceptance are separate answers with separate exit codes:
 //   0  integrity holds and the task is accepted: the state is complete and the evidence supports it
@@ -23,16 +28,25 @@ const predicateType = "https://github.com/moonrunnerkc/swarm-verify/result/v1";
 
 function usage(problem) {
   process.stderr.write(
-    `${problem}\nusage: node verify.mjs <attestation> --key <public.pem> [--patch <file>] [--tree <dir>] [--integrity-only]\n`,
+    `${problem}\nusage: node verify.mjs <attestation> --key <public.pem> [--patch <file>] [--tree <dir>] [--evidence <dir>] [--ledger <file>] [--report <file>] [--integrity-only]\n`,
   );
   process.exit(2);
 }
 
 function parse(argv) {
-  const options = { attestation: null, key: null, patch: null, tree: null, integrityOnly: false };
+  const options = {
+    attestation: null,
+    key: null,
+    patch: null,
+    tree: null,
+    evidence: null,
+    ledger: null,
+    report: null,
+    integrityOnly: false,
+  };
   for (let at = 0; at < argv.length; at += 1) {
     const word = argv[at];
-    const flag = /^--(key|patch|tree)$/.exec(word);
+    const flag = /^--(key|patch|tree|evidence|ledger|report)$/.exec(word);
     if (word === "--integrity-only") options.integrityOnly = true;
     else if (flag !== null) {
       if (argv[at + 1] === undefined) usage(`${word} needs a value`);
@@ -137,6 +151,63 @@ if (statement !== null) {
     const actual = treeDigest(options.tree);
     check("tree", actual === digestOf((subject) => subject.name === "tree"), `sha256:${actual}`);
   }
+  const predicate = statement.predicate ?? {};
+  if (options.evidence !== null) {
+    const logs = Array.isArray(predicate.logs) ? predicate.logs : [];
+    const broken = logs.filter((log) => {
+      try {
+        return sha256(readFileSync(join(options.evidence, log.name))) !== log.sha256;
+      } catch {
+        return true;
+      }
+    });
+    check(
+      "evidence",
+      broken.length === 0,
+      broken.length === 0
+        ? `${logs.length} log(s) match`
+        : `${broken.map((log) => log.name).join(", ")} missing or changed`,
+    );
+  }
+  if (options.ledger !== null) {
+    const producer = predicate.producer ?? {};
+    const count = producer.ledgerRecords;
+    const lines = readFileSync(options.ledger, "utf8")
+      .split("\n")
+      .filter((line) => line.length > 0);
+    const prefix = Number.isInteger(count) && lines.length >= count ? lines.slice(0, count) : null;
+    const actual = prefix === null ? null : sha256(prefix.map((line) => `${line}\n`).join(""));
+    check(
+      "ledger",
+      actual !== null && actual === producer.ledgerSha256,
+      actual === null
+        ? `the ledger holds ${lines.length} record(s), fewer than the ${count ?? "unrecorded"} bound`
+        : `first ${count} record(s) sha256:${actual}`,
+    );
+  }
+  if (options.report !== null) {
+    let report = null;
+    try {
+      report = JSON.parse(readFileSync(options.report, "utf8"));
+    } catch {
+      // Reported below as a report that does not match.
+    }
+    const signed = new Map((predicate.requirements ?? []).map((one) => [one.id, one.status]));
+    const stated = report?.requirements ?? [];
+    const agrees =
+      report !== null &&
+      report.snapshot?.patchSha256 === digestOf((subject) => subject.name !== "tree") &&
+      report.state === predicate.state &&
+      stated.length === signed.size &&
+      stated.every((one) => signed.get(one.id) === one.status);
+    check(
+      "report",
+      agrees,
+      agrees
+        ? "states the signed snapshot, state and requirement statuses"
+        : "does not state what the statement signed",
+    );
+  }
 }
 
 /**
@@ -190,8 +261,9 @@ function derivedState(predicate) {
     : "incomplete";
 }
 
-const predicate = statement?.predicate;
-if (signed && predicate !== undefined && predicate !== null) {
+const signedPredicate = statement?.predicate;
+if (signed && signedPredicate !== undefined && signedPredicate !== null) {
+  const predicate = signedPredicate;
   const derived = derivedState(predicate);
   check(
     "state",
@@ -208,6 +280,7 @@ for (const result of results) {
   );
 }
 const intact = results.every((result) => result.ok);
+const predicate = signedPredicate;
 if (intact && predicate !== undefined && predicate !== null) {
   process.stdout.write(`execution ${predicate.execution?.statement ?? "not recorded"}\n`);
   for (const one of predicate.requirements ?? []) {

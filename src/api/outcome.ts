@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { checkAuthorities, requirementKinds, requirementSources, sha256Schema } from "./request.ts";
+import {
+  checkAuthorities,
+  requirementKinds,
+  requirementSchema,
+  requirementSources,
+  sha256Schema,
+} from "./request.ts";
 
 export const requirementStatuses = ["satisfied", "failed", "unverified", "blocked"] as const;
 export type RequirementStatus = (typeof requirementStatuses)[number];
@@ -29,6 +35,8 @@ export const requirementOutcomeSchema = z.strictObject({
   kind: z.enum(requirementKinds),
   required: z.boolean(),
   assumptions: z.array(z.string()),
+  /** The evidence the request named for it, so a replay judges it the same way. */
+  expected: requirementSchema.shape.evidence.unwrap(),
   status: z.enum(requirementStatuses),
   evidence: z.array(evidenceRefSchema),
   limitation: z.string().nullable(),

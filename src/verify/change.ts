@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -55,11 +55,15 @@ export async function gitText(cwd: string, args: readonly string[]): Promise<str
 }
 
 /** A private scratch directory, removed by the returned function. */
-export async function scratchDirectory(prefix: string): Promise<{
+export async function scratchDirectory(
+  prefix: string,
+  parent: string = tmpdir(),
+): Promise<{
   readonly path: string;
   remove(): Promise<void>;
 }> {
-  const path = await mkdtemp(join(tmpdir(), prefix));
+  await mkdir(parent, { recursive: true, mode: 0o700 });
+  const path = await mkdtemp(join(parent, prefix));
   return { path, remove: () => rm(path, { recursive: true, force: true }) };
 }
 

@@ -30,9 +30,16 @@ export type ApplyOutcome =
 
 const statusOf = { A: "added", M: "modified", D: "deleted", T: "modified" } as const;
 
-/** A clean clone of the base commit sharing the workspace's objects. */
-export async function cloneBase(workspace: string, baseCommit: string): Promise<BaseCheckout> {
-  const scratch = await scratchDirectory("swarm-verify-");
+/**
+ * A clean clone of the base commit sharing the workspace's objects, in a scratch directory
+ * under `parent` (the system's temporary directory unless a container must be able to mount it).
+ */
+export async function cloneBase(
+  workspace: string,
+  baseCommit: string,
+  parent?: string,
+): Promise<BaseCheckout> {
+  const scratch = await scratchDirectory("swarm-verify-", parent);
   const dir = join(await realpath(scratch.path), "tree");
   try {
     await git(scratch.path, ["clone", "--quiet", "--no-checkout", "--shared", workspace, dir]);
@@ -77,7 +84,10 @@ export async function restoreFromBase(
   await restoreFrom(checkout, checkout.baseCommit, paths);
 }
 
-/** Puts each path as `treeish` has it, removing the ones it does not have. */
+/**
+ * Puts each path as `treeish` has it, in the index and on disk, removing the ones it does not
+ * have from both: an index entry left for a removed file would name a file that is not there.
+ */
 export async function restoreFrom(
   checkout: BaseCheckout,
   treeish: string,
@@ -87,6 +97,7 @@ export async function restoreFrom(
     if ((await runGit(checkout.dir, ["cat-file", "-e", `${treeish}:${path}`])).code === 0) {
       await git(checkout.dir, ["checkout", treeish, "--", path]);
     } else {
+      await git(checkout.dir, ["rm", "-q", "--cached", "--ignore-unmatch", "--", path]);
       await rm(join(checkout.dir, path), { force: true });
     }
   }

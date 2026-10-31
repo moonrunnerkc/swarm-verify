@@ -9,8 +9,8 @@ inputs:
     description: Base ref to verify against. Defaults to the pull request's base branch.
     default: ""
   isolation:
-    description: "`isolated` runs the checks in a container with the network closed after a recorded dependency stage; `host` runs them on the runner and is reported as not isolated."
-    default: host
+    description: "`isolated` runs the checks in a container from a pinned image with the network closed after a recorded dependency stage; `host` runs them on the runner and is reported as not isolated."
+    default: isolated
   dependencies:
     description: "`prepare` installs from the lockfile (or the base's declared setup command), `none` prepares nothing."
     default: prepare

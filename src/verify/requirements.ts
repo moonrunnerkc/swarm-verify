@@ -234,6 +234,7 @@ export async function assessRequirements(
       kind: requirement.kind,
       required: requirement.required,
       assumptions: [...requirement.assumptions],
+      expected: requirement.evidence,
       evidence,
       ...judged(requirement, evidence, inputs),
     });
