@@ -1,0 +1,124 @@
+import { z } from "zod";
+
+/** The request a caller hands the verifier. A new incompatible shape gets a new version. */
+export const requestVersion = "swarm-verify.request/v1";
+
+export const sha256Schema = z.string().regex(/^[0-9a-f]{64}$/, "a lowercase hex sha256");
+export const commitSchema = z
+  .string()
+  .regex(/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/, "a full lowercase commit id");
+
+export const requirementSources = ["user", "repository-instruction", "inferred"] as const;
+export const requirementKinds = ["fix", "feature", "refactor", "upgrade", "other"] as const;
+/**
+ * Who stands behind a check. Pre-existing checks are the base commit's own; user acceptance
+ * checks and independently generated checks come from the request, outside the candidate;
+ * implementation-authored tests are the candidate's own and count only as labeled evidence.
+ */
+export const checkAuthorities = [
+  "pre-existing",
+  "user-acceptance",
+  "independently-generated",
+  "implementation-authored",
+] as const;
+export type CheckAuthority = (typeof checkAuthorities)[number];
+
+/** A test named the way its runner reports it: the name, and the file where the runner says. */
+const testSelectorSchema = z.strictObject({
+  name: z.string().min(1),
+  file: z.string().min(1).optional(),
+});
+
+/** A structural fact about the candidate tree, for refactors: a file exists, or holds a text. */
+const structureClaimSchema = z.strictObject({
+  path: z.string().min(1),
+  contains: z.string().min(1).optional(),
+  absent: z.boolean().optional(),
+});
+
+/** A dependency an upgrade must resolve to, read from the candidate's lockfile. */
+const packageClaimSchema = z.strictObject({
+  name: z.string().min(1),
+  ecosystem: z.enum(["npm", "pypi"]),
+  version: z.string().min(1).optional(),
+});
+
+export const requirementSchema = z.strictObject({
+  id: z.string().regex(/^R\d+$/, "R followed by a number"),
+  text: z.string().min(1),
+  source: z.enum(requirementSources),
+  kind: z.enum(requirementKinds),
+  required: z.boolean().default(true),
+  assumptions: z.array(z.string().min(1)).default([]),
+  /** Where the evidence for this requirement is expected. A proposal; statuses come from results. */
+  evidence: z
+    .strictObject({
+      tests: z.array(testSelectorSchema).default([]),
+      checks: z.array(z.string().min(1)).default([]),
+      structure: z.array(structureClaimSchema).default([]),
+      packages: z.array(packageClaimSchema).default([]),
+    })
+    .default({ tests: [], checks: [], structure: [], packages: [] }),
+});
+export type Requirement = z.output<typeof requirementSchema>;
+
+/** A check the request supplies: it runs on the candidate but its command is not the candidate's. */
+export const trustedCheckSchema = z.strictObject({
+  name: z.string().regex(/^[\w.-]+$/),
+  command: z.string().min(1),
+  kind: z.enum(["test", "other"]),
+  authority: z.enum(["user-acceptance", "independently-generated"]),
+});
+export type TrustedCheck = z.output<typeof trustedCheckSchema>;
+
+/**
+ * How the checks run. Isolated runs them in a container with the network closed after a
+ * recorded dependency stage; host runs them as the caller's user and is reported as not
+ * isolated. Dependencies are prepared from the lockfile (or the base's declared setup command),
+ * linked from the caller's installed tree (never reproducible), or not prepared at all.
+ */
+export const executionPolicySchema = z.strictObject({
+  mode: z.enum(["isolated", "host"]),
+  network: z.enum(["closed", "open"]).default("closed"),
+  dependencies: z.enum(["prepare", "linked", "none"]).default("prepare"),
+  image: z.string().min(1).optional(),
+});
+export type ExecutionPolicy = z.output<typeof executionPolicySchema>;
+
+/** What produced the candidate, bound into the signed statement. Never used to judge it. */
+export const producerSchema = z.strictObject({
+  name: z.string().min(1).optional(),
+  version: z.string().min(1).optional(),
+  model: z.string().min(1).optional(),
+  promptSha256: sha256Schema.optional(),
+  ledgerSha256: sha256Schema.optional(),
+  reportSha256: sha256Schema.optional(),
+  instructions: z
+    .array(z.strictObject({ path: z.string().min(1), sha256: sha256Schema }))
+    .default([]),
+});
+export type Producer = z.output<typeof producerSchema>;
+
+export const verifyRequestSchema = z.strictObject({
+  version: z.literal(requestVersion),
+  /** A git repository holding the base commit (and the candidate commit, when one is named). */
+  repository: z.string().min(1),
+  base: z.strictObject({ commit: commitSchema }),
+  /** The candidate, by an identity that cannot change under the verifier. */
+  candidate: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("patch"), path: z.string().min(1), sha256: sha256Schema }),
+    z.strictObject({ kind: z.literal("commit"), commit: commitSchema }),
+  ]),
+  requirements: z.array(requirementSchema).default([]),
+  checks: z.array(trustedCheckSchema).default([]),
+  policy: z.strictObject({
+    /** Whether the task authorizes changing what existing tests expect. */
+    behaviorChange: z.enum(["none", "authorized"]).default("none"),
+    execution: executionPolicySchema,
+  }),
+  /** Where the statement, bundle, patch and logs are written. Outside the candidate's tree. */
+  artifacts: z.strictObject({ directory: z.string().min(1) }),
+  producer: producerSchema.default({ instructions: [] }),
+});
+export type VerifyRequestInput = z.input<typeof verifyRequestSchema>;
+export type VerifyRequest = z.output<typeof verifyRequestSchema>;

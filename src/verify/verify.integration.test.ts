@@ -3,8 +3,12 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { resolveChange } from "./change.ts";
 import { seal } from "./held-out.ts";
+import { exitCodeOf } from "./report.ts";
 import { verifyChange } from "./verify.ts";
+
+const hostPolicy = { mode: "host", network: "open", dependencies: "linked" } as const;
 
 let root = "";
 let repo = "";
@@ -46,10 +50,11 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-const verify = () =>
+const verify = async () =>
   verifyChange({
     workspace: repo,
-    request: { kind: "working-tree", base: "HEAD" },
+    change: await resolveChange(repo, { kind: "working-tree", base: "HEAD" }),
+    policy: hostPolicy,
     swarmHome: home,
     version: "test",
   });
@@ -59,7 +64,7 @@ describe("verifying a change in a clean checkout", () => {
     await put("src/clamp.mjs", correct);
     const { statement } = await verify();
     const predicate = statement.predicate;
-    expect(predicate.verdict).toBe("pass");
+    expect(predicate.state).toBe("complete");
     expect(predicate.checks.map((check) => check.result)).toEqual(["pass"]);
     expect(predicate.coverage).toMatchObject({ status: "measured", tool: "v8" });
     expect(predicate.mutation.status).toBe("killed");
@@ -70,7 +75,7 @@ describe("verifying a change in a clean checkout", () => {
     await put("src/clamp.mjs", "export function clamp(value) {\n  return value + 1;\n}\n");
     const outcome = await verify();
     const predicate = outcome.statement.predicate;
-    expect(predicate.verdict).toBe("unmeasured");
+    expect(exitCodeOf(predicate)).toBe(4);
     expect(predicate.checks[0]).toMatchObject({ result: "pre-existing-failure" });
     expect(predicate.checks[0]?.baseOutputSha256).toMatch(/^[0-9a-f]{64}$/);
     expect(outcome.failureText).toContain("node --test");
@@ -80,7 +85,7 @@ describe("verifying a change in a clean checkout", () => {
     await put("src/clamp.mjs", "export function clamp() {\n  return 5;\n}\n");
     await put("test/clamp.test.mjs", visibleTest.replace("clamp(9, 0, 5), 5", "5, 5"));
     const predicate = (await verify()).statement.predicate;
-    expect(predicate.verdict).toBe("fail");
+    expect(exitCodeOf(predicate)).toBe(1);
     expect(predicate.protectedPaths.violations).toEqual([
       { path: "test/clamp.test.mjs", category: "tests" },
     ]);
@@ -90,7 +95,7 @@ describe("verifying a change in a clean checkout", () => {
     await put("swarm.toml", '[checks]\ntest = "true"\n');
     const predicate = (await verify()).statement.predicate;
     expect(predicate.checks[0]?.command).toBe("node --test");
-    expect(predicate.verdict).not.toBe("pass");
+    expect(predicate.state).not.toBe("complete");
   });
 
   it("measures the held-out gap for a change that only satisfies the visible test", async () => {
@@ -115,7 +120,7 @@ describe("verifying a change in a clean checkout", () => {
       heldOutPassRate: 0,
       gap: 1,
     });
-    expect(predicate.verdict).toBe("fail");
+    expect(exitCodeOf(predicate)).toBe(1);
   });
 
   it("reports a change that does not apply as a failed verdict", async () => {
@@ -126,20 +131,22 @@ describe("verifying a change in a clean checkout", () => {
     );
     const outcome = await verifyChange({
       workspace: repo,
-      request: { kind: "patch", path: patch, base: "HEAD" },
+      change: await resolveChange(repo, { kind: "patch", path: patch, base: "HEAD" }),
+      policy: hostPolicy,
       swarmHome: home,
       version: "test",
     });
-    expect(outcome.statement.predicate.verdict).toBe("fail");
+    expect(exitCodeOf(outcome.statement.predicate)).toBe(1);
     expect(outcome.statement.predicate.change.applied).toBe(false);
   });
 
-  it("is unmeasured where nothing declares a check", async () => {
+  it("is blocked where nothing declares a check", async () => {
     await rm(join(repo, "swarm.toml"));
     run(["commit", "-qam", "no checks"]);
     await put("src/clamp.mjs", correct);
     const predicate = (await verify()).statement.predicate;
-    expect(predicate.verdict).toBe("unmeasured");
+    expect(predicate.state).toBe("blocked");
+    expect(exitCodeOf(predicate)).toBe(5);
   });
 });
 
@@ -178,7 +185,7 @@ describe("measuring every check at the base commit first", () => {
       `check red: fails at the base commit (output sha256:${red}) and still fails`,
     );
     // Unmeasured is its own result: an inherited failure never lets the verdict pass.
-    expect(predicate.verdict).toBe("unmeasured");
+    expect(exitCodeOf(predicate)).toBe(4);
   });
 
   it("fails a check that passes at base and fails with the change, as a regression", async () => {
@@ -188,7 +195,7 @@ describe("measuring every check at the base commit first", () => {
     expect(predicate.reasons).toContain(
       "check syntax regressed: it passes at the base commit and fails with the change",
     );
-    expect(predicate.verdict).toBe("fail");
+    expect(exitCodeOf(predicate)).toBe(1);
   });
 
   it("reuses the base run for the same base commit and environment", async () => {
@@ -219,7 +226,7 @@ describe("judging held-out checks the code under test cannot disable", () => {
     expect(predicate.reasons).toContain(
       "held-out check test: the code under test changed assert.strict.equal",
     );
-    expect(predicate.verdict).toBe("fail");
+    expect(exitCodeOf(predicate)).toBe(1);
   });
 
   it("does the same for Python, where the source patches unittest, and passes an honest fix", async () => {
@@ -244,10 +251,10 @@ describe("judging held-out checks the code under test cannot disable", () => {
     expect(cheat.reasons).toContain(
       "held-out check test: the code under test changed unittest.TestCase.assertEqual",
     );
-    expect(cheat.verdict).toBe("fail");
+    expect(exitCodeOf(cheat)).toBe(1);
     await put("half.py", "def half(n):\n    return n / 2\n");
     const honest = (await verify()).statement.predicate;
-    expect(honest.verdict).toBe("pass");
+    expect(honest.state).toBe("complete");
     expect(honest.heldOut).toMatchObject({ status: "measured", heldOutPassRate: 1 });
   });
 });

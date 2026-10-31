@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-const cli = resolve(import.meta.dirname, "cli.ts");
-const verifier = resolve(import.meta.dirname, "..", "packages", "swarm-verify", "verify.mjs");
+const cli = resolve(import.meta.dirname, "swarm-verify.ts");
+const verifier = resolve(import.meta.dirname, "..", "verify.mjs");
 const signingKey = generateKeyPairSync("ed25519")
   .privateKey.export({ type: "pkcs8", format: "pem" })
   .toString();
@@ -51,7 +51,7 @@ afterAll(async () => {
 describe("swarm verify and verify.mjs", () => {
   it("verifies a ref range, signs it, and the dependency-free script agrees", async () => {
     const ran = node([cli, "verify", "--range", "main..fix", "--out", out]);
-    expect(ran.stdout).toMatch(/^verdict\s+pass$/m);
+    expect(ran.stdout).toMatch(/^state\s+complete/m);
     expect(ran.status).toBe(0);
 
     const tree = join(root, "tree");
@@ -85,7 +85,8 @@ describe("swarm verify and verify.mjs", () => {
       join(out, "attestation.pub.pem"),
     ]);
     expect(checked.stdout).toContain("FAILED signature");
-    expect(checked.status).toBe(1);
+    // Integrity failing is its own exit code, apart from a task that was not accepted.
+    expect(checked.status).toBe(6);
   });
 
   it("exits 1 for a failing change and 2 for a command line it cannot read", () => {
@@ -99,7 +100,7 @@ describe("swarm verify and verify.mjs", () => {
 
   it("lists exactly the commands it has", () => {
     const help = node([cli, "--help"]).stdout;
-    const listed = [...help.matchAll(/^ {2}swarm (\S+)/gm)].map((match) => match[1]);
-    expect(listed).toEqual(["run", "verify", "init", "ci", "doctor"]);
+    const listed = [...help.matchAll(/^ {2}swarm-verify (\S+)/gm)].map((match) => match[1]);
+    expect(listed).toEqual(["verify", "init", "ci"]);
   });
 });

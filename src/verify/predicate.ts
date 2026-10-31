@@ -1,9 +1,17 @@
 import { z } from "zod";
+import {
+  executionSchema,
+  overallStates,
+  regressionSchema,
+  requirementOutcomeSchema,
+} from "../api/outcome.ts";
+import { checkAuthorities, producerSchema } from "../api/request.ts";
 import { protectedCategories } from "../config/swarm-toml.ts";
 import { statementType } from "./dsse.ts";
 import { runners } from "./test-report.ts";
 
-export const predicateType = "https://swarm-verify.dev/verdict/v1";
+/** The signed result. Version 1 of the result model; the verdict/v1 predicate it replaces is retired. */
+export const predicateType = "https://github.com/moonrunnerkc/swarm-verify/result/v1";
 
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/);
 const rate = z.number().min(0).max(1);
@@ -41,6 +49,7 @@ export const checkResultSchema = z.object({
   name: z.string().min(1),
   command: z.string().min(1),
   kind: z.enum(["test", "other"]),
+  authority: z.enum(checkAuthorities),
   // pre-existing-failure: judged by exit code, failed at the base commit and still fails, so it
   // measures nothing here. unmeasured: a runner's report was expected and could not be read.
   result: z.enum(["pass", "fail", "error", "pre-existing-failure", "unmeasured"]),
@@ -111,16 +120,20 @@ export const baselineSchema = z.discriminatedUnion("status", [
 export type Baseline = z.infer<typeof baselineSchema>;
 
 export const predicateSchema = z.object({
-  verdict: z.enum(["pass", "fail", "unmeasured"]),
+  state: z.enum(overallStates),
+  /** requirements: the request named requirements; regression-only: it named none. */
+  scope: z.enum(["requirements", "regression-only"]),
   reasons: z.array(z.string()),
   base: z.object({ commit: z.string().min(1) }),
   change: z.object({
-    source: z.enum(["working-tree", "range", "patch"]),
+    source: z.enum(["working-tree", "range", "patch", "commit"]),
     applied: z.boolean(),
     files: z.array(
       z.object({ path: z.string(), status: z.enum(["added", "modified", "deleted"]) }),
     ),
   }),
+  requirements: z.array(requirementOutcomeSchema),
+  regression: regressionSchema,
   checks: z.array(checkResultSchema),
   baseline: baselineSchema,
   heldOut: heldOutSchema,
@@ -131,14 +144,15 @@ export const predicateSchema = z.object({
   }),
   coverage: coverageSchema,
   mutation: mutationSchema,
-  producer: z.object({ model: z.string().optional(), promptSha256: sha256.optional() }),
+  producer: producerSchema,
   environment: z.object({
     sha256,
     node: z.string(),
     platform: z.string(),
     git: z.string(),
-    dependencies: z.enum(["linked", "setup", "none"]),
+    dependencies: z.enum(["prepared", "linked", "setup", "none"]),
   }),
+  execution: executionSchema,
   unmeasured: z.array(z.string()),
   verifier: z.object({ name: z.literal("swarm-verify"), version: z.string() }),
 });

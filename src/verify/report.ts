@@ -2,16 +2,59 @@ import type { Predicate } from "./predicate.ts";
 
 const percent = (rate: number) => `${Math.round(rate * 100)}%`;
 
+/** Whether anything in the result failed outright, as opposed to staying unverified. */
+export function somethingFailed(predicate: Predicate): boolean {
+  return (
+    !predicate.change.applied ||
+    predicate.regression.status === "found" ||
+    predicate.protectedPaths.violations.length > 0 ||
+    predicate.checks.some((check) => check.result === "fail" || check.result === "error") ||
+    (predicate.heldOut.status === "measured" && predicate.heldOut.heldOutPassRate < 1) ||
+    predicate.requirements.some((one) => one.required && one.status === "failed")
+  );
+}
+
+/**
+ * 0 complete; 1 incomplete because something failed; 4 incomplete because something stayed
+ * unverified or unresolved; 5 blocked. 2 (unreadable command line) and 3 (cancelled) come
+ * from the command line itself.
+ */
+export function exitCodeOf(predicate: Predicate): number {
+  if (predicate.state === "complete") return 0;
+  if (predicate.state === "blocked") return 5;
+  return somethingFailed(predicate) ? 1 : 4;
+}
+
 function lines(predicate: Predicate): readonly (readonly [string, string])[] {
-  const rows: [string, string][] = [["verdict", predicate.verdict]];
+  const rows: [string, string][] = [
+    [
+      "state",
+      predicate.scope === "regression-only"
+        ? `${predicate.state} (regression only: no requirements were declared)`
+        : predicate.state,
+    ],
+  ];
   for (const reason of predicate.reasons) rows.push(["reason", reason]);
+  for (const requirement of predicate.requirements) {
+    const why = requirement.limitation === null ? "" : `: ${requirement.limitation}`;
+    rows.push([
+      "requirement",
+      `${requirement.id} ${requirement.status}${why} (${requirement.text})`,
+    ]);
+  }
+  const regression = predicate.regression;
+  rows.push([
+    "regression",
+    `${regression.status}${regression.newFailures.length > 0 ? `: new failures ${regression.newFailures.slice(0, 5).join(", ")}` : ""}${regression.inherited.length > 0 ? `; ${regression.inherited.length} inherited` : ""}${regression.unresolved.length > 0 ? `; unresolved ${regression.unresolved.join(", ")}` : ""}`,
+  ]);
   rows.push(["base", predicate.base.commit]);
   rows.push([
     "change",
     `${predicate.change.files.length} file(s) from the ${predicate.change.source}`,
   ]);
-  for (const check of predicate.checks)
-    rows.push(["check", `${check.name}: ${check.result} (${check.command})`]);
+  for (const check of predicate.checks) {
+    rows.push(["check", `${check.name}: ${check.result} (${check.command}, ${check.authority})`]);
+  }
   const baseline = predicate.baseline;
   const atBase = baseline.status === "measured" ? baseline.checks : [];
   rows.push([
@@ -28,12 +71,12 @@ function lines(predicate: Predicate): readonly (readonly [string, string])[] {
       : `unmeasured: ${heldOut.reason}`,
   ]);
   const protectedPaths = predicate.protectedPaths;
-  rows.push([
-    "protected",
-    protectedPaths.violations.length > 0
-      ? `${protectedPaths.violations.length} violation(s): ${protectedPaths.violations.map((v) => v.path).join(", ")}`
-      : `${protectedPaths.changed.length} protected path(s) changed, none together with source`,
-  ]);
+  if (protectedPaths.violations.length > 0) {
+    rows.push([
+      "protected",
+      `${protectedPaths.violations.length} violation(s): ${protectedPaths.violations.map((v) => v.path).join(", ")}`,
+    ]);
+  }
   const coverage = predicate.coverage;
   rows.push([
     "coverage",
@@ -48,10 +91,12 @@ function lines(predicate: Predicate): readonly (readonly [string, string])[] {
       ? `unmeasured: ${mutation.reason}`
       : `${mutation.status}: ${mutation.operator} at ${mutation.path}:${mutation.line}`,
   ]);
+  const execution = predicate.execution;
   rows.push([
-    "environment",
-    `sha256:${predicate.environment.sha256} (dependencies ${predicate.environment.dependencies})`,
+    "execution",
+    `${execution.statement}; dependencies ${execution.dependencies.note}${execution.problems.length > 0 ? `; ${execution.problems.join("; ")}` : ""}`,
   ]);
+  rows.push(["environment", `sha256:${predicate.environment.sha256}`]);
   return rows;
 }
 
@@ -64,7 +109,7 @@ export function renderText(predicate: Predicate): string {
 export function renderMarkdown(predicate: Predicate): string {
   const cell = (text: string) => text.replaceAll("|", "\\|").replaceAll("\n", " ");
   return [
-    `### swarm-verify: ${predicate.verdict}`,
+    `### swarm-verify: ${predicate.state}`,
     "",
     "| | |",
     "| --- | --- |",
@@ -72,5 +117,3 @@ export function renderMarkdown(predicate: Predicate): string {
     "",
   ].join("\n");
 }
-
-export const verdictExitCode = { pass: 0, fail: 1, unmeasured: 4 } as const;

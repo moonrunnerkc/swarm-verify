@@ -1,32 +1,40 @@
 #!/usr/bin/env node
 // Checks a swarm-verify attestation with nothing but Node: the DSSE signature over the in-toto
-// Statement, and the subject digests recomputed from the files you name.
+// Statement, the subject digests recomputed from the files you name, and the recorded state
+// re-derived from the recorded evidence.
 //
 //   node verify.mjs <attestation.sigstore.json> --key <public.pem> [--patch <file>] [--tree <dir>]
+//                   [--integrity-only]
 //
-// Exit 0 when the signature verifies and every named file matches its subject, 1 when anything
-// does not, 2 for a command line it cannot read. The verdict inside is printed, not enforced.
+// Integrity and acceptance are separate answers with separate exit codes:
+//   0  integrity holds and the task is accepted: the state is complete and the evidence supports it
+//   1  integrity holds and the task is not accepted: incomplete or blocked
+//   6  integrity fails: a signature, subject or statement problem, or a recorded state the
+//      recorded evidence does not support
+//   2  a command line it cannot read
+// With --integrity-only, acceptance is not judged: 0 when integrity holds, 6 when it does not.
 import { createHash, createPublicKey, verify } from "node:crypto";
 import { lstatSync, readdirSync, readFileSync, readlinkSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
 const payloadType = "application/vnd.in-toto+json";
 const statementType = "https://in-toto.io/Statement/v1";
-const predicateType = "https://swarm-verify.dev/verdict/v1";
+const predicateType = "https://github.com/moonrunnerkc/swarm-verify/result/v1";
 
 function usage(problem) {
   process.stderr.write(
-    `${problem}\nusage: node verify.mjs <attestation> --key <public.pem> [--patch <file>] [--tree <dir>]\n`,
+    `${problem}\nusage: node verify.mjs <attestation> --key <public.pem> [--patch <file>] [--tree <dir>] [--integrity-only]\n`,
   );
   process.exit(2);
 }
 
 function parse(argv) {
-  const options = { attestation: null, key: null, patch: null, tree: null };
+  const options = { attestation: null, key: null, patch: null, tree: null, integrityOnly: false };
   for (let at = 0; at < argv.length; at += 1) {
     const word = argv[at];
     const flag = /^--(key|patch|tree)$/.exec(word);
-    if (flag !== null) {
+    if (word === "--integrity-only") options.integrityOnly = true;
+    else if (flag !== null) {
       if (argv[at + 1] === undefined) usage(`${word} needs a value`);
       options[flag[1]] = argv[++at];
     } else if (word.startsWith("--")) usage(`unknown option ${word}`);
@@ -131,15 +139,62 @@ if (statement !== null) {
   }
 }
 
+/**
+ * The state the recorded evidence supports, by the rule the verifier applies: complete only when
+ * the change applied, every required requirement is satisfied with passing evidence, nothing
+ * regressed or stayed unresolved, no check or held-out check failed, and the execution policy
+ * was met. A recorded `blocked` stands: it can only withhold acceptance, never grant it.
+ */
+function derivedState(predicate) {
+  if (predicate.state === "blocked") return "blocked";
+  const passing = new Set(["fixed", "pass", "observed", "added-passing", "preserved", "resolved"]);
+  const required = (predicate.requirements ?? []).filter((one) => one.required);
+  const satisfied = required.every(
+    (one) =>
+      one.status === "satisfied" &&
+      (one.evidence ?? []).length > 0 &&
+      one.evidence.every((ref) => passing.has(ref.outcome)),
+  );
+  const checksHold = (predicate.checks ?? []).every((check) => check.result === "pass");
+  const heldOut = predicate.heldOut;
+  const heldOutHolds = heldOut?.status !== "measured" || heldOut.heldOutPassRate === 1;
+  return predicate.change?.applied === true &&
+    satisfied &&
+    predicate.regression?.status === "none" &&
+    predicate.execution?.policyMet === true &&
+    checksHold &&
+    heldOutHolds
+    ? "complete"
+    : "incomplete";
+}
+
+const predicate = statement?.predicate;
+if (signed && predicate !== undefined && predicate !== null) {
+  const derived = derivedState(predicate);
+  check(
+    "state",
+    derived === predicate.state || (derived === "incomplete" && predicate.state === "incomplete"),
+    derived === predicate.state
+      ? `${predicate.state}, supported by the recorded evidence`
+      : `recorded ${predicate.state}, but the recorded evidence supports ${derived}`,
+  );
+}
+
 for (const result of results) {
   process.stdout.write(
     `${result.ok ? "ok    " : "FAILED"} ${result.name.padEnd(9)} ${result.detail}\n`,
   );
 }
-const predicate = statement?.predicate;
-if (signed && predicate !== undefined) {
+const intact = results.every((result) => result.ok);
+if (intact && predicate !== undefined && predicate !== null) {
+  process.stdout.write(`execution ${predicate.execution?.statement ?? "not recorded"}\n`);
+  for (const one of predicate.requirements ?? []) {
+    process.stdout.write(
+      `${one.id.padEnd(9)} ${one.status}${one.limitation ? `: ${one.limitation}` : ""}\n`,
+    );
+  }
   process.stdout.write(
-    `verdict   ${predicate.verdict}${predicate.reasons?.length ? `: ${predicate.reasons.join("; ")}` : ""}\n`,
+    `state     ${predicate.state}${predicate.reasons?.length ? `: ${predicate.reasons.join("; ")}` : ""}\n`,
   );
 }
-process.exitCode = results.every((result) => result.ok) ? 0 : 1;
+process.exitCode = !intact ? 6 : options.integrityOnly || predicate?.state === "complete" ? 0 : 1;

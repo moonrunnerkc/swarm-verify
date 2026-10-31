@@ -100,6 +100,8 @@ export interface WrittenAttestation {
   readonly patch: string;
   /** The public key to verify against; null where Sigstore signed keylessly. */
   readonly publicKey: string | null;
+  /** The signing key's fingerprint; null where Sigstore signed keylessly. */
+  readonly fingerprint: string | null;
   readonly notice: string | null;
 }
 
@@ -122,11 +124,17 @@ export async function writeAttestation(
   await writeFile(paths.patch, patch, { mode: 0o600 });
   if (options.sigstore) {
     await signWithCosign(statement, directory, paths.bundle);
-    return { bundle: paths.bundle, patch: paths.patch, publicKey: null, notice: null };
+    return {
+      bundle: paths.bundle,
+      patch: paths.patch,
+      publicKey: null,
+      fingerprint: null,
+      notice: null,
+    };
   }
   const { key, notice } = await options.resolveKey();
   const bundle = bundleOf(signStatement(statement, key), key);
   await writeFile(paths.bundle, `${JSON.stringify(bundle, null, 2)}\n`, { mode: 0o600 });
   await writeFile(paths.publicKey, key.publicKeyPem, { mode: 0o644 });
-  return { ...paths, notice };
+  return { ...paths, fingerprint: key.fingerprint, notice };
 }

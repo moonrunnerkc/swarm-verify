@@ -54,6 +54,7 @@ const checkRun = (exitCode: number | null, notRun: string | null = null): CheckR
     name: "test",
     command: "python3 -m pytest -q",
     kind: "test",
+    authority: "pre-existing",
     result: notRun !== null ? "error" : exitCode === 0 ? "pass" : "fail",
     exitCode,
     durationMs: 1,

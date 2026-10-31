@@ -7,12 +7,13 @@ import { fileURLToPath } from "node:url";
 import { buildFixture, fixtures } from "./fixtures.mjs";
 import { generatePatches } from "./generate.mjs";
 
-// Runs `swarm verify` on every honest and cheating patch and reports what it flagged.
+// Runs `swarm-verify verify` on every honest and cheating patch and reports what it flagged:
+// anything short of a complete state is flagged.
 // Usage: node eval/tamper/run.mjs [--keep]   (--keep leaves the scratch directory in place)
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const cli = join(repoRoot, "src", "cli.ts");
-const exitVerdicts = { 0: "pass", 1: "fail", 4: "unmeasured" };
+const cli = join(repoRoot, "src", "swarm-verify.ts");
+const exitStates = { 0: "complete", 1: "incomplete", 4: "incomplete", 5: "blocked" };
 
 function verifyPatch(patch, workspace, out, env) {
   const args = [cli, "verify", "--workspace", workspace, "--patch", patch.path];
@@ -25,18 +26,18 @@ function verifyPatch(patch, workspace, out, env) {
   } catch {
     // Left null: reported below as an error with what the verifier printed.
   }
-  const expected = exitVerdicts[ran.status];
-  if (printed === null || expected === undefined || printed.verdict !== expected) {
+  const expected = exitStates[ran.status];
+  if (printed === null || expected === undefined || printed.state !== expected) {
     const detail = `${ran.stderr}${ran.stdout}`.trim().slice(-2000);
-    return { verdict: "error", reasons: [`exit ${ran.status ?? ran.signal}: ${detail}`] };
+    return { state: "error", reasons: [`exit ${ran.status ?? ran.signal}: ${detail}`] };
   }
-  return { verdict: printed.verdict, reasons: printed.predicate.reasons };
+  return { state: printed.state, reasons: printed.reasons };
 }
 
 export function summarize(cases) {
   const honest = cases.filter((one) => one.kind === "honest");
   const cheats = cases.filter((one) => one.kind === "cheat");
-  const flagged = (list) => list.filter((one) => one.verdict !== "pass").length;
+  const flagged = (list) => list.filter((one) => one.state !== "complete").length;
   const flaggedHonest = flagged(honest);
   const flaggedCheats = flagged(cheats);
   const allFlagged = flaggedHonest + flaggedCheats;
@@ -44,7 +45,7 @@ export function summarize(cases) {
   for (const one of cheats) {
     const entry = byTechnique[one.technique] ?? { cases: 0, flagged: 0 };
     entry.cases += 1;
-    if (one.verdict !== "pass") entry.flagged += 1;
+    if (one.state !== "complete") entry.flagged += 1;
     byTechnique[one.technique] = entry;
   }
   return {
@@ -96,9 +97,9 @@ async function main() {
     for (const patch of patches) {
       const out = join(scratch, "out", patch.id);
       const result = verifyPatch(patch, repoDirs[patch.repo], out, env);
-      process.stderr.write(`${patch.id}: ${result.verdict}\n`);
+      process.stderr.write(`${patch.id}: ${result.state}\n`);
       const { id, repo, kind, technique } = patch;
-      cases.push({ id, repo, kind, technique, verdict: result.verdict, reasons: result.reasons });
+      cases.push({ id, repo, kind, technique, state: result.state, reasons: result.reasons });
     }
     const summary = summarize(cases);
     const generatedAt = new Date().toISOString();
@@ -112,7 +113,7 @@ async function main() {
     const report = { generatedAt, commit, node: process.version, cases, summary };
     await writeFile(file, `${JSON.stringify(report, null, 2)}\n`);
     process.stdout.write(`${renderTable(summary)}\n\nWrote ${file}\n`);
-    const errors = cases.filter((one) => one.verdict === "error").length;
+    const errors = cases.filter((one) => one.state === "error").length;
     if (errors > 0) process.stdout.write(`${errors} case(s) crashed the verifier; see reasons.\n`);
   } finally {
     if (keep) process.stderr.write(`kept ${scratch}\n`);

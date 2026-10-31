@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { resolveChange } from "./change.ts";
+import { exitCodeOf } from "./report.ts";
 import { verifyChange } from "./verify.ts";
+
+const hostPolicy = { mode: "host", network: "open", dependencies: "linked" } as const;
 
 // A real runner: this repository's own vitest, run in the clean checkout with its JSON reporter.
 const vitest = fileURLToPath(new URL("../../node_modules/.bin/vitest", import.meta.url));
@@ -53,7 +57,8 @@ const verify = async () =>
   (
     await verifyChange({
       workspace: repo,
-      request: { kind: "working-tree", base: "HEAD" },
+      change: await resolveChange(repo, { kind: "working-tree", base: "HEAD" }),
+      policy: hostPolicy,
       swarmHome: join(root, "swarm-home"),
       version: "test",
     })
@@ -63,7 +68,7 @@ describe("judging a suite that fails at the base commit test by test", () => {
   it("passes a fix with the command failing at both commits, and reuses the base report", async () => {
     await put("src/clamp.mjs", clamp("return Math.min(high, Math.max(low, value));"));
     const predicate = await verify();
-    expect(predicate.verdict).toBe("pass");
+    expect(predicate.state).toBe("complete");
     expect(predicate.checks[0]).toMatchObject({
       result: "pass",
       exitCode: 1,
@@ -79,13 +84,13 @@ describe("judging a suite that fails at the base commit test by test", () => {
     expect(predicate.mutation.status).toBe("killed");
     const again = await verify();
     expect(again.baseline).toMatchObject({ cached: true });
-    expect(again.verdict).toBe("pass");
+    expect(again.state).toBe("complete");
   });
 
   it("fails a change that fixes one test and breaks another", async () => {
     await put("src/clamp.mjs", clamp("return high;"));
     const predicate = await verify();
-    expect(predicate.verdict).toBe("fail");
+    expect(exitCodeOf(predicate)).toBe(1);
     expect(predicate.checks[0]?.tests).toMatchObject({
       fixed: ["test/clamp.test.mjs::above"],
       regressed: ["test/clamp.test.mjs::inside"],

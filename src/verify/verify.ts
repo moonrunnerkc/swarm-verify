@@ -1,12 +1,16 @@
 import { createHash } from "node:crypto";
 import { dirname } from "node:path";
+import type { ExecutionPolicy, Producer, Requirement, TrustedCheck } from "../api/request.ts";
 import { detectChecks } from "../config/detect.ts";
 import { readSwarmToml, type SwarmToml } from "../config/swarm-toml.ts";
-import { type ChangeRequest, resolveChange } from "./change.ts";
+import { executionOf, regressionOf, stateOf, unmeasuredOf } from "./assess.ts";
+import type { ResolvedChange } from "./change.ts";
 import { applyChange, cloneBase, restoreFromBase } from "./checkout.ts";
 import {
+  allChecks,
   type CheckRun,
   environmentOf,
+  lockfileDigests,
   passRate,
   prepareDependencies,
   privateHome,
@@ -26,12 +30,16 @@ import {
 import type { Baseline, Coverage, HeldOut, Mutation, Predicate, Statement } from "./predicate.ts";
 import { buildStatement } from "./predicate.ts";
 import { categoryOf, checkProtectedPaths } from "./protected-paths.ts";
+import { assessRequirements } from "./requirements.ts";
 import type { TestEvidence } from "./test-report.ts";
 
 export interface VerifyOptions {
   readonly workspace: string;
-  readonly request: ChangeRequest;
-  readonly producer?: { readonly model?: string; readonly promptSha256?: string };
+  readonly change: ResolvedChange;
+  readonly requirements?: readonly Requirement[];
+  readonly trustedChecks?: readonly TrustedCheck[];
+  readonly policy: ExecutionPolicy;
+  readonly producer?: Producer;
   readonly swarmHome?: string;
   readonly signal?: AbortSignal;
   readonly version: string;
@@ -47,13 +55,16 @@ export interface VerifyOutcome {
 const skipped = (reason: string) => ({ status: "unmeasured" as const, reason });
 
 export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcome> {
-  const change = await resolveChange(options.workspace, options.request);
+  const change = options.change;
   const checkout = await cloneBase(options.workspace, change.baseCommit);
   const home = options.swarmHome ?? swarmHome();
   try {
     // Read from the base before the change is applied, so the change cannot rewrite its judges.
     const config: SwarmToml | null = await readSwarmToml(checkout.dir);
-    const checks = config?.checks ?? (await detectChecks(checkout.dir));
+    const checks = allChecks(
+      config?.checks ?? (await detectChecks(checkout.dir)),
+      options.trustedChecks ?? [],
+    );
     const sealed = await readSealed(options.workspace, home);
     const scratch = dirname(checkout.dir);
     const context = {
@@ -76,8 +87,11 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
     const dependencies = await prepareDependencies(
       options.workspace,
       config?.setup ?? null,
+      options.policy.dependencies,
       context,
     );
+    const blocked: string[] = [];
+    let requirementOutcomes: Awaited<ReturnType<typeof assessRequirements>> | null = null;
     // Runners are read from the base's package.json, as the checks themselves are.
     const plans = await reportPlans(checkout.dir, checks);
     if (checks.length > 0 && dependencies.failure === null) {
@@ -106,18 +120,25 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       protectedPaths.changed.some((f) => f.category === "lockfiles" || f.category === "manifests")
         ? await runCheck({ name: "setup", command: config.setup, kind: "other" }, context)
         : null;
-    const setupFailure =
-      dependencies.failure ?? (resetup?.result.result === "pass" ? null : resetup);
+    const resetupFailure = resetup?.result.result === "pass" ? null : resetup;
+    if (options.policy.mode === "isolated") {
+      blocked.push(
+        "isolated execution was requested and this verifier build runs only on the host",
+      );
+    }
 
     if (!applied.applied) {
       reasons.push(applied.reason);
       failures.push(applied.reason);
     } else if (checks.length === 0) {
-      reasons.push("no checks are declared in swarm.toml or the project's manifests");
-    } else if (setupFailure !== null) {
-      reasons.push("the setup command failed");
-      failures.push(`setup failed:\n${setupFailure.outputTail}`);
-    } else {
+      blocked.push("no checks are declared in swarm.toml or the project's manifests");
+    } else if (dependencies.failure !== null) {
+      blocked.push("preparing the base's dependencies failed");
+      failures.push(`setup failed:\n${dependencies.failure.outputTail}`);
+    } else if (resetupFailure !== null) {
+      reasons.push("the setup command failed on the changed tree");
+      failures.push(`setup failed:\n${resetupFailure.outputTail}`);
+    } else if (blocked.length === 0) {
       const base = baseline.status === "measured" ? baseline.checks : [];
       const source = applied.result.changed.filter(
         (file) => file.status !== "deleted" && categoryOf(file.path) === null,
@@ -167,6 +188,11 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       mutation = runs.every((run) => run.result.result === "pass")
         ? await mutationWitness(source, coverage, tests.length === 0 ? null : killed, context)
         : skipped("a check did not pass, so no mutant can be told apart from that failure");
+      requirementOutcomes = await assessRequirements(options.requirements ?? [], {
+        checks: runs.map((run) => run.result),
+        dir: checkout.dir,
+        changed: change.patch.length > 0,
+      });
       if (sealed !== null) {
         await restoreFromBase(
           checkout,
@@ -202,13 +228,25 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       !applied.applied ||
       failures.length > 0 ||
       (heldOut.status === "measured" && heldOut.heldOutPassRate < 1);
-    // A check that fails at base and still fails leaves the change unmeasured, never passed.
-    const inherited = runs.some(
-      (run) => run.result.result === "pre-existing-failure" || run.result.result === "unmeasured",
-    );
-    const verdict = failed ? "fail" : checks.length === 0 || inherited ? "unmeasured" : "pass";
+    // Where the checks never ran, every requirement is judged on no executed evidence.
+    const requirements =
+      requirementOutcomes ??
+      (await assessRequirements(options.requirements ?? [], {
+        checks: [],
+        dir: checkout.dir,
+        changed: change.patch.length > 0,
+      }));
+    const regression = regressionOf(runs.map((run) => run.result));
+    const execution = executionOf(options.policy, {
+      mode: dependencies.mode,
+      lockfiles: await lockfileDigests(checkout.dir),
+      treeSha256: null,
+    });
+    reasons.unshift(...blocked);
+    const state = stateOf({ blocked, requirements, regression, execution, failed });
     const predicate: Predicate = {
-      verdict,
+      state,
+      scope: (options.requirements ?? []).length > 0 ? "requirements" : "regression-only",
       reasons,
       base: { commit: change.baseCommit },
       change: {
@@ -218,6 +256,8 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
           ? applied.result.changed.map(({ path, status }) => ({ path, status }))
           : [],
       },
+      requirements,
+      regression,
       checks: runs.map((run) => run.result),
       baseline,
       heldOut,
@@ -228,33 +268,17 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       },
       coverage,
       mutation,
-      producer: { ...options.producer },
+      producer: options.producer ?? { instructions: [] },
       environment: await environmentOf(checkout.dir, checks, dependencies.mode),
-      unmeasured: [
-        ...runs
-          .filter((run) => run.result.result === "pre-existing-failure")
-          .map(
-            (run) =>
-              `check ${run.result.name}: fails at the base commit (output sha256:${run.result.baseOutputSha256}) and still fails`,
-          ),
-        ...unmeasuredChecks,
-        ...(baseline.status === "measured" ? baseline.heldOut : [])
-          .filter((check) => check.result === "pass")
-          .map(
-            (check) =>
-              `held-out check ${check.name}: passes at the base commit, so it does not tell this change apart`,
-          ),
-        ...(
-          [
-            ["baseline", baseline],
-            ["held-out", heldOut],
-            ["coverage", coverage],
-            ["mutation", mutation],
-          ] as const
-        ).flatMap(([name, value]) =>
-          value.status === "unmeasured" ? [`${name}: ${value.reason}`] : [],
-        ),
-      ],
+      execution,
+      unmeasured: unmeasuredOf({
+        checks: runs.map((run) => run.result),
+        unmeasuredChecks,
+        baseline,
+        heldOut,
+        coverage,
+        mutation,
+      }),
       verifier: { name: "swarm-verify", version: options.version },
     };
     const statement = buildStatement({

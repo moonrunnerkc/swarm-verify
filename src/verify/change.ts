@@ -70,7 +70,7 @@ export type ChangeRequest =
   | { readonly kind: "patch"; readonly path: string; readonly base: string };
 
 export interface ResolvedChange {
-  readonly source: ChangeRequest["kind"];
+  readonly source: ChangeRequest["kind"] | "commit";
   readonly baseCommit: string;
   readonly patch: Buffer;
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // A Model Context Protocol server over stdio with one tool, verify, which runs this package's
-// own `swarm-verify verify --json` and returns its predicate. It implements nothing of the
+// own `swarm-verify verify --json` and returns its result. It implements nothing of the
 // verifier: a client gets exactly what the command line would print, and nothing else.
 //
 //   node mcp.mjs            (an MCP client starts it; messages are newline-delimited JSON-RPC)
@@ -16,7 +16,7 @@ const { version } = JSON.parse(readFileSync(new URL("./package.json", import.met
 const tool = {
   name: "verify",
   description:
-    "Rerun the repository's declared checks on a change in a clean checkout of its base, run its held-out checks, and sign the verdict. Returns the predicate: verdict, reasons, every check, the base run, held-out results, protected paths, coverage, mutation and what was not measured.",
+    "Measure a change against the repository's own checks in a clean checkout of its base, test by test, and sign the result. Returns the swarm-verify result: the state (complete, incomplete or blocked), requirement outcomes, regressions, every check, the base run, coverage, mutation, execution assurance, integrity and what was not measured.",
   inputSchema: {
     type: "object",
     properties: {
@@ -62,19 +62,19 @@ async function callTool(params) {
   try {
     printed = JSON.parse(ran.stdout.trim().split("\n").at(-1) ?? "");
   } catch {
-    // No verdict came back: reported below as a tool error with what the command printed.
+    // No result came back: reported below as a tool error with what the command printed.
   }
   if (printed === null) {
-    const text = `swarm-verify exited ${ran.code} without a verdict:\n${`${ran.stderr}${ran.stdout}`.trim()}`;
+    const text = `swarm-verify exited ${ran.code} without a result:\n${`${ran.stderr}${ran.stdout}`.trim()}`;
     return { content: [{ type: "text", text }], isError: true };
   }
-  const summary = `verdict ${printed.verdict}; attestation ${printed.bundle}`;
+  const summary = `state ${printed.state}; attestation ${printed.evidence.bundle}`;
   return {
     content: [
       { type: "text", text: summary },
-      { type: "text", text: JSON.stringify(printed.predicate) },
+      { type: "text", text: JSON.stringify(printed) },
     ],
-    structuredContent: printed.predicate,
+    structuredContent: printed,
     isError: false,
   };
 }

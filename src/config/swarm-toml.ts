@@ -47,6 +47,8 @@ export interface DeclaredCheck {
   readonly name: string;
   readonly command: string;
   readonly kind: "test" | "other";
+  /** Who stands behind it; the base's own declared checks are pre-existing. */
+  readonly authority?: "pre-existing" | "user-acceptance" | "independently-generated";
 }
 
 export interface SwarmToml {

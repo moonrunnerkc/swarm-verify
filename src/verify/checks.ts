@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
+import type { TrustedCheck } from "../api/request.ts";
 import type { DeclaredCheck } from "../config/swarm-toml.ts";
 import { childEnvironment } from "../exec/child-environment.ts";
 import { runProcessGroup } from "../exec/run-process.ts";
@@ -65,6 +66,7 @@ export async function runCheck(
       name: check.name,
       command: check.command,
       kind: check.kind,
+      authority: check.authority ?? "pre-existing",
       result: failedToRun ? "error" : ran.exitCode === 0 ? "pass" : "fail",
       exitCode: failedToRun ? null : ran.exitCode,
       durationMs: Date.now() - started,
@@ -76,19 +78,51 @@ export async function runCheck(
 
 const linkable = ["node_modules", ".venv"];
 
+/** The install command a lockfile in `dir` asks for, or null where there is none. */
+export async function lockfileInstall(dir: string): Promise<string | null> {
+  const has = (name: string) =>
+    lstat(join(dir, name)).then(
+      () => true,
+      () => false,
+    );
+  if (await has("package-lock.json")) return "npm ci --no-audit --no-fund";
+  if (await has("npm-shrinkwrap.json")) return "npm ci --no-audit --no-fund";
+  if (await has("pnpm-lock.yaml")) return "pnpm install --frozen-lockfile";
+  if (await has("yarn.lock"))
+    return (await has(".yarnrc.yml"))
+      ? "yarn install --immutable"
+      : "yarn install --frozen-lockfile";
+  if ((await has("bun.lock")) || (await has("bun.lockb"))) return "bun install --frozen-lockfile";
+  if (await has("uv.lock")) return "uv sync --frozen";
+  return null;
+}
+
+export interface Preparation {
+  readonly mode: "prepared" | "setup" | "linked" | "none";
+  readonly failure: CheckRun | null;
+}
+
 /**
- * Gives the clean checkout the workspace's installed dependencies. A setup command from the
- * base's swarm.toml runs instead where there is one. Linking is sound because a change that
- * also touches a lockfile is refused unless swarm.toml allows it.
+ * Gives the clean checkout its dependencies the way the policy asks. prepare: the base's
+ * declared setup command, or else the install its lockfile asks for, run in the checkout.
+ * linked: the workspace's own node_modules and .venv linked in, which no later run can
+ * reproduce. none: nothing.
  */
 export async function prepareDependencies(
   workspace: string,
   setup: string | null,
+  mode: "prepare" | "linked" | "none",
   context: CheckContext,
-): Promise<{ readonly mode: "linked" | "setup" | "none"; readonly failure: CheckRun | null }> {
-  if (setup !== null) {
-    const ran = await runCheck({ name: "setup", command: setup, kind: "other" }, context);
-    return { mode: "setup", failure: ran.result.result === "pass" ? null : ran };
+): Promise<Preparation> {
+  if (mode === "none") return { mode: "none", failure: null };
+  if (mode === "prepare") {
+    const command = setup ?? (await lockfileInstall(context.dir));
+    if (command === null) return { mode: "none", failure: null };
+    const ran = await runCheck({ name: "setup", command, kind: "other" }, context);
+    return {
+      mode: setup === null ? "prepared" : "setup",
+      failure: ran.result.result === "pass" ? null : ran,
+    };
   }
   let linked = false;
   for (const name of linkable) {
@@ -124,7 +158,7 @@ export function passRate(runs: readonly CheckResult[]): number {
     : measured.filter((run) => run.result === "pass").length / measured.length;
 }
 
-const lockfiles = [
+export const lockfileNames = [
   "package-lock.json",
   "pnpm-lock.yaml",
   "yarn.lock",
@@ -132,6 +166,16 @@ const lockfiles = [
   "uv.lock",
   "poetry.lock",
 ];
+
+/** The sha256 of each lockfile in `dir`, by name. */
+export async function lockfileDigests(dir: string): Promise<Record<string, string>> {
+  const locks: Record<string, string> = {};
+  for (const name of lockfileNames) {
+    const content = await readFile(join(dir, name)).catch(() => null);
+    if (content !== null) locks[name] = createHash("sha256").update(content).digest("hex");
+  }
+  return locks;
+}
 
 /**
  * What the checks ran on, and one digest over it: toolchain, platform, the check commands and
@@ -144,11 +188,7 @@ export async function environmentOf(
   dependencies: Predicate["environment"]["dependencies"],
 ): Promise<Predicate["environment"]> {
   const git = (await gitText(dir, ["--version"])).replace(/^git version /, "");
-  const locks: Record<string, string> = {};
-  for (const name of lockfiles) {
-    const content = await readFile(join(dir, name)).catch(() => null);
-    if (content !== null) locks[name] = createHash("sha256").update(content).digest("hex");
-  }
+  const locks = await lockfileDigests(dir);
   const described = {
     node: process.version,
     platform: `${process.platform}-${process.arch}`,
@@ -205,4 +245,22 @@ export function againstBase(run: CheckRun, base: CheckResult | undefined): Check
     ...run,
     result: { ...run.result, result: "pre-existing-failure", baseOutputSha256: base.outputSha256 },
   };
+}
+
+export class CheckNameCollisionError extends Error {
+  constructor(name: string) {
+    super(`the request's check ${name} has the name of a check the base declares; rename it`);
+    this.name = "CheckNameCollisionError";
+  }
+}
+
+/** The base's declared checks, then the request's own, each labeled with its authority. */
+export function allChecks(
+  declared: readonly DeclaredCheck[],
+  trusted: readonly TrustedCheck[],
+): readonly DeclaredCheck[] {
+  const names = new Set(declared.map((check) => check.name));
+  for (const check of trusted)
+    if (names.has(check.name)) throw new CheckNameCollisionError(check.name);
+  return [...declared, ...trusted];
 }

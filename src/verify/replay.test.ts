@@ -22,6 +22,7 @@ const run = (exitCode: number): CheckRun => ({
     name: "test",
     command: "python3 -m pytest -q",
     kind: "test",
+    authority: "pre-existing",
     result: exitCode === 0 ? "pass" : "fail",
     exitCode,
     durationMs: 1,

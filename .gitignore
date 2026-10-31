@@ -1,1 +1,26 @@
 node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+*.log
+.DS_Store
+
+# Key material and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local run state, scratch space and assistant worktrees
+.swarm/
+_site/
+/plans/
+scratchpad/
+.claude/
+
+# Stub evaluation runs check the harness and measure nothing
+eval/results/*-stub/
+__pycache__/
