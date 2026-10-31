@@ -16,6 +16,7 @@ export async function isolate(
   dir: string,
   scratch: string,
   home: string,
+  commands: readonly string[],
 ): Promise<Isolated> {
   if (policy.dependencies === "linked") {
     return {
@@ -23,7 +24,7 @@ export async function isolate(
         "linked dependencies cannot be used in isolation; prepare them from the lockfile instead",
     };
   }
-  const image = policy.image ?? (await imageFor(dir));
+  const image = policy.image ?? (await imageFor(dir, commands));
   try {
     const imageId = await readyImage(image);
     const judge = join(scratch, "judge");

@@ -76,7 +76,13 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
     const scratch = dirname(checkout.dir);
     const isolation =
       options.policy.mode === "isolated"
-        ? await isolate(options.policy, checkout.dir, scratch, home)
+        ? await isolate(
+            options.policy,
+            checkout.dir,
+            scratch,
+            home,
+            checks.map((check) => check.command),
+          )
         : null;
     const context = {
       dir: checkout.dir,

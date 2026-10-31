@@ -56,3 +56,17 @@ describe("the container a command runs in", () => {
       expect(image).toMatch(/@sha256:[0-9a-f]{64}$/);
   });
 });
+
+describe("choosing the image", () => {
+  it("takes the manifest first, then what the checks run", async () => {
+    const { mkdtemp, writeFile } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { imageFor } = await import("./sandbox.ts");
+    const bare = await mkdtemp(join(tmpdir(), "image-"));
+    expect(await imageFor(bare, ["node --test"])).toBe(defaultImages.node);
+    expect(await imageFor(bare, ["python3 -m pytest -q"])).toBe(defaultImages.python);
+    await writeFile(join(bare, "pyproject.toml"), "[project]\nname = 'x'\n");
+    expect(await imageFor(bare, ["node --test"])).toBe(defaultImages.python);
+  });
+});

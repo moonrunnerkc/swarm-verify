@@ -57,14 +57,25 @@ const docker = (args: readonly string[], timeout = 600_000) =>
     },
   );
 
-/** The image for the base's ecosystem: Node where there is a package.json, Python and uv otherwise. */
-export async function imageFor(dir: string): Promise<string> {
+const pythonManifests = ["pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "uv.lock"];
+const nodeCommand =
+  /(?:^|[\s;&|(])(?:node|npm|npx|pnpm|yarn|corepack|vitest|jest|mocha|tsc)(?=\s|$)/;
+
+/**
+ * The image for the base's ecosystem: Node for a package.json, Python and uv for a Python
+ * manifest, and otherwise whichever the checks' commands run.
+ */
+export async function imageFor(dir: string, commands: readonly string[]): Promise<string> {
   const has = (name: string) =>
     access(join(dir, name)).then(
       () => true,
       () => false,
     );
-  return (await has("package.json")) ? defaultImages.node : defaultImages.python;
+  if (await has("package.json")) return defaultImages.node;
+  for (const name of pythonManifests) if (await has(name)) return defaultImages.python;
+  return commands.some((command) => nodeCommand.test(command))
+    ? defaultImages.node
+    : defaultImages.python;
 }
 
 /**
