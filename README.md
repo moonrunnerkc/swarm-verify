@@ -151,34 +151,15 @@ Node 22 or newer and git; `uv` for a Python project. Every measurement runs on N
 newer; on 22.0 to 22.7 the changed-line coverage measurement reports unmeasured by name. Linux
 and macOS run every command; Windows runs bundle and verdict verification.
 
-## Source, versions and Swarm Orchestrator
+## Ownership
 
-Swarm Verify is the standalone verifier. [Swarm Orchestrator](https://github.com/moonrunnerkc/swarm-orchestrator)
-is a coding agent built on it: the agent's own work passes through this same verifier, and the
-`swarm` binary carries the commands above beside the agent. Nothing of the agent is installed
-with this package, and nothing here needs it.
+Swarm Verify is the standalone verifier and this repository owns it: the source, tests, build,
+releases and this Action ([ADR 0015 in Swarm Orchestrator](https://github.com/moonrunnerkc/swarm-orchestrator/blob/v13-main/docs/adr/0015-coding-agent-consumes-standalone-verifier.md)).
+[Swarm Orchestrator](https://github.com/moonrunnerkc/swarm-orchestrator) is the coding agent; it
+consumes this package at an exact version through its public API, and nothing of the agent is
+installed with this package or needed by it. The verifier imports no model client.
 
-The implementation is one code base, held to a build-time boundary that refuses any model
-provider, worker or screen module: the `swarm-verify` package is built from the verification
-modules of the `moonrunnerkc/swarm-orchestrator` repository under `packages/swarm-verify`, and
-its dependencies are `zod` and `smol-toml` only. The GitHub Action, this README, the Action
-reference and the examples are published from [moonrunnerkc/swarm-verify](https://github.com/moonrunnerkc/swarm-verify),
-regenerated for each release and never hand-edited there. Report a defect at
-[the source repository's issues](https://github.com/moonrunnerkc/swarm-orchestrator/issues/new/choose),
-which carries the templates and the triage workflow for both products.
-
-Releases are independent of the agent's: the verifier's changes are in
-[CHANGELOG.md](https://github.com/moonrunnerkc/swarm-verify/blob/main/CHANGELOG.md), and only a
-`swarm-verify-vVERSION` tag matching this package's version starts its publishing workflow,
-with gates, packed content validation and npm provenance. A prerelease publishes under the
-`next` dist-tag; `latest` only moves to a validated stable version.
-
-## This repository
-
-The product home of Swarm Verify: the GitHub Action, [the Action reference](docs/action.md),
-[the example workflows](examples), [the changelog](CHANGELOG.md) and the releases. The Action
-manifest installs the published `swarm-verify` package at `1.3.1`, pinned by integrity
-in the lockfile, and nothing else. Every file here is generated from
-[moonrunnerkc/swarm-orchestrator](https://github.com/moonrunnerkc/swarm-orchestrator) at
-`d9360e4c167d2d739e62ac4d4db20ce06416b024` by `scripts/build-action-distribution.mjs`; the record of that is
-[SOURCE.json](SOURCE.json).
+Until the 2.0.0 source lands here, the Action installs the published `swarm-verify@1.3.1`,
+pinned by integrity in the lockfile and built from the commit named in [SOURCE.json](SOURCE.json).
+Releases are independent of the agent's; the verifier's changes are in [CHANGELOG.md](CHANGELOG.md).
+Report a defect at [this repository's issues](https://github.com/moonrunnerkc/swarm-verify/issues).
