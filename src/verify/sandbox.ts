@@ -24,7 +24,18 @@ export interface Sandbox {
   /** A dependency cache under the verifier's home, mounted only while dependencies are prepared. */
   readonly cache: string;
   readonly user: string;
+  /** When the last container run ended, to space runs out where the host's files reach the VM late. */
+  readonly clock: { lastEnded: number };
 }
+
+/**
+ * Where docker runs in a VM (macOS, Windows), the VM's shared filesystem keeps a file's entry for
+ * about a second: a file the host replaced, created or removed just before a container starts
+ * reads as its old self or as missing (measured on colima with virtiofs: stale up to 0.8 s after
+ * the change, never at 1.0 s or later). Every host-side change to the checkout happens between
+ * container runs, so the next run starts no sooner than this after the last one ended.
+ */
+export const sharedFilesystemSettleMs = process.platform === "linux" ? 0 : 1500;
 
 /** Images pinned by their multi-architecture index digests, so arm64 and amd64 hosts resolve the same pin. */
 export const defaultImages = {
@@ -214,6 +225,8 @@ export async function runInSandbox(
       return value === undefined ? [] : [[name, value]];
     }),
   );
+  const waited = sharedFilesystemSettleMs - (Date.now() - sandbox.clock.lastEnded);
+  if (waited > 0) await new Promise((settle) => setTimeout(settle, waited));
   const ran = await runProcessGroup("docker", run.args, {
     cwd: sandbox.scratch,
     env: client,
@@ -221,6 +234,7 @@ export async function runInSandbox(
     maxOutputBytes: context.maxOutputBytes,
     signal: context.signal,
   });
+  sandbox.clock.lastEnded = Date.now();
   if (ran.timedOut || ran.cancelled) await removeContainer(run.name);
   // 125 is docker's own: the container never started, so no check ran in it.
   if (ran.exitCode === 125 && ran.startFailure === null) {

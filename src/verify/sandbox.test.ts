@@ -8,6 +8,7 @@ const sandbox: Sandbox = {
   hidden: ["/s/run/tree/.git"],
   cache: "/home/u/.swarm/cache",
   user: "501:20",
+  clock: { lastEnded: 0 },
 };
 const args = (stage: "prepare" | "check", network?: "open" | "closed") =>
   containerRun(sandbox, {

@@ -34,7 +34,15 @@ export async function isolate(
     const user = `${process.getuid?.() ?? 0}:${process.getgid?.() ?? 0}`;
     return {
       imageId,
-      sandbox: { image, scratch, readOnly: [judge], hidden: [join(dir, ".git")], cache, user },
+      sandbox: {
+        image,
+        scratch,
+        readOnly: [judge],
+        hidden: [join(dir, ".git")],
+        cache,
+        user,
+        clock: { lastEnded: 0 },
+      },
     };
   } catch (error) {
     if (error instanceof SandboxUnavailableError) return { unavailable: error.message };
