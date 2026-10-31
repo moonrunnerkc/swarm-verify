@@ -133,7 +133,11 @@ export async function resolveChange(
   try {
     const env = { GIT_INDEX_FILE: join(scratch.path, "index") };
     await git(workspace, ["read-tree", baseCommit], env);
-    await git(workspace, ["add", "-A", "--", ".", notTheChange], env);
+    // Naming .swarm in an add pathspec fails where the repository ignores it (git 2.51 and
+    // later refuse an explicitly named ignored path), so the whole tree is added and the
+    // verifier's own directory taken back out of the private index.
+    await git(workspace, ["add", "-A", "--", "."], env);
+    await git(workspace, ["rm", "-r", "-q", "--cached", "--ignore-unmatch", "--", ".swarm"], env);
     const patch = await git(workspace, [...diffFlags, "--cached", baseCommit], env);
     return { source: "working-tree", baseCommit, patch };
   } finally {
