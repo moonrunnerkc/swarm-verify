@@ -1,10 +1,9 @@
 # Integrations
 
-Every surface runs the same verifier through its command line; there is no second
+Every surface runs the same verifier through its command line or its API; there is no second
 implementation behind any of them. Each run writes `attestation.sigstore.json` (a DSSE envelope
-in a Sigstore bundle), `change.patch` and `attestation.pub.pem` to `.swarm/verify/` (or
-`--out`), prints the verdict, and exits 0 for pass, 1 for fail, 2 for a command line it cannot
-read and 4 when nothing was measured.
+in a Sigstore bundle), `statement.json`, `change.patch` and `attestation.pub.pem` to
+`.swarm/verify/` (or `--out`), prints the result, and exits with the codes in the README.
 
 ## Command line
 
@@ -12,31 +11,20 @@ read and 4 when nothing was measured.
 npx swarm-verify verify                          # the working tree against HEAD
 npx swarm-verify verify --range main..feature    # a ref range
 npx swarm-verify verify --patch change.diff      # a patch file against HEAD (or --base)
+npx swarm-verify verify --requirements reqs.json # judge declared requirements too
 ```
 
 ## GitHub Action
 
-The manifest is `packages/swarm-verify/action.yml`. It sets up Node 24 and runs
-`npx swarm-verify@<version> ci`, which verifies `HEAD` against the merge base with the pull
-request's base branch and adds the verdict to the job summary. Check out the full history so the
-base is present. [docs/demos/action-demo.sh](demos/action-demo.sh) runs its steps by hand.
-
-```yaml
-on: pull_request
-jobs:
-  verify:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: moonrunnerkc/swarm-orchestrator/packages/swarm-verify@swarm-verify-v2.0.0
-```
+`action.yml` at this repository's root builds the verifier from source and runs `ci`, which
+verifies `HEAD` against the merge base with the pull request's base branch and adds the result
+to the job summary. Check out the full history so the base is present; see
+[examples/swarm-verification.yml](../examples/swarm-verification.yml).
 
 ## Any other CI system
 
 ```sh
-npx --yes swarm-verify ci --base origin/main
+npx --yes swarm-verify ci --base origin/main --dependencies prepare
 ```
 
 ## pre-commit
@@ -54,21 +42,15 @@ repos:
         pass_filenames: false
 ```
 
-Its run against an honest fix and a test edited together with source is
-[docs/demos/pre-commit-demo.sh](demos/pre-commit-demo.sh).
-
 ## MCP
 
-`packages/swarm-verify/mcp.mjs` (the `swarm-verify-mcp` command) is a Model Context Protocol
-server over stdio with one tool, `verify`. It takes `workspace`, `base`, `patch` or `range`, runs
-`swarm-verify verify --json` and returns the predicate, so a client gets what the command line
-prints. A client configuration:
+`mcp.mjs` (the `swarm-verify-mcp` command) is a Model Context Protocol server over stdio with one
+tool, `verify`. It takes `workspace`, `base`, `patch` or `range`, runs `swarm-verify verify
+--json` and returns the result. A client configuration:
 
 ```json
 { "mcpServers": { "swarm-verify": { "command": "npx", "args": ["--yes", "--package=swarm-verify", "swarm-verify-mcp"] } } }
 ```
-
-[docs/demos/mcp-demo.sh](demos/mcp-demo.sh) starts it, lists the tool and calls it.
 
 ## Agent hooks
 
@@ -85,4 +67,4 @@ A coding agent runs the same command through the command tool it already has. A 
 }
 ```
 
-`swarm run` calls the verifier in-process on its own working tree; see the README.
+Swarm Orchestrator calls the API directly, on an immutable snapshot of its managed workspace.

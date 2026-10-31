@@ -1,9 +1,81 @@
 # Changelog: swarm-verify
 
-The standalone verifier, published to npm as `swarm-verify` and distributed as the GitHub Action
-`moonrunnerkc/swarm-verify`. Versions before 1.0.0 (0.2.0, released with Swarm Orchestrator
-14.2.0 on 2026-09-27) carried no changelog of their own. The coding agent that shares this
-verifier's implementation, `swarm-orchestrator`, keeps its own changelog at the repository root.
+The standalone verifier, published to npm as `swarm-verify`, with its GitHub Action at the root
+of moonrunnerkc/swarm-verify. Versions before 1.0.0 (0.2.0, released with Swarm Orchestrator
+14.2.0 on 2026-09-27) carried no changelog of their own. Releases up to and including the 2.0.0
+section below were built from swarm-orchestrator's `packages/swarm-verify`; the 2.0.0 section was
+tagged there but never published to npm.
+
+## Unreleased
+
+### Changed
+
+- **The verifier's source lives in moonrunnerkc/swarm-verify** with its history since the
+  2026-10-28 rebuild. The package builds from this repository, its build refuses a closure that
+  reaches a model client, an agent loop or a terminal interface, and the Action builds from
+  source at the ref the workflow names.
+- **A versioned public API.** `verify(request)` takes a `swarm-verify.request/v1` (immutable
+  base and candidate identity, requirements, trusted checks, execution policy, artifact
+  directory) and returns a `swarm-verify.result/v1`; both schemas are exported. The signed
+  predicate type is `https://github.com/moonrunnerkc/swarm-verify/result/v1` and carries the
+  overall state, requirement outcomes, regression, execution assurance and diagnostics.
+- **States and exit codes.** `pass`, `fail` and `unmeasured` become `complete`, `incomplete` and
+  `blocked`, with exit codes 0, 1 or 4, and 5. The offline checker separates integrity (6 when it
+  fails) from acceptance (1 when a signed result is not complete). See docs/migration-2.md.
+
+### Changed
+
+- Declared test checks are judged test by test from the runner's own report (pytest junit,
+  jest and vitest JSON, mocha JSON, go test events), with the judge loaded at both commits; a
+  check whose runner is not recognized is judged by exit code and says so. Check results carry
+  `tests`: the runner, counts, and the ids fixed, regressed, pre-existing, deleted and newly
+  failing. The check result `unmeasured` is new: the command could not run, its report could
+  not be parsed, or no test in it passes with the change.
+- pytest runs with `--continue-on-collection-errors`, so a module that fails to import at both
+  commits does not stop the rest of the suite from being measured.
+
+## 2.0.0 - 2026-10-29
+
+Rebuilt with the verifier-first rebuild ([ADR 0014](https://github.com/moonrunnerkc/swarm-orchestrator/blob/v13-main/docs/adr/0014-verifier-first-rebuild.md)).
+The earlier unreleased work (instrument re-derivation and related checks) is superseded and
+remains in the repository's history.
+
+### Changed
+
+- `swarm-verify verify` reruns the base commit's declared checks on a change (the working tree,
+  `--range a..b` or `--patch <file>`) in a clean checkout, refuses protected paths changed
+  together with source, runs held-out checks sealed with `swarm-verify init --seal <glob>`,
+  measures changed-line coverage and one mutant, and lists what it could not measure.
+- The verdict is an in-toto Statement v1 (predicate type `https://swarm-verify.dev/verdict/v1`)
+  in a DSSE envelope inside a Sigstore bundle, signed with ed25519 from `SWARM_SIGNING_KEY` or
+  the OS keychain, or keylessly with `--sigstore`.
+- `verify.mjs` ships with the package: a dependency-free checker for the signature and the
+  subject digests. `cosign verify-blob-attestation` checks the same bundle.
+- `swarm-verify ci` verifies `HEAD` against a pull request's base; the Action calls it.
+- Every declared and held-out check runs at the base commit before the change applies, and the
+  result is kept under `$SWARM_HOME/baselines`. A check that fails at base and still fails is
+  `pre-existing-failure` with its base output digest and leaves the verdict `unmeasured`; one
+  that passes at base and fails with the change is a regression. The predicate gains
+  `baseline`, `baseOutputSha256` and `heldOut.judge`.
+- Held-out checks load a judge before any project module (`--import` for Node, a
+  `sitecustomize` for Python) and fail when the code under test changed `node:assert`,
+  `node:test`, `unittest`, pytest's hooks, the builtins they compare with, or the exported
+  methods of the project's own test helpers. `.npmrc`, `.yarnrc`, `sitecustomize.py`,
+  `usercustomize.py` and `*.pth` files are protected as config.
+- Checks run with `PYTHONDONTWRITEBYTECODE=1`: the base run, the change and the mutant rewrite
+  one file within a second, often at the same size, and Python would otherwise run the bytecode
+  cached from the previous version.
+
+### Added
+
+- `swarm-verify-mcp` (`mcp.mjs`): a Model Context Protocol server over stdio with one tool,
+  `verify`, which runs `swarm-verify verify --json` and returns the predicate.
+
+### Removed
+
+- The custom evidence bundle format and its verifier, and the `check`, `gates`, `verdict`,
+  `action`, `hook`, `mcp` and `pre-commit` subcommands (integrations call `verify` or `ci`, and
+  MCP clients the new server; see the repository's `docs/integrations.md`).
 
 ## 1.3.1 - 2026-10-08
 
