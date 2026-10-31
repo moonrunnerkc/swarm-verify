@@ -35,3 +35,7 @@ Open choices made while building Swarm Verify, dated, with the reason. Append on
 - TypeScript mutants are checked with Node's built-in `stripTypeScriptTypes` in transform mode, since `node --check` exits 0 on a broken `.ts` file; JSX and TSX lines are not mutated because nothing here parses them.
 - Held-out runs restore only test-category files to the base (not lockfiles or manifests), so an upgrade is judged by the held-out checks on its own dependencies.
 - `scripts/check-caps.mjs` enforces the 300-line file cap here, as in the orchestrator.
+
+## 2026-10-31: offline re-derivation
+
+- verify.mjs re-derives a complete state with the same kind rules as src/verify/requirements.ts. The rule is written twice (TypeScript and the dependency-free checker) because the checker must run with nothing installed; allowed-changes.integration.test.ts runs the checker on every complete result so the two cannot drift silently.
