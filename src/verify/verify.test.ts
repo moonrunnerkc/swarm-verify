@@ -1,12 +1,15 @@
 import { generateKeyPairSync } from "node:crypto";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { bundleOf, envelopeOf, envelopeVerifies, pae, signStatement } from "./dsse.ts";
 import { globPattern } from "./held-out.ts";
-import { mutateLine } from "./mutation.ts";
-import { categoryOf, checkProtectedPaths } from "./protected-paths.ts";
+import { mutateLine, parses } from "./mutation.ts";
+import { artifactsOf, categoryOf } from "./paths.ts";
 import { keyFromText } from "./signing.ts";
 
-describe("protected paths", () => {
+describe("candidate artifact categories", () => {
   it.each([
     ["test/clamp.test.mjs", "tests"],
     ["src/clamp.spec.ts", "tests"],
@@ -33,18 +36,11 @@ describe("protected paths", () => {
     expect(categoryOf("lib/testing-utils-free.js")).toBeNull();
   });
 
-  it("lets protected paths change on their own", () => {
-    expect(checkProtectedPaths(["test/a.test.js"], []).violations).toEqual([]);
-  });
-
-  it("refuses them changed together with source unless the category is allowed", () => {
-    const paths = ["src/a.js", "test/a.test.js", "package-lock.json"];
-    expect(checkProtectedPaths(paths, []).violations.map((v) => v.path)).toEqual([
-      "test/a.test.js",
-      "package-lock.json",
-    ]);
-    expect(checkProtectedPaths(paths, ["tests"]).violations.map((v) => v.path)).toEqual([
-      "package-lock.json",
+  it("names every changed path's kind and refuses none of them", () => {
+    expect(artifactsOf(["src/a.js", "test/a.test.js", "package-lock.json"])).toEqual([
+      { path: "src/a.js", category: "source" },
+      { path: "test/a.test.js", category: "tests" },
+      { path: "package-lock.json", category: "lockfiles" },
     ]);
   });
 });
@@ -69,8 +65,15 @@ describe("one mutant per line", () => {
   });
 
   it("drops a returned value as a last resort, in the file's language", () => {
-    expect(mutateLine("  return value")?.text).toBe("  return undefined;");
+    expect(mutateLine("  return value")?.text).toBe("  return undefined");
     expect(mutateLine("    return value", true)?.text).toBe("    return None");
+  });
+
+  it("keeps the statement's end, so a one-line function still parses", () => {
+    // The review's probe: dropping through the closing brace made this unparsable.
+    expect(mutateLine("export function half(n) { return divide(n); }")?.text).toBe(
+      "export function half(n) { return undefined; }",
+    );
   });
 
   it("does not mutate imports or lines without an operator", () => {
@@ -84,6 +87,26 @@ const pem = generateKeyPairSync("ed25519")
   .toString();
 const key = keyFromText(pem, "environment");
 const statement = { _type: "https://in-toto.io/Statement/v1", subject: [], predicate: {} };
+
+describe("whether a mutant parses", () => {
+  it("checks JavaScript, TypeScript and Python without running them", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "parses-"));
+    const written = async (path: string, text: string) => {
+      await writeFile(join(dir, path), text);
+      return parses(path, text, dir);
+    };
+    expect(await written("a.mjs", "export const half = (n) => n / 2;\n")).toBe(true);
+    expect(await written("b.mjs", "export function half(n) { return undefined;\n")).toBe(false);
+    expect(await written("c.py", "def half(n):\n    return n / 2\n")).toBe(true);
+    expect(await written("d.py", "def half(n):\n    return (n / 2\n")).toBe(false);
+    expect(await parses("a.ts", "export function half(n: number) { return undefined;\n", dir)).toBe(
+      false,
+    );
+    expect(
+      await parses("a.ts", "export function half(n: number): number { return n / 2; }\n", dir),
+    ).toBe(true);
+  });
+});
 
 describe("DSSE envelopes", () => {
   it("encodes the pre-authentication string as the specification spells it", () => {

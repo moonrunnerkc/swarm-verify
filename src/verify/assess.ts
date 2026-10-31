@@ -6,7 +6,8 @@ const capped = (ids: readonly string[]) => ids.slice(0, 100);
 
 /**
  * The candidate against the base across every check. A check judged test by test contributes
- * its test ids; a check judged by exit code contributes its name.
+ * its test ids; a check judged by exit code contributes its name. A check that measured nothing
+ * (no tests, or no comparison) leaves the regression unresolved rather than absent.
  */
 export function regressionOf(checks: readonly CheckResult[]): Regression {
   const newFailures: string[] = [];
@@ -16,15 +17,20 @@ export function regressionOf(checks: readonly CheckResult[]): Regression {
   for (const check of checks) {
     const tests = check.tests;
     if (tests !== undefined) {
-      newFailures.push(...tests.regressed, ...tests.newlyFailing);
-      inherited.push(...tests.preExisting);
-      removed.push(...tests.deleted);
+      newFailures.push(...tests.newFailures, ...tests.addedFailing, ...tests.expectationChanges);
+      inherited.push(...tests.inherited);
+      removed.push(...tests.removed);
     }
     if (check.result === "fail" || check.result === "error") {
-      if (tests === undefined || tests.counts.regressed + tests.counts.newlyFailing === 0) {
-        newFailures.push(`check ${check.name}`);
-      }
-    } else if (check.result === "pre-existing-failure" || check.result === "unmeasured") {
+      const counted =
+        tests !== undefined &&
+        tests.counts.newFailures +
+          tests.counts.addedFailing +
+          tests.counts.expectationChanges +
+          tests.counts.removed >
+          0;
+      if (!counted) newFailures.push(`check ${check.name}`);
+    } else if (check.result === "unresolved" || check.result === "no-tests") {
       unresolved.push(`check ${check.name}`);
     }
   }
@@ -121,12 +127,6 @@ export function unmeasuredOf(input: {
 }): string[] {
   const { baseline, heldOut, coverage, mutation } = input;
   return [
-    ...input.checks
-      .filter((check) => check.result === "pre-existing-failure")
-      .map(
-        (check) =>
-          `check ${check.name}: fails at the base commit (output sha256:${check.baseOutputSha256}) and still fails`,
-      ),
     ...input.unmeasuredChecks,
     ...(baseline.status === "measured" ? baseline.heldOut : [])
       .filter((check) => check.result === "pass")

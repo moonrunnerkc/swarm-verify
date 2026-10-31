@@ -1,8 +1,7 @@
 import { isAbsolute, relative } from "node:path";
 import { z } from "zod";
-import type { TestJudgment } from "./predicate.ts";
 
-export const runners = ["pytest", "jest", "vitest", "mocha", "go"] as const;
+export const runners = ["pytest", "jest", "vitest", "mocha", "go", "node"] as const;
 export type Runner = (typeof runners)[number];
 
 /**
@@ -46,23 +45,49 @@ const decodeEntities = (text: string) =>
         : (entities[name] ?? whole),
   );
 
-export function parseJunit(xml: string): TestReport | null {
+function attributesOf(text: string): Record<string, string> {
+  const attributes: Record<string, string> = {};
+  for (const one of text.matchAll(/([\w:.-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
+    attributes[one[1] ?? ""] = decodeEntities(one[2] ?? one[3] ?? "");
+  }
+  return attributes;
+}
+
+/**
+ * JUnit XML. pytest names a test `classname::name`; Node's runner gives every test the same
+ * classname and the absolute file, so its tests are named `file::suite > test` with the file
+ * relative to `root`. Nested suites are read in document order.
+ */
+export function parseJunit(xml: string, root: string | null = null): TestReport | null {
   if (!/<testsuites?\b/.test(xml)) return null;
   const report: Record<string, TestReport[string]> = {};
-  const testcase = /<testcase\b((?:[^>"']|"[^"]*"|'[^']*')*?)(?:\/>|>([\s\S]*?)<\/testcase>)/g;
-  for (const match of xml.matchAll(testcase)) {
-    const attributes: Record<string, string> = {};
-    for (const one of (match[1] ?? "").matchAll(/([\w:.-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
-      attributes[one[1] ?? ""] = decodeEntities(one[2] ?? one[3] ?? "");
+  const suites: string[] = [];
+  const tags =
+    /<testsuite\b((?:[^>"']|"[^"]*"|'[^']*')*?)(\/?)>|<\/testsuite>|<testcase\b((?:[^>"']|"[^"]*"|'[^']*')*?)(?:\/>|>([\s\S]*?)<\/testcase>)/g;
+  for (const match of xml.matchAll(tags)) {
+    if (match[0].startsWith("</testsuite")) {
+      suites.pop();
+      continue;
     }
+    if (match[0].startsWith("<testsuite")) {
+      if (match[2] !== "/") suites.push(attributesOf(match[1] ?? "").name ?? "");
+      continue;
+    }
+    const attributes = attributesOf(match[3] ?? "");
     const name = attributes.name ?? "";
     const classname = attributes.classname ?? "";
-    const body = match[2] ?? "";
+    const body = match[4] ?? "";
     const status: Status = /<(?:failure|error)\b/.test(body)
       ? "fail"
       : /<skipped\b/.test(body)
         ? "skip"
         : "pass";
+    if (root !== null && attributes.file !== undefined) {
+      const file = fromRoot(root, attributes.file);
+      const title = [...suites.filter((suite) => suite.length > 0), name].join(" > ");
+      put(report, `${file}::${title}`, { status, file });
+      continue;
+    }
     const file = attributes.file ?? (classname || name).replaceAll(".", "/");
     put(report, classname === "" ? name : `${classname}::${name}`, { status, file });
   }
@@ -192,6 +217,7 @@ export function parseReport(
   goModule: string | null,
 ): TestReport | null {
   if (runner === "pytest") return parseJunit(text);
+  if (runner === "node") return parseJunit(text, root);
   if (runner === "go") return parseGoJson(text, goModule);
   if (runner === "mocha") return parseMochaJson(text, root);
   return parseJestJson(text, root);
@@ -208,53 +234,30 @@ export function livesIn(file: string | null, path: string): boolean {
   return file === path || file === stem || file.startsWith(`${stem}/`);
 }
 
-type Lists = Omit<TestJudgment, "runner" | "counts">;
+const summaries: readonly RegExp[] = [
+  // node:test's spec and TAP reporters
+  /^\u2139 tests (\d+)$/gm,
+  /^# tests (\d+)$/gm,
+  // pytest: "collected 3 items", and "no tests ran" when it collected none
+  /^collected (\d+) items?\b/gm,
+];
+const nothingCollected = [
+  /^=+ no tests ran\b/m,
+  /^No tests found, exiting with code/m,
+  /^No test files found, exiting with code/m,
+  /^\s*0 passing\b/m,
+];
 
 /**
- * Test by test: passing at base and not with the change is a regression; failing at base and
- * passing is fixed; failing at both is pre-existing; present at base and missing is a deletion,
- * allowed only where `deletable` says the change may edit the file the test lived in. A test
- * that did not run at base and fails with the change is newly failing.
+ * How many tests a run collected, from the summary its runner printed: the sum where a command
+ * ran the runner more than once, 0 where it said it found nothing, null where nothing printed
+ * says. The fallback for a check whose runner writes no report the verifier reads.
  */
-export function compareReports(
-  base: TestReport,
-  head: TestReport,
-  deletable: (file: string | null) => boolean,
-): Omit<TestJudgment, "runner"> {
-  const lists: { [key in keyof Lists]: string[] } = {
-    fixed: [],
-    regressed: [],
-    preExisting: [],
-    deleted: [],
-    allowedDeletions: [],
-    newlyFailing: [],
-  };
-  let passing = 0;
-  let added = 0;
-  let skipped = 0;
-  for (const [id, before] of Object.entries(base)) {
-    const after = head[id];
-    if (after === undefined) {
-      (deletable(before.file) ? lists.allowedDeletions : lists.deleted).push(id);
-    } else if (before.status === "pass") {
-      if (after.status === "pass") passing += 1;
-      else lists.regressed.push(id);
-    } else if (after.status === "pass") lists.fixed.push(id);
-    else if (before.status === "fail") lists.preExisting.push(id);
-    else if (after.status === "fail") lists.newlyFailing.push(id);
-    else skipped += 1;
+export function collectedFromOutput(output: string): number | null {
+  let total: number | null = null;
+  for (const pattern of summaries) {
+    for (const match of output.matchAll(pattern)) total = (total ?? 0) + Number(match[1]);
   }
-  for (const [id, after] of Object.entries(head)) {
-    if (id in base) continue;
-    if (after.status === "pass") added += 1;
-    else if (after.status === "fail") lists.newlyFailing.push(id);
-    else skipped += 1;
-  }
-  const counts = { passing, added, skipped } as TestJudgment["counts"];
-  const capped = {} as Lists;
-  for (const [key, ids] of Object.entries(lists) as [keyof Lists, string[]][]) {
-    counts[key] = ids.length;
-    capped[key] = ids.slice(0, 100);
-  }
-  return { counts, ...capped };
+  if (total !== null) return total;
+  return nothingCollected.some((pattern) => pattern.test(output)) ? 0 : null;
 }

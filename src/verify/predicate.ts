@@ -6,7 +6,7 @@ import {
   requirementOutcomeSchema,
 } from "../api/outcome.ts";
 import { checkAuthorities, producerSchema } from "../api/request.ts";
-import { protectedCategories } from "../config/swarm-toml.ts";
+import { artifactCategories } from "../config/swarm-toml.ts";
 import { statementType } from "./dsse.ts";
 import { runners } from "./test-report.ts";
 
@@ -20,28 +20,41 @@ const unmeasured = z.object({ status: z.literal("unmeasured"), reason: z.string(
 const testIds = z.array(z.string());
 
 /**
- * A check judged test by test from its runner's report at the base commit and with the change.
- * Each list holds at most its first 100 ids; `counts` has the totals.
+ * A check judged test by test from its runner's reports at the base, against the candidate, and
+ * for the candidate's own tests against the base's source. Each list holds at most its first
+ * 100 ids; `counts` has the totals.
  */
 export const testJudgmentSchema = z.object({
   runner: z.enum(runners),
+  collected: z.object({
+    base: z.number().int().nonnegative(),
+    candidate: z.number().int().nonnegative(),
+  }),
   counts: z.object({
-    passing: z.number().int().nonnegative(),
+    preserved: z.number().int().nonnegative(),
+    renamed: z.number().int().nonnegative(),
     fixed: z.number().int().nonnegative(),
-    regressed: z.number().int().nonnegative(),
-    preExisting: z.number().int().nonnegative(),
-    deleted: z.number().int().nonnegative(),
-    allowedDeletions: z.number().int().nonnegative(),
-    newlyFailing: z.number().int().nonnegative(),
+    newFailures: z.number().int().nonnegative(),
+    inherited: z.number().int().nonnegative(),
+    removed: z.number().int().nonnegative(),
+    superseded: z.number().int().nonnegative(),
+    expectationChanges: z.number().int().nonnegative(),
     added: z.number().int().nonnegative(),
+    addedFailing: z.number().int().nonnegative(),
+    witnesses: z.number().int().nonnegative(),
     skipped: z.number().int().nonnegative(),
   }),
   fixed: testIds,
-  regressed: testIds,
-  preExisting: testIds,
-  deleted: testIds,
-  allowedDeletions: testIds,
-  newlyFailing: testIds,
+  newFailures: testIds,
+  inherited: testIds,
+  removed: testIds,
+  renamed: testIds,
+  superseded: testIds,
+  expectationChanges: testIds,
+  added: testIds,
+  addedFailing: testIds,
+  /** Tests the candidate added or rewrote that fail against the base's source and pass now. */
+  witnesses: testIds,
 });
 export type TestJudgment = z.infer<typeof testJudgmentSchema>;
 
@@ -50,9 +63,13 @@ export const checkResultSchema = z.object({
   command: z.string().min(1),
   kind: z.enum(["test", "other"]),
   authority: z.enum(checkAuthorities),
-  // pre-existing-failure: judged by exit code, failed at the base commit and still fails, so it
-  // measures nothing here. unmeasured: a runner's report was expected and could not be read.
-  result: z.enum(["pass", "fail", "error", "pre-existing-failure", "unmeasured"]),
+  // inherited-failures: nothing new fails, and tests that failed at the base still fail.
+  // no-tests: the run collected no test, which never counts as passing. unresolved: the base and
+  // the candidate could not be compared (a report that did not parse, or a check judged only by
+  // its exit code that fails at both), so nothing is claimed as inherited.
+  result: z.enum(["pass", "fail", "error", "no-tests", "inherited-failures", "unresolved"]),
+  /** Tests the run collected, from the runner's report or its printed summary; null where unknown. */
+  collected: z.number().int().nonnegative().nullable(),
   exitCode: z.number().int().nullable(),
   durationMs: z.number().int().nonnegative(),
   outputSha256: sha256,
@@ -61,7 +78,10 @@ export const checkResultSchema = z.object({
 });
 export type CheckResult = z.infer<typeof checkResultSchema>;
 
-const finding = z.object({ path: z.string().min(1), category: z.enum(protectedCategories) });
+const artifact = z.object({
+  path: z.string().min(1),
+  category: z.enum([...artifactCategories, "source"]),
+});
 
 export const coverageSchema = z.discriminatedUnion("status", [
   z.object({
@@ -77,12 +97,26 @@ export const coverageSchema = z.discriminatedUnion("status", [
 ]);
 export type Coverage = z.infer<typeof coverageSchema>;
 
+/**
+ * One mutant of a changed line, syntax-checked before it runs. Only `killed` is detection: a
+ * test that passed with the candidate failed under valid code. `invalid-mutant` means no
+ * candidate line yielded a mutant that parses; `timeout` and `runner-crash` say the run ended
+ * without telling a test failure apart.
+ */
 export const mutationSchema = z.discriminatedUnion("status", [
   z.object({
-    status: z.enum(["killed", "survived"]),
+    status: z.enum(["killed", "survived", "timeout", "runner-crash"]),
     path: z.string(),
     line: z.number().int().positive(),
     operator: z.string(),
+    syntax: z.literal("valid"),
+    /** Mutants refused before this one because they did not parse. */
+    rejected: z.number().int().nonnegative(),
+  }),
+  z.object({
+    status: z.literal("invalid-mutant"),
+    rejected: z.number().int().positive(),
+    reason: z.string().min(1),
   }),
   unmeasured,
 ]);
@@ -137,10 +171,14 @@ export const predicateSchema = z.object({
   checks: z.array(checkResultSchema),
   baseline: baselineSchema,
   heldOut: heldOutSchema,
-  protectedPaths: z.object({
-    changed: z.array(finding),
-    violations: z.array(finding),
-    allowed: z.array(z.enum(protectedCategories)),
+  /** Every changed path and its kind; none is refused for its kind. */
+  artifacts: z.array(artifact),
+  testFiles: z.object({
+    added: z.array(z.string()),
+    modified: z.array(z.string()),
+    deleted: z.array(z.string()),
+    moved: z.array(z.object({ from: z.string(), to: z.string() })),
+    relocated: z.array(z.string()),
   }),
   coverage: coverageSchema,
   mutation: mutationSchema,
@@ -151,6 +189,10 @@ export const predicateSchema = z.object({
     platform: z.string(),
     git: z.string(),
     dependencies: z.enum(["prepared", "linked", "setup", "none"]),
+    /** The installed dependency tree's digest, where it was installed from the lockfile. */
+    dependencyTreeSha256: sha256.nullable(),
+    /** Whether the same lockfiles reproduce this environment; linked trees never do. */
+    reproducible: z.boolean(),
   }),
   execution: executionSchema,
   unmeasured: z.array(z.string()),

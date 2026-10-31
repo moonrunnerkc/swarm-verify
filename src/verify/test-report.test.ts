@@ -92,3 +92,51 @@ describe("placing a test in a file", () => {
     expect(livesIn(null, "test/calc.test.js")).toBe(false);
   });
 });
+
+describe("reading Node's own runner", () => {
+  const xml = `<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testcase name="test/broken.test.mjs" classname="test" file="/work/calc/test/broken.test.mjs" failure="test failed">
+		<failure type="testCodeFailure" message="test failed">x</failure>
+	</testcase>
+	<testcase name="half positive" classname="test" file="/work/calc/test/half.test.mjs"/>
+	<testsuite name="group" tests="2" failures="0" skipped="1">
+		<testcase name="inner ok" classname="test" file="/work/calc/test/half.test.mjs"/>
+		<testcase name="skipped one" classname="test" file="/work/calc/test/half.test.mjs">
+			<skipped type="skipped" message="true"/>
+		</testcase>
+	</testsuite>
+	<!-- tests 4 -->
+</testsuites>`;
+
+  it("names each test by its file and suites, with a file that failed to load as one entry", () => {
+    const report = parseReport("node", xml, "/work/calc", null);
+    expect(report).toEqual({
+      "test/broken.test.mjs::test/broken.test.mjs": {
+        status: "fail",
+        file: "test/broken.test.mjs",
+      },
+      "test/half.test.mjs::half positive": { status: "pass", file: "test/half.test.mjs" },
+      "test/half.test.mjs::group > inner ok": { status: "pass", file: "test/half.test.mjs" },
+      "test/half.test.mjs::group > skipped one": { status: "skip", file: "test/half.test.mjs" },
+    });
+  });
+
+  it("reads a run that collected nothing as an empty report, not an unreadable one", () => {
+    expect(
+      parseReport("node", "<testsuites>\n\t<!-- tests 0 -->\n</testsuites>", "/w", null),
+    ).toEqual({});
+  });
+});
+
+describe("reading how many tests a run collected from what it printed", () => {
+  it("reads node:test's spec and TAP summaries and pytest's collection line", async () => {
+    const { collectedFromOutput } = await import("./test-report.ts");
+    expect(collectedFromOutput("ℹ tests 0\nℹ suites 0\n")).toBe(0);
+    expect(collectedFromOutput("1..3\n# tests 3\n# pass 3\n")).toBe(3);
+    expect(collectedFromOutput("ℹ tests 2\n...\nℹ tests 5\n")).toBe(7);
+    expect(collectedFromOutput("collected 12 items\n\n...\n")).toBe(12);
+    expect(collectedFromOutput("===== no tests ran in 0.01s =====\n")).toBe(0);
+    expect(collectedFromOutput("all good\n")).toBeNull();
+  });
+});

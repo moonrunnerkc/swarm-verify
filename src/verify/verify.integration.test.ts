@@ -71,24 +71,38 @@ describe("verifying a change in a clean checkout", () => {
     expect(statement.subject.map((subject) => subject.name)).toEqual(["tree", "change.patch"]);
   });
 
-  it("leaves unmeasured a change whose check failed at base too, and hands back its output", async () => {
+  it("leaves unresolved a change whose only test fails at base and still fails, and hands back its output", async () => {
     await put("src/clamp.mjs", "export function clamp(value) {\n  return value + 1;\n}\n");
     const outcome = await verify();
     const predicate = outcome.statement.predicate;
     expect(exitCodeOf(predicate)).toBe(4);
-    expect(predicate.checks[0]).toMatchObject({ result: "pre-existing-failure" });
-    expect(predicate.checks[0]?.baseOutputSha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(predicate.checks[0]).toMatchObject({ result: "unresolved" });
+    expect(predicate.checks[0]?.tests?.inherited).toEqual(["test/clamp.test.mjs::clamps above"]);
     expect(outcome.failureText).toContain("node --test");
   });
 
-  it("refuses an edited test shipped with source, as a verdict rather than an error", async () => {
-    await put("src/clamp.mjs", "export function clamp() {\n  return 5;\n}\n");
-    await put("test/clamp.test.mjs", visibleTest.replace("clamp(9, 0, 5), 5", "5, 5"));
+  it("judges a rewritten test by its original version, and refuses the rewrite that rescues it", async () => {
+    await put("test/clamp.test.mjs", visibleTest.replace("clamp(9, 0, 5), 5", "clamp(9, 0, 5), 9"));
     const predicate = (await verify()).statement.predicate;
     expect(exitCodeOf(predicate)).toBe(1);
-    expect(predicate.protectedPaths.violations).toEqual([
-      { path: "test/clamp.test.mjs", category: "tests" },
+    expect(predicate.testFiles.modified).toEqual(["test/clamp.test.mjs"]);
+    expect(predicate.checks[0]?.tests?.expectationChanges).toEqual([
+      "test/clamp.test.mjs::clamps above",
     ]);
+  });
+
+  it("accepts a source fix that rewrites its test alongside, judged by the original test", async () => {
+    await put("src/clamp.mjs", correct);
+    await put(
+      "test/clamp.test.mjs",
+      `${visibleTest}test("clamps below", () => assert.equal(clamp(-1, 0, 5), 0));\n`,
+    );
+    const predicate = (await verify()).statement.predicate;
+    expect(predicate.state).toBe("complete");
+    expect(predicate.checks[0]?.tests).toMatchObject({
+      fixed: ["test/clamp.test.mjs::clamps above"],
+      added: ["test/clamp.test.mjs::clamps below"],
+    });
   });
 
   it("judges by the base's checks even where the change rewrites swarm.toml", async () => {
@@ -169,7 +183,7 @@ describe("measuring every check at the base commit first", () => {
     const predicate = (await verify()).statement.predicate;
     expect(predicate.checks.map((check) => [check.name, check.result])).toEqual([
       ["test", "pass"],
-      ["red", "pre-existing-failure"],
+      ["red", "unresolved"],
       ["syntax", "pass"],
     ]);
     expect(predicate.baseline).toMatchObject({ status: "measured", cached: false });
@@ -179,12 +193,10 @@ describe("measuring every check at the base commit first", () => {
       "fail",
       "pass",
     ]);
-    const red = predicate.baseline.checks[1]?.outputSha256;
-    expect(predicate.checks[1]?.baseOutputSha256).toBe(red);
     expect(predicate.unmeasured).toContain(
-      `check red: fails at the base commit (output sha256:${red}) and still fails`,
+      "check red: no test in its report passes against the candidate (1 collected)",
     );
-    // Unmeasured is its own result: an inherited failure never lets the verdict pass.
+    // A check that cannot tell the candidate from no change never lets the result complete.
     expect(exitCodeOf(predicate)).toBe(4);
   });
 
@@ -193,7 +205,7 @@ describe("measuring every check at the base commit first", () => {
     const predicate = (await verify()).statement.predicate;
     expect(predicate.checks[2]).toMatchObject({ name: "syntax", result: "fail" });
     expect(predicate.reasons).toContain(
-      "check syntax regressed: it passes at the base commit and fails with the change",
+      "check syntax regressed: it passes at the base commit and fails with the candidate",
     );
     expect(exitCodeOf(predicate)).toBe(1);
   });

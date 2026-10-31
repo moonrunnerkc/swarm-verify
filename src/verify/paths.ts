@@ -1,16 +1,14 @@
-import type { ProtectedCategory } from "../config/swarm-toml.ts";
+import type { ArtifactCategory } from "../config/swarm-toml.ts";
 
-export interface ProtectedPathFinding {
+/**
+ * Every path a candidate changes is a candidate artifact: source, tests, manifests, lockfiles,
+ * configuration and CI files may change together. The category says which runs a change
+ * affects (a test file's base version still judges the candidate; a lockfile's change prepares
+ * the candidate's dependencies afresh); it never refuses the change by itself.
+ */
+export interface ChangedArtifact {
   readonly path: string;
-  readonly category: ProtectedCategory;
-}
-
-export interface ProtectedPathResult {
-  /** Protected paths the change touched, allowed or not. */
-  readonly changed: readonly ProtectedPathFinding[];
-  /** The ones that make the change unacceptable: touched together with source, not allowed. */
-  readonly violations: readonly ProtectedPathFinding[];
-  readonly allowed: readonly ProtectedCategory[];
+  readonly category: ArtifactCategory | "source";
 }
 
 const lockfiles = new Set([
@@ -39,8 +37,8 @@ const ciDirectories = [".github/", ".circleci/", ".buildkite/"];
 // Files that change how a check's Node or Python processes start, and so what loads first.
 const startupFiles = /^(?:\.npmrc|\.yarnrc(?:\.yml)?|sitecustomize\.py|usercustomize\.py|.*\.pth)$/;
 
-/** The protected category a path belongs to, or null for source. */
-export function categoryOf(path: string): ProtectedCategory | null {
+/** The category of a candidate artifact, or null for source. */
+export function categoryOf(path: string): ArtifactCategory | null {
   const segments = path.split("/");
   const name = segments.at(-1) ?? path;
   if (path === "swarm.toml" || path.startsWith(".swarm/") || startupFiles.test(name))
@@ -53,23 +51,6 @@ export function categoryOf(path: string): ProtectedCategory | null {
   return null;
 }
 
-/**
- * Protected paths may change on their own, but not in the same change as source unless
- * swarm.toml allows that category. The allowance is read from the base, never the change.
- */
-export function checkProtectedPaths(
-  paths: readonly string[],
-  allowed: readonly ProtectedCategory[],
-): ProtectedPathResult {
-  const changed: ProtectedPathFinding[] = [];
-  let touchesSource = false;
-  for (const path of paths) {
-    const category = categoryOf(path);
-    if (category === null) touchesSource = true;
-    else changed.push({ path, category });
-  }
-  const violations = touchesSource
-    ? changed.filter((finding) => !allowed.includes(finding.category))
-    : [];
-  return { changed, violations, allowed };
+export function artifactsOf(paths: readonly string[]): ChangedArtifact[] {
+  return paths.map((path) => ({ path, category: categoryOf(path) ?? "source" }));
 }

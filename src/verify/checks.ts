@@ -8,7 +8,7 @@ import { childEnvironment } from "../exec/child-environment.ts";
 import { runProcessGroup } from "../exec/run-process.ts";
 import { gitText } from "./change.ts";
 import { type CheckResult, checkResultSchema, type Predicate } from "./predicate.ts";
-import { testEvidenceSchema } from "./test-report.ts";
+import { collectedFromOutput, testEvidenceSchema } from "./test-report.ts";
 
 export interface CheckRun {
   readonly result: CheckResult;
@@ -69,6 +69,7 @@ export async function runCheck(
       authority: check.authority ?? "pre-existing",
       result: failedToRun ? "error" : ran.exitCode === 0 ? "pass" : "fail",
       exitCode: failedToRun ? null : ran.exitCode,
+      collected: check.kind === "test" ? collectedFromOutput(output) : null,
       durationMs: Date.now() - started,
       outputSha256: createHash("sha256").update(output).digest("hex"),
     },
@@ -148,14 +149,11 @@ export async function privateHome(scratch: string): Promise<string> {
   return home;
 }
 
-/** The share of measured checks that passed; a pre-existing failure is not measured. */
+/** The share of measured checks that hold; a check that measured nothing is left out. */
 export function passRate(runs: readonly CheckResult[]): number {
-  const measured = runs.filter(
-    (run) => run.result !== "pre-existing-failure" && run.result !== "unmeasured",
-  );
-  return measured.length === 0
-    ? 0
-    : measured.filter((run) => run.result === "pass").length / measured.length;
+  const measured = runs.filter((run) => run.result !== "unresolved" && run.result !== "no-tests");
+  const holds = (run: CheckResult) => run.result === "pass" || run.result === "inherited-failures";
+  return measured.length === 0 ? 0 : measured.filter(holds).length / measured.length;
 }
 
 export const lockfileNames = [
@@ -185,24 +183,31 @@ export async function lockfileDigests(dir: string): Promise<Record<string, strin
 export async function environmentOf(
   dir: string,
   checks: readonly DeclaredCheck[],
-  dependencies: Predicate["environment"]["dependencies"],
+  dependencies: {
+    readonly mode: Predicate["environment"]["dependencies"];
+    readonly lockfiles: Readonly<Record<string, string>>;
+    readonly treeSha256: string | null;
+    readonly reproducible: boolean;
+  },
 ): Promise<Predicate["environment"]> {
   const git = (await gitText(dir, ["--version"])).replace(/^git version /, "");
-  const locks = await lockfileDigests(dir);
   const described = {
     node: process.version,
     platform: `${process.platform}-${process.arch}`,
     git,
-    dependencies,
+    dependencies: dependencies.mode,
     checks: checks.map(({ name, command }) => ({ name, command })),
-    lockfiles: locks,
+    lockfiles: dependencies.lockfiles,
+    dependencyTree: dependencies.treeSha256,
   };
   return {
     sha256: createHash("sha256").update(JSON.stringify(described)).digest("hex"),
     node: described.node,
     platform: described.platform,
     git,
-    dependencies,
+    dependencies: dependencies.mode,
+    dependencyTreeSha256: dependencies.treeSha256,
+    reproducible: dependencies.reproducible,
   };
 }
 
@@ -234,18 +239,6 @@ export const baseCache = {
     await writeFile(file, `${JSON.stringify(value)}\n`, { mode: 0o600 });
   },
 };
-
-/**
- * A check judged against its base run: one that failed at base and still fails measures
- * nothing about the change; one that failed at base and passes now was fixed by it.
- */
-export function againstBase(run: CheckRun, base: CheckResult | undefined): CheckRun {
-  if (base === undefined || base.result === "pass" || run.result.result === "pass") return run;
-  return {
-    ...run,
-    result: { ...run.result, result: "pre-existing-failure", baseOutputSha256: base.outputSha256 },
-  };
-}
 
 export class CheckNameCollisionError extends Error {
   constructor(name: string) {

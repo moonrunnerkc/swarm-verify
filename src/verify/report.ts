@@ -7,7 +7,6 @@ export function somethingFailed(predicate: Predicate): boolean {
   return (
     !predicate.change.applied ||
     predicate.regression.status === "found" ||
-    predicate.protectedPaths.violations.length > 0 ||
     predicate.checks.some((check) => check.result === "fail" || check.result === "error") ||
     (predicate.heldOut.status === "measured" && predicate.heldOut.heldOutPassRate < 1) ||
     predicate.requirements.some((one) => one.required && one.status === "failed")
@@ -70,13 +69,15 @@ function lines(predicate: Predicate): readonly (readonly [string, string])[] {
       ? `visible ${percent(heldOut.visiblePassRate)}, held-out ${percent(heldOut.heldOutPassRate)}, gap ${percent(heldOut.gap)}, judged in ${heldOut.judge.processes} process(es)`
       : `unmeasured: ${heldOut.reason}`,
   ]);
-  const protectedPaths = predicate.protectedPaths;
-  if (protectedPaths.violations.length > 0) {
-    rows.push([
-      "protected",
-      `${protectedPaths.violations.length} violation(s): ${protectedPaths.violations.map((v) => v.path).join(", ")}`,
-    ]);
-  }
+  const files = predicate.testFiles;
+  const touched = [
+    files.added.length > 0 ? `${files.added.length} added` : "",
+    files.modified.length > 0 ? `${files.modified.length} modified` : "",
+    files.deleted.length > 0 ? `${files.deleted.length} deleted` : "",
+    files.moved.length > 0 ? `${files.moved.length} moved` : "",
+    files.relocated.length > 0 ? `${files.relocated.length} with only imports changed` : "",
+  ].filter(Boolean);
+  if (touched.length > 0) rows.push(["test files", touched.join(", ")]);
   const coverage = predicate.coverage;
   rows.push([
     "coverage",
@@ -89,7 +90,9 @@ function lines(predicate: Predicate): readonly (readonly [string, string])[] {
     "mutation",
     mutation.status === "unmeasured"
       ? `unmeasured: ${mutation.reason}`
-      : `${mutation.status}: ${mutation.operator} at ${mutation.path}:${mutation.line}`,
+      : mutation.status === "invalid-mutant"
+        ? `invalid-mutant: ${mutation.reason}`
+        : `${mutation.status}: ${mutation.operator} at ${mutation.path}:${mutation.line}${mutation.rejected > 0 ? ` (${mutation.rejected} unparsable mutant(s) refused first)` : ""}`,
   ]);
   const execution = predicate.execution;
   rows.push([

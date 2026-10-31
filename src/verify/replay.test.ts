@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import type { CheckRun } from "./checks.ts";
-import { judgeCheck } from "./per-test.ts";
+import { judgeCheck } from "./judgment.ts";
 import { parseJunit, type TestEvidence, type TestReport } from "./test-report.ts";
 
 // The swarm trial on astropy__astropy-12907 in the evaluation run 2026-10-29T16-12-15-988Z got
@@ -24,6 +24,7 @@ const run = (exitCode: number): CheckRun => ({
     kind: "test",
     authority: "pre-existing",
     result: exitCode === 0 ? "pass" : "fail",
+    collected: null,
     exitCode,
     durationMs: 1,
     outputSha256: "0".repeat(64),
@@ -42,33 +43,46 @@ describe("replaying an evaluation trial the exit code left unmeasured", () => {
   const base = report("replay-astropy-12907-base.xml.gz");
   const head = report("replay-astropy-12907-head.xml.gz");
 
-  it("gets a measured verdict test by test, with the suite failing at both commits", () => {
-    const judged = judgeCheck(
-      { run: run(1), evidence: evidence(head, "pytest") },
-      { result: run(1).result, evidence: evidence(base, "pytest") },
-      () => false,
-    );
-    expect(judged.run.result.result).toBe("pass");
+  const none = {
+    added: new Set<string>(),
+    modified: new Set<string>(),
+    deleted: new Set<string>(),
+    moved: new Map<string, string>(),
+    relocated: new Set<string>(),
+  };
+  const judge = (runner: TestEvidence["runner"]) => {
+    const candidate = { run: run(1), evidence: evidence(head, runner) };
+    return judgeCheck({
+      base: { run: run(1), evidence: evidence(base, runner) },
+      obligation: candidate,
+      candidate,
+      witness: null,
+      changes: none,
+      behaviorChange: "none",
+    });
+  };
+
+  it("is measured test by test, with the suite failing at both commits", () => {
+    const judged = judge("pytest");
+    expect(judged.run.result.result).toBe("inherited-failures");
     expect(judged.unmeasured).toBeNull();
     expect(judged.run.result.tests?.counts).toEqual({
-      passing: 17218,
+      preserved: 17218,
+      renamed: 0,
       fixed: 0,
-      regressed: 0,
-      preExisting: 2483,
-      deleted: 0,
-      allowedDeletions: 0,
-      newlyFailing: 0,
+      newFailures: 0,
+      inherited: 2483,
+      removed: 0,
+      superseded: 0,
+      expectationChanges: 0,
       added: 0,
+      addedFailing: 0,
+      witnesses: 0,
       skipped: 2350,
     });
   });
 
-  it("would still be unmeasured judged by exit code", () => {
-    const judged = judgeCheck(
-      { run: run(1), evidence: evidence(head, null) },
-      { result: run(1).result, evidence: evidence(base, null) },
-      () => false,
-    );
-    expect(judged.run.result.result).toBe("pre-existing-failure");
+  it("would be unresolved judged by exit code, never inherited", () => {
+    expect(judge(null).run.result.result).toBe("unresolved");
   });
 });

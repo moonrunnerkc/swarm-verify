@@ -56,8 +56,9 @@
     "lint": "biome check",
     "format": "biome format --write",
     "test": "vitest run",
-    "gates": "npm run checks && npm run typecheck && npm run lint && npm test && npm run build",
-    "prepack": "npm run build"
+    "gates": "npm run checks && npm run caps && npm run typecheck && npm run lint && npm test && npm run build",
+    "prepack": "npm run build",
+    "caps": "node scripts/check-caps.mjs"
   },
   "dependencies": {
     "smol-toml": "^1.8.0",

@@ -19,6 +19,34 @@ tagged there but never published to npm.
   directory) and returns a `swarm-verify.result/v1`; both schemas are exported. The signed
   predicate type is `https://github.com/moonrunnerkc/swarm-verify/result/v1` and carries the
   overall state, requirement outcomes, regression, execution assurance and diagnostics.
+- **Candidate artifacts are not acceptance authority.** The refusal of tests, lockfiles,
+  manifests or configuration changed together with source is gone. The base's tests judge the
+  candidate through an obligation run with the base's versions of rewritten or deleted test
+  files restored; the candidate's own tests are labeled implementation-authored, and a witness
+  run against the base's source shows which fail before the change. A rewritten expectation that
+  rescues a failing original blocks unless the request authorizes a behavior change and the new
+  version fails before and passes after. `[protect] allow` is read and has no effect.
+- **Per-test regression detection with identities.** Tests are classified preserved, renamed,
+  fixed, inherited, new failure, removed, superseded, expectation changed, added and added
+  failing. A suite that already fails at the base no longer hides a new failure in it, and a
+  check judged only by exit code that fails at both commits is `unresolved`, never inherited.
+  Test files moved or edited with only their imports changed are matched by test name.
+- **`node --test` is read test by test** through its junit reporter, passed in `NODE_OPTIONS`.
+- **Zero collected tests is `no-tests`**, from the report or the runner's printed summary, and
+  never counts as passing.
+- **Dependency identity.** `prepare` installs from the lockfile in the checkout and digests the
+  installed tree into the environment; the candidate's dependencies are installed again from its
+  own lockfile when it changes one. Linked dependencies are reported `linked, not reproducible`
+  and their baselines are never cached.
+- **Mutation validity.** Mutants are syntax-checked before they run; outcomes are `killed`,
+  `survived`, `timeout`, `runner-crash` and `invalid-mutant`, and only `killed` counts. Dropping a
+  returned value no longer drops the closing brace with it.
+- **Requirements by kind.** A fix or feature needs a test failing before and passing after; a
+  refactor needs preserved behavior and structural evidence, never a failing baseline; an upgrade
+  needs resolved versions, a fresh install and no regression.
+- A working tree whose repository ignores `.swarm/` can be snapshotted: git 2.51 and later refuse
+  an add pathspec that names an ignored path, so the tree is added whole and `.swarm` removed
+  from the private index.
 - **States and exit codes.** `pass`, `fail` and `unmeasured` become `complete`, `incomplete` and
   `blocked`, with exit codes 0, 1 or 4, and 5. The offline checker separates integrity (6 when it
   fails) from acceptance (1 when a signed result is not complete). See docs/migration-2.md.

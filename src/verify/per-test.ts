@@ -1,11 +1,11 @@
 import { mkdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { DeclaredCheck } from "../config/swarm-toml.ts";
-import { againstBase, type CheckContext, type CheckRun, runCheck } from "./checks.ts";
+import type { CheckContext, CheckRun } from "./checks.ts";
+import { runCheck } from "./checks.ts";
 import { prepareJudge, readJudge } from "./judge.ts";
-import type { CheckResult } from "./predicate.ts";
 import { type ReportPlan, reportPlan } from "./report-plan.ts";
-import { compareReports, livesIn, parseReport, type TestEvidence } from "./test-report.ts";
+import { parseReport, type TestEvidence } from "./test-report.ts";
 
 export interface MeasuredRun {
   readonly run: CheckRun;
@@ -36,9 +36,22 @@ async function goModule(dir: string): Promise<string | null> {
   return /^module\s+(\S+)/m.exec(text)?.[1] ?? null;
 }
 
+/** Environments laid over each other, with NODE_OPTIONS joined rather than replaced. */
+function mergeEnv(...layers: readonly Readonly<Record<string, string>>[]): Record<string, string> {
+  const merged: Record<string, string> = {};
+  for (const layer of layers) {
+    for (const [name, value] of Object.entries(layer)) {
+      merged[name] =
+        name === "NODE_OPTIONS" && merged[name] !== undefined ? `${merged[name]} ${value}` : value;
+    }
+  }
+  return merged;
+}
+
 /**
- * Runs a declared check with its runner's reporter appended and, for a test check, the judge
- * loaded. The recorded command stays the declared one.
+ * Runs a declared check with its runner's reporter attached and, for a test check, the judge
+ * loaded. The recorded command stays the declared one; `collected` comes from the report where
+ * there is one.
  */
 export async function runMeasured(input: {
   readonly check: DeclaredCheck;
@@ -60,7 +73,8 @@ export async function runMeasured(input: {
     input.judge && check.kind === "test"
       ? await prepareJudge(input.scratch, `${input.label}-${check.name}`, context.dir)
       : null;
-  const ran = await runCheck(wrapped.check, context, { ...judge?.env, ...wrapped.env });
+  const env = mergeEnv(judge?.env ?? {}, plan?.env(file) ?? {}, wrapped.env);
+  const ran = await runCheck(wrapped.check, context, env);
   const run = { ...ran, result: { ...ran.result, command: check.command } };
   const judged = judge === null ? null : (await readJudge(judge.report)).problem;
   if (plan === null) {
@@ -77,173 +91,37 @@ export async function runMeasured(input: {
         : report === null
           ? `the ${plan.runner} report could not be parsed`
           : null;
-  return { run, evidence: { runner: plan.runner, report, unreadable, judge: judged } };
-}
-
-export interface CheckJudgment {
-  readonly run: CheckRun;
-  readonly reasons: readonly string[];
-  /** What blocks the verdict, as the check printed it; null when nothing does. */
-  readonly failure: string | null;
-  /** What failed at base and still fails: not a refusal, but what an agent would act on. */
-  readonly inherited: string | null;
-  /** Why the check measured nothing, when its runner's report could not be read. */
-  readonly unmeasured: string | null;
-}
-
-const listed = (ids: readonly string[], total: number) =>
-  total <= 5 ? ids.slice(0, 5).join(", ") : `${ids.slice(0, 5).join(", ")} and ${total - 5} more`;
-
-/** One check with the change, judged against its base run. */
-export function judgeCheck(
-  head: MeasuredRun,
-  base: { readonly result: CheckResult; readonly evidence: TestEvidence } | undefined,
-  deletable: (file: string | null) => boolean,
-): CheckJudgment {
-  const { name, command, kind } = head.run.result;
-  const output = `$ ${command}\n${head.run.outputTail}`;
-  // A judge problem the base run had too is the project's, not the change's, unless the change
-  // patched something more.
-  const found = head.evidence.judge;
-  const atBase = base?.evidence.judge ?? null;
-  const tampered =
-    found !== null &&
-    (atBase === null || (found.startsWith("the code under test") && found !== atBase))
-      ? `check ${name}: ${found}`
-      : null;
-  if (head.evidence.runner === null) {
-    const run = againstBase(head.run, base?.result);
-    const { result } = run.result;
-    const reasons: string[] = [];
-    if (kind === "test") {
-      reasons.push(
-        `check ${name}: no test runner is recognized in its command, so its exit code judged it`,
-      );
-    }
-    if (tampered !== null) reasons.push(tampered);
-    if (result === "pre-existing-failure") {
-      reasons.push(`check ${name} fails at the base commit too, so it measures nothing here`);
-    } else if (result !== "pass") {
-      const broke = result === "fail" ? "fails" : "could not run";
-      reasons.push(
-        base?.result.result === "pass"
-          ? `check ${name} regressed: it passes at the base commit and ${broke} with the change`
-          : `check ${name} ${result === "fail" ? "failed" : "could not run"}`,
-      );
-    }
-    const blocks = tampered !== null || (result !== "pass" && result !== "pre-existing-failure");
-    const failed = tampered !== null && result === "pass" ? "fail" : result;
-    return {
-      run: { ...run, result: { ...run.result, result: failed } },
-      reasons,
-      failure: blocks ? output : null,
-      inherited: result === "pre-existing-failure" ? output : null,
-      unmeasured: null,
-    };
-  }
-  const unreadable =
-    base === undefined
-      ? "the base commit has no run of it"
-      : base.evidence.unreadable !== null
-        ? `at the base commit, ${base.evidence.unreadable}`
-        : head.evidence.unreadable !== null
-          ? `with the change, ${head.evidence.unreadable}`
-          : null;
-  if (unreadable !== null || base?.evidence.report == null || head.evidence.report === null) {
-    return {
-      run: { ...head.run, result: { ...head.run.result, result: "unmeasured" } },
-      reasons: [`check ${name} is unmeasured: ${unreadable ?? "a report is missing"}`],
-      failure: null,
-      inherited: null,
-      unmeasured: `check ${name}: ${unreadable ?? "a report is missing"}`,
-    };
-  }
-  const compared = compareReports(base.evidence.report, head.evidence.report, deletable);
-  const { counts } = compared;
-  const tests = { runner: head.evidence.runner, ...compared };
-  const reasons: string[] = [];
-  if (counts.regressed > 0) {
-    reasons.push(
-      `check ${name}: ${counts.regressed} test(s) pass at the base commit and fail with the change: ${listed(compared.regressed, counts.regressed)}`,
-    );
-  }
-  if (counts.deleted > 0) {
-    reasons.push(
-      `check ${name}: ${counts.deleted} test(s) at the base commit are missing with the change: ${listed(compared.deleted, counts.deleted)}`,
-    );
-  }
-  if (counts.newlyFailing > 0) {
-    reasons.push(
-      `check ${name}: ${counts.newlyFailing} test(s) that did not run at the base commit fail with the change: ${listed(compared.newlyFailing, counts.newlyFailing)}`,
-    );
-  }
-  if (tampered !== null) reasons.push(tampered);
-  const testsBlock = counts.regressed + counts.deleted + counts.newlyFailing > 0;
-  // Every test in the report passed, yet the command now fails where it passed at base.
-  const exitedWorse =
-    !testsBlock && base.result.exitCode === 0 && head.run.result.exitCode !== 0
-      ? `check ${name} exits ${head.run.result.exitCode} with the change and 0 at the base commit, though no test in its report fails`
-      : null;
-  if (exitedWorse !== null) reasons.push(exitedWorse);
-  if (counts.preExisting > 0) {
-    reasons.push(
-      `check ${name}: ${counts.preExisting} test(s) fail at the base commit and still fail, which does not block: ${listed(compared.preExisting, counts.preExisting)}`,
-    );
-  }
-  if (counts.allowedDeletions > 0) {
-    reasons.push(
-      `check ${name}: ${counts.allowedDeletions} test(s) removed from test files swarm.toml lets the change edit`,
-    );
-  }
-  const blocks = testsBlock || tampered !== null || exitedWorse !== null;
-  // Nothing passing with the change cannot tell it from no change: the runner ran no test (a
-  // collection that stopped early) or every test it ran failed.
-  if (!blocks && counts.passing + counts.fixed + counts.added === 0) {
-    const why = `no test in its report passes with the change (${counts.preExisting} failing, ${counts.skipped} skipped)`;
-    return {
-      run: { ...head.run, result: { ...head.run.result, result: "unmeasured", tests } },
-      reasons: [`check ${name} is unmeasured: ${why}`, ...reasons],
-      failure: null,
-      inherited: counts.preExisting > 0 ? output : null,
-      unmeasured: `check ${name}: ${why}`,
-    };
-  }
+  const collected = report === null ? run.result.collected : Object.keys(report).length;
   return {
-    run: {
-      ...head.run,
-      result: {
-        ...head.run.result,
-        result: blocks ? "fail" : "pass",
-        tests,
-      },
-    },
-    reasons,
-    failure: blocks ? output : null,
-    inherited: !blocks && counts.preExisting > 0 ? output : null,
-    unmeasured: null,
+    run: { ...run, result: { ...run.result, collected } },
+    evidence: { runner: plan.runner, report, unreadable, judge: judged },
   };
 }
 
-/**
- * Whether a mutant made a test check fail: a test passing with the change and not under the
- * mutant, or, without reports to compare, a command that passed and now does not.
- */
-export function killedBy(head: MeasuredRun, mutant: MeasuredRun): boolean {
-  const before = head.evidence.report;
-  const after = mutant.evidence.report;
-  // A mutant that keeps the runner from writing its report broke every test it would have run.
-  if (before !== null) {
-    return (
-      after === null ||
-      Object.entries(before).some(
-        ([id, entry]) => entry.status === "pass" && after[id]?.status !== "pass",
-      )
-    );
-  }
-  return head.run.result.exitCode === 0 && mutant.run.result.result !== "pass";
-}
+export type MutantOutcome = "killed" | "survived" | "timeout" | "runner-crash";
 
-/** Whether a test's file is one the change edited and swarm.toml lets it edit. */
-export function deletableIn(changed: readonly string[], testsAllowed: boolean) {
-  return (file: string | null) => testsAllowed && changed.some((path) => livesIn(file, path));
+/**
+ * What a mutant did to a test check that passed with the candidate. Killed only when a test
+ * that passed now fails in the mutant's report; a run that timed out, or that wrote no report
+ * (a loader or syntax failure, not an assertion), is told apart. Without a report, a check that
+ * printed failing tests counts, and any other non-zero exit is a crash.
+ */
+export function mutantOutcome(head: MeasuredRun, mutant: MeasuredRun): MutantOutcome {
+  if (mutant.run.notRun === "it timed out") return "timeout";
+  const before = head.evidence.report;
+  if (before !== null) {
+    const after = mutant.evidence.report;
+    if (after === null) return "runner-crash";
+    const broke = Object.entries(before).some(
+      ([id, entry]) =>
+        entry.status === "pass" && after[id] !== undefined && after[id]?.status !== "pass",
+    );
+    if (broke) return "killed";
+    const lost = Object.entries(before).some(
+      ([id, entry]) => entry.status === "pass" && after[id] === undefined,
+    );
+    return lost ? "runner-crash" : "survived";
+  }
+  if (head.run.result.exitCode !== 0 || mutant.run.result.result === "pass") return "survived";
+  return mutant.run.result.exitCode === 1 ? "killed" : "runner-crash";
 }

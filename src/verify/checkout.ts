@@ -74,10 +74,18 @@ export async function restoreFromBase(
   checkout: BaseCheckout,
   paths: readonly string[],
 ): Promise<void> {
+  await restoreFrom(checkout, checkout.baseCommit, paths);
+}
+
+/** Puts each path as `treeish` has it, removing the ones it does not have. */
+export async function restoreFrom(
+  checkout: BaseCheckout,
+  treeish: string,
+  paths: readonly string[],
+): Promise<void> {
   for (const path of paths) {
-    const object = `${checkout.baseCommit}:${path}`;
-    if ((await runGit(checkout.dir, ["cat-file", "-e", object])).code === 0) {
-      await git(checkout.dir, ["checkout", checkout.baseCommit, "--", path]);
+    if ((await runGit(checkout.dir, ["cat-file", "-e", `${treeish}:${path}`])).code === 0) {
+      await git(checkout.dir, ["checkout", treeish, "--", path]);
     } else {
       await rm(join(checkout.dir, path), { force: true });
     }

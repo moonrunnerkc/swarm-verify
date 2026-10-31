@@ -8,10 +8,9 @@ import { gitText } from "./change.ts";
 import { type BaseCheckout, resetTracked, restoreFromBase } from "./checkout.ts";
 import { baseCache, type CheckContext, type CheckRun, runCheck } from "./checks.ts";
 import { judgeSha256, prepareJudge, readJudge } from "./judge.ts";
-import { runMeasured } from "./per-test.ts";
+import { type MeasuredRun, runMeasured } from "./per-test.ts";
 import type { Baseline, Predicate } from "./predicate.ts";
 import type { ReportPlan } from "./report-plan.ts";
-import type { TestEvidence } from "./test-report.ts";
 
 const sealedSchema = z.object({
   glob: z.string().min(1),
@@ -189,7 +188,7 @@ export async function measureBase(input: {
   readonly home: string;
   readonly environment: Predicate["environment"];
   readonly workspace: string;
-}): Promise<{ readonly baseline: Baseline; readonly tests: readonly TestEvidence[] }> {
+}): Promise<{ readonly baseline: Baseline; readonly runs: readonly MeasuredRun[] }> {
   const key = createHash("sha256")
     .update(
       JSON.stringify([
@@ -202,23 +201,30 @@ export async function measureBase(input: {
     .digest("hex");
   const file = baseCache.file(input.home, key);
   const environmentSha256 = input.environment.sha256;
-  const cached = await baseCache.read(file);
+  // A base measured on an environment no later run can reproduce (linked or set up by a
+  // command no lockfile pins) is neither read from the cache nor written to it.
+  const reuse = input.environment.reproducible;
+  const cached = reuse ? await baseCache.read(file) : null;
   if (cached !== null) {
     const { checks, heldOut, tests } = cached;
+    const runs = checks.map((result, at) => ({
+      run: { result, outputTail: "", notRun: null },
+      evidence: tests[at] ?? { runner: null, report: null, unreadable: null, judge: null },
+    }));
     return {
       baseline: { status: "measured", cached: true, environmentSha256, checks, heldOut },
-      tests,
+      runs,
     };
   }
   const scratch = dirname(input.checkout.dir);
-  const measured = [];
+  const runs: MeasuredRun[] = [];
   for (const [at, check] of input.checks.entries()) {
     const plan = input.plans[at] ?? null;
     const context = input.context;
-    measured.push(await runMeasured({ check, plan, context, scratch, label: "base", judge: true }));
+    runs.push(await runMeasured({ check, plan, context, scratch, label: "base", judge: true }));
   }
-  const checks = measured.map((one) => one.run.result);
-  const tests = measured.map((one) => one.evidence);
+  const checks = runs.map((one) => one.run.result);
+  const tests = runs.map((one) => one.evidence);
   let heldOut: CheckRun["result"][] = [];
   if (input.sealed !== null) {
     await overlaySealed(input.workspace, input.sealed, input.checkout.dir, input.home);
@@ -229,9 +235,9 @@ export async function measureBase(input: {
     );
   }
   await resetTracked(input.checkout);
-  await baseCache.write(file, { checks, tests, heldOut });
+  if (reuse) await baseCache.write(file, { checks, tests, heldOut });
   return {
     baseline: { status: "measured", cached: false, environmentSha256, checks, heldOut },
-    tests,
+    runs,
   };
 }

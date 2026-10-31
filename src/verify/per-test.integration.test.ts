@@ -70,14 +70,14 @@ describe("judging a suite that fails at the base commit test by test", () => {
     const predicate = await verify();
     expect(predicate.state).toBe("complete");
     expect(predicate.checks[0]).toMatchObject({
-      result: "pass",
+      result: "inherited-failures",
       exitCode: 1,
       tests: {
         runner: "vitest",
         fixed: ["test/clamp.test.mjs::above"],
-        preExisting: ["test/clamp.test.mjs::red"],
-        regressed: [],
-        counts: { passing: 1 },
+        inherited: ["test/clamp.test.mjs::red"],
+        newFailures: [],
+        counts: { preserved: 1 },
       },
     });
     expect(predicate.baseline).toMatchObject({ status: "measured", cached: false });
@@ -93,10 +93,10 @@ describe("judging a suite that fails at the base commit test by test", () => {
     expect(exitCodeOf(predicate)).toBe(1);
     expect(predicate.checks[0]?.tests).toMatchObject({
       fixed: ["test/clamp.test.mjs::above"],
-      regressed: ["test/clamp.test.mjs::inside"],
+      newFailures: ["test/clamp.test.mjs::inside"],
     });
     expect(predicate.reasons).toContain(
-      "check test: 1 test(s) pass at the base commit and fail with the change: test/clamp.test.mjs::inside",
+      "check test: 1 test(s) pass at the base commit and fail against the candidate: test/clamp.test.mjs::inside",
     );
   });
 });

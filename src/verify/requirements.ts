@@ -1,81 +1,203 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-import type { EvidenceRef, RequirementOutcome } from "../api/outcome.ts";
+import type { EvidenceRef, Regression, RequirementOutcome } from "../api/outcome.ts";
 import type { Requirement } from "../api/request.ts";
+import type { TestOutcome } from "./compare.ts";
 import type { CheckResult } from "./predicate.ts";
+import { packageEvidence, structureEvidence } from "./requirement-evidence.ts";
+import { livesIn } from "./test-report.ts";
 
 export interface RequirementInputs {
   readonly checks: readonly CheckResult[];
-  /** The candidate tree, for structural claims. */
+  /** Every test of every check, classified against the base. */
+  readonly outcomes: readonly TestOutcome[];
+  /** The candidate tree, and a reader of the base's files, for structural and dependency claims. */
   readonly dir: string;
-  /** Whether the candidate changed anything at all. */
+  readonly readBase: (path: string) => Promise<string | null>;
+  /** Paths of source files the candidate changed. */
+  readonly sourceChanged: readonly string[];
   readonly changed: boolean;
+  readonly regression: Regression;
+  /** Whether the candidate's dependencies were installed fresh from its own lockfile. */
+  readonly freshDependencies: boolean;
 }
 
-const matches = (id: string, name: string, file: string | undefined) =>
-  id.endsWith(`::${name}`) && (file === undefined || id.startsWith(`${file}::`));
+/** Outcomes that show behavior: a test or check failing before and passing after. */
+const witnessing = new Set(["fixed", "witness", "superseded"]);
+const holding = new Set([
+  ...witnessing,
+  "preserved",
+  "pass",
+  "observed",
+  "passes before and after",
+]);
+const failing = new Set(["failing", "fail"]);
 
-async function structureEvidence(
-  dir: string,
-  claim: Requirement["evidence"]["structure"][number],
-): Promise<EvidenceRef> {
-  const text = await readFile(join(dir, claim.path), "utf8").catch(() => null);
-  const holds =
-    claim.absent === true
-      ? text === null
-      : text !== null && (claim.contains === undefined || text.includes(claim.contains));
-  const what =
-    claim.absent === true ? "absent" : claim.contains === undefined ? "exists" : "contains";
-  return {
-    kind: "structure",
-    ref:
-      claim.contains === undefined
-        ? claim.path
-        : `${claim.path} contains ${JSON.stringify(claim.contains)}`,
-    authority: "pre-existing",
-    outcome: holds ? "observed" : "not observed",
-    detail: `expected ${what}`,
-  };
+function testRef(outcome: TestOutcome): EvidenceRef {
+  const authority = outcome.origin === "pre-existing" ? "pre-existing" : "implementation-authored";
+  const ref = outcome.id;
+  switch (outcome.classification) {
+    case "fixed":
+      return { kind: "test", ref, authority, outcome: "fixed" };
+    case "superseded":
+      return {
+        kind: "test",
+        ref,
+        authority,
+        outcome: "superseded",
+        detail: "authorized behavior change",
+      };
+    case "preserved":
+    case "renamed":
+      return { kind: "test", ref: outcome.movedTo ?? ref, authority, outcome: "preserved" };
+    case "added":
+      return outcome.before !== null && outcome.before !== "pass"
+        ? {
+            kind: "test",
+            ref,
+            authority,
+            outcome: "witness",
+            detail: "fails against the base's source",
+          }
+        : {
+            kind: "test",
+            ref,
+            authority,
+            outcome: "passes before and after",
+            detail:
+              outcome.before === null
+                ? "no run against the base's source"
+                : "passes against the base's source too",
+          };
+    case "skipped":
+      return { kind: "test", ref, authority, outcome: "not observed", detail: "skipped" };
+    default:
+      return { kind: "test", ref, authority, outcome: "failing", detail: outcome.classification };
+  }
 }
 
-function testEvidence(
-  checks: readonly CheckResult[],
+function testRefs(
   selector: Requirement["evidence"]["tests"][number],
-): EvidenceRef {
+  inputs: RequirementInputs,
+): EvidenceRef[] {
+  const found = inputs.outcomes.filter(
+    (one) =>
+      (one.title === selector.name || one.title.endsWith(` > ${selector.name}`)) &&
+      (selector.file === undefined || livesIn(one.file, selector.file)),
+  );
+  if (found.length > 0) return found.map(testRef);
   const label = selector.file === undefined ? selector.name : `${selector.file}::${selector.name}`;
-  for (const check of checks) {
-    const tests = check.tests;
-    if (tests === undefined) continue;
-    const found = (ids: readonly string[]) =>
-      ids.find((id) => matches(id, selector.name, selector.file));
-    const fixed = found(tests.fixed);
-    if (fixed !== undefined)
-      return { kind: "test", ref: fixed, authority: "pre-existing", outcome: "fixed" };
-    const broke = found([...tests.regressed, ...tests.newlyFailing]);
-    if (broke !== undefined)
-      return { kind: "test", ref: broke, authority: "pre-existing", outcome: "failing" };
-  }
-  return {
-    kind: "test",
-    ref: label,
-    authority: "pre-existing",
-    outcome: "not observed",
-    detail: "no executed test with this name failed before and passed after the change",
-  };
+  return [
+    {
+      kind: "test",
+      ref: label,
+      authority: "pre-existing",
+      outcome: "not observed",
+      detail: "no executed test has this name",
+    },
+  ];
 }
 
-function checkEvidence(checks: readonly CheckResult[], name: string): EvidenceRef {
-  const check = checks.find((one) => one.name === name);
-  if (check === undefined) {
-    return { kind: "check", ref: name, authority: "pre-existing", outcome: "not run" };
+function checkRef(name: string, inputs: RequirementInputs): EvidenceRef {
+  const check = inputs.checks.find((one) => one.name === name);
+  if (check === undefined)
+    return {
+      kind: "check",
+      ref: name,
+      authority: "pre-existing",
+      outcome: "not observed",
+      detail: "no such check ran",
+    };
+  const outcome =
+    check.result === "pass"
+      ? "pass"
+      : check.result === "fail" || check.result === "error"
+        ? "fail"
+        : "not observed";
+  return { kind: "check", ref: name, authority: check.authority, outcome, detail: check.result };
+}
+
+/** Status, limitation and next action from a requirement's evidence, by its kind. */
+function judged(
+  requirement: Requirement,
+  evidence: readonly EvidenceRef[],
+  inputs: RequirementInputs,
+): Pick<RequirementOutcome, "status" | "limitation" | "nextAction"> {
+  if (!inputs.changed && evidence.every((one) => !witnessing.has(one.outcome))) {
+    return {
+      status: "unverified",
+      limitation: "no change observed",
+      nextAction: "make the change the requirement asks for",
+    };
   }
-  return { kind: "check", ref: name, authority: check.authority, outcome: check.result };
+  const broken = evidence.filter((one) => failing.has(one.outcome));
+  if (broken.length > 0) {
+    return {
+      status: "failed",
+      limitation: `failing: ${broken.map((one) => one.ref).join(", ")}`,
+      nextAction: "repair the failing evidence",
+    };
+  }
+  if (evidence.length === 0) {
+    return {
+      status: "unverified",
+      limitation: "no executed evidence is mapped to this requirement",
+      nextAction: "map a test or check that exercises it",
+    };
+  }
+  const unobserved = evidence.filter((one) => !holding.has(one.outcome));
+  if (unobserved.length > 0) {
+    return {
+      status: "unverified",
+      limitation: `not observed: ${unobserved.map((one) => one.ref).join(", ")}`,
+      nextAction: "run a check that exercises it",
+    };
+  }
+  if (requirement.kind === "fix" || requirement.kind === "feature") {
+    if (!evidence.some((one) => witnessing.has(one.outcome))) {
+      return {
+        status: "unverified",
+        limitation: "no mapped test fails before the change and passes after it",
+        nextAction: "add a test that fails against the base and passes with the change",
+      };
+    }
+  }
+  if (requirement.kind === "refactor" && inputs.regression.status !== "none") {
+    return {
+      status: "unverified",
+      limitation: `behavior is not shown preserved: regression ${inputs.regression.status}`,
+      nextAction: "keep every base test passing",
+    };
+  }
+  if (requirement.kind === "upgrade") {
+    if (!evidence.some((one) => one.kind === "package")) {
+      return {
+        status: "unverified",
+        limitation: "no resolved package version is mapped",
+        nextAction: "name the upgraded package",
+      };
+    }
+    if (!inputs.freshDependencies) {
+      return {
+        status: "unverified",
+        limitation: "the candidate's dependencies were not installed fresh from its lockfile",
+        nextAction: "verify with dependencies prepared from the lockfile",
+      };
+    }
+    if (inputs.regression.status !== "none") {
+      return {
+        status: "unverified",
+        limitation: `compatibility is not shown: regression ${inputs.regression.status}`,
+        nextAction: "keep every base test passing",
+      };
+    }
+  }
+  return { status: "satisfied", limitation: null, nextAction: null };
 }
 
 /**
- * Each requirement's status from executed evidence only: every piece of evidence it names
- * must be observed as passing, and one that fails makes it failed. A requirement that names
- * no evidence is unverified, whatever the candidate did.
+ * Each requirement's status from executed and observed evidence only. A fix or feature needs a
+ * test that fails before and passes after; a refactor needs preserved behavior and structural
+ * evidence, never a failing baseline; an upgrade needs resolved versions, a fresh install and
+ * compatible checks. A requirement that names no evidence is unverified, whatever changed.
  */
 export async function assessRequirements(
   requirements: readonly Requirement[],
@@ -83,34 +205,28 @@ export async function assessRequirements(
 ): Promise<RequirementOutcome[]> {
   const outcomes: RequirementOutcome[] = [];
   for (const requirement of requirements) {
-    const { tests, checks, structure } = requirement.evidence;
+    const { tests, checks, structure, packages } = requirement.evidence;
     const evidence: EvidenceRef[] = [
-      ...tests.map((selector) => testEvidence(inputs.checks, selector)),
-      ...checks.map((name) => checkEvidence(inputs.checks, name)),
+      ...tests.flatMap((selector) => testRefs(selector, inputs)),
+      ...checks.map((name) => checkRef(name, inputs)),
       ...(await Promise.all(structure.map((claim) => structureEvidence(inputs.dir, claim)))),
+      ...(await Promise.all(
+        packages.map((claim) => packageEvidence(inputs.readBase, inputs.dir, claim)),
+      )),
     ];
-    const failing = evidence.filter((one) => one.outcome === "failing" || one.outcome === "fail");
-    const passing = (one: EvidenceRef) =>
-      one.outcome === "fixed" || one.outcome === "pass" || one.outcome === "observed";
-    const status =
-      failing.length > 0
-        ? "failed"
-        : evidence.length > 0 && evidence.every(passing)
-          ? "satisfied"
-          : "unverified";
-    const limitation =
-      status === "satisfied"
-        ? null
-        : !inputs.changed
-          ? "no change observed"
-          : evidence.length === 0
-            ? "no executed evidence is mapped to this requirement"
-            : status === "failed"
-              ? `failing: ${failing.map((one) => one.ref).join(", ")}`
-              : `not observed: ${evidence
-                  .filter((one) => !passing(one))
-                  .map((one) => one.ref)
-                  .join(", ")}`;
+    if (
+      requirement.kind === "refactor" &&
+      structure.length === 0 &&
+      inputs.sourceChanged.length > 0
+    ) {
+      evidence.push({
+        kind: "change",
+        ref: inputs.sourceChanged.slice(0, 5).join(", "),
+        authority: "pre-existing",
+        outcome: "observed",
+        detail: `${inputs.sourceChanged.length} source file(s) changed`,
+      });
+    }
     outcomes.push({
       id: requirement.id,
       text: requirement.text,
@@ -118,15 +234,8 @@ export async function assessRequirements(
       kind: requirement.kind,
       required: requirement.required,
       assumptions: [...requirement.assumptions],
-      status,
       evidence,
-      limitation,
-      nextAction:
-        status === "satisfied"
-          ? null
-          : status === "failed"
-            ? "repair the failing evidence"
-            : "add a check that fails before the change and passes after it",
+      ...judged(requirement, evidence, inputs),
     });
   }
   return outcomes;

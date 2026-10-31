@@ -22,3 +22,16 @@ Open choices made while building Swarm Verify, dated, with the reason. Append on
 - Released changelog sections are not path-checked here: they describe releases built from swarm-orchestrator's tree.
 - The changelog's `2.0.0 - 2026-10-29` section was tagged `swarm-verify-v2.0.0` in swarm-orchestrator and never reached npm (its release job failed). That tag is left where it is; 2.0.0 will be released from this repository, and its changelog section is rewritten at release to cover what ships.
 - devDependencies resolved fresh (biome 2.6.4); biome.json migrated to its schema.
+
+## 2026-10-31: verification semantics
+
+- The eleven review probes are split by where their behavior lives: eight are verifier tests (src/probes/probes.integration.test.ts), and the three that need the agent loop (the empty `double(n)` completion, a correct edit on the last step, a stale attestation) are orchestrator tests. All eight verifier probes failed against the code before this change; the run log records each observation.
+- The ignored `.swarm` failure reproduces on git 2.54.0 (Apple Git-157) as on 2.51.1.
+- `node --test` reporters go in through `NODE_OPTIONS`, because flags placed after a positional test path are read as file patterns and npm script forwarding appends there. A command with two `node --test` runs is not read test by test, since both would write one report.
+- One run model replaces protected paths: obligation (base tests against candidate source), candidate (as delivered), witness (candidate tests against base source). The obligation run happens only when the candidate modified or deleted test files and the witness run only when it added or rewrote some, so a source-only change still costs one candidate run.
+- "Removed" blocks: a test file the candidate deleted takes its base tests with it, even when their originals still pass against the candidate, because the delivered tree no longer carries them.
+- A check whose collected tests all fail at both commits is `unresolved`, not `inherited-failures`: nothing in it tells the candidate from no change. Zero collected is `no-tests`.
+- Relocation is "identical after removing import statements and blank lines", a deterministic rule; a move that also edits test bodies is read as a delete and an add, which blocks, and is listed as a limitation.
+- TypeScript mutants are checked with Node's built-in `stripTypeScriptTypes` in transform mode, since `node --check` exits 0 on a broken `.ts` file; JSX and TSX lines are not mutated because nothing here parses them.
+- Held-out runs restore only test-category files to the base (not lockfiles or manifests), so an upgrade is judged by the held-out checks on its own dependencies.
+- `scripts/check-caps.mjs` enforces the 300-line file cap here, as in the orchestrator.

@@ -5,9 +5,9 @@ import { z } from "zod";
 
 export const swarmTomlFileName = "swarm.toml";
 
-/** What a protected-path allowance can name. */
-export const protectedCategories = ["tests", "ci", "lockfiles", "manifests", "config"] as const;
-export type ProtectedCategory = (typeof protectedCategories)[number];
+/** The kinds of candidate artifact besides source. */
+export const artifactCategories = ["tests", "ci", "lockfiles", "manifests", "config"] as const;
+export type ArtifactCategory = (typeof artifactCategories)[number];
 
 const nonEmpty = z.string().min(1);
 const positive = z.number().int().positive();
@@ -22,7 +22,9 @@ const fileSchema = z.strictObject({
       ]),
     )
     .optional(),
-  protect: z.strictObject({ allow: z.array(z.enum(protectedCategories)).optional() }).optional(),
+  // Retired in 2.0: candidate artifacts may change together. Still read, so a 1.x file parses,
+  // and reported as having no effect.
+  protect: z.strictObject({ allow: z.array(z.enum(artifactCategories)).optional() }).optional(),
   verify: z
     .strictObject({ setup: nonEmpty.optional(), timeout_minutes: positive.optional() })
     .optional(),
@@ -40,7 +42,7 @@ export interface DeclaredCheck {
 
 export interface SwarmToml {
   readonly checks: readonly DeclaredCheck[];
-  readonly allow: readonly ProtectedCategory[];
+  readonly allow: readonly ArtifactCategory[];
   readonly setup: string | null;
   readonly timeoutMinutes: number;
 }

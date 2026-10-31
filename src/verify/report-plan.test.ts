@@ -35,8 +35,20 @@ describe("recognizing a runner", () => {
     );
   });
 
+  it("gives node --test its junit reporter through NODE_OPTIONS, wherever it sits", () => {
+    for (const command of ["node --test", "cd no-tests && node --test", "npm test"]) {
+      const plan = reportPlan(command, { test: "node --test test/" });
+      expect(plan?.runner).toBe("node");
+      expect(plan?.command(file)).toBe(command);
+      expect(plan?.env(file).NODE_OPTIONS).toContain(
+        `--test-reporter=junit --test-reporter-destination=${file}`,
+      );
+    }
+    expect(reportPlan("node --test a && node --test b", {})).toBeNull();
+    expect(reportPlan("bun test", { test: "node --test" })).toBeNull();
+  });
+
   it("recognizes nothing it cannot place a flag in", () => {
-    expect(reportPlan("node --test", {})).toBeNull();
     expect(reportPlan("pytest && ruff check", {})).toBeNull();
     expect(reportPlan("npm run test", { test: "grunt test" })).toBeNull();
     expect(reportPlan("npm run test", { test: "npm run unit", unit: "jest" })).toBeNull();

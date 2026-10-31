@@ -4,11 +4,13 @@ import type { Runner } from "./test-report.ts";
 export interface ReportPlan {
   readonly runner: Runner;
   command(file: string): string;
+  /** Variables the run needs beside the command; Node's own runner takes its reporters here. */
+  env(file: string): Readonly<Record<string, string>>;
 }
 
 const quote = (text: string) => `'${text.replaceAll("'", "'\\''")}'`;
 
-const flags: Record<Exclude<Runner, "go">, (file: string) => string> = {
+const flags: Record<Exclude<Runner, "go" | "node">, (file: string) => string> = {
   // A module that fails to import becomes one failing entry instead of stopping the run.
   pytest: (file) => `--continue-on-collection-errors --junitxml=${quote(file)}`,
   jest: (file) => `--json --outputFile=${quote(file)}`,
@@ -26,6 +28,28 @@ const patterns: readonly (readonly [Runner, RegExp])[] = [
 ];
 // A command that chains, pipes or redirects has no one place a reporter flag belongs.
 const shellSyntax = /[;&|<>`\n]|\$\(/;
+const nodeTest = /(?:^|[\s/])node(?:\s+--?[\w-]+(?:=\S+)?)*\s+--test(?=\s|=|$)/g;
+const noEnv = () => ({});
+
+/**
+ * Node's runner reads its reporters from NODE_OPTIONS, so a `node --test` anywhere in the
+ * command (behind `cd dir &&`, or inside the one script it names) gets its junit report with no
+ * flag placed. A command holding two runs would overwrite one report with the other.
+ */
+function nodePlan(command: string, scripts: Readonly<Record<string, unknown>>): ReportPlan | null {
+  const script = managed.exec(command.trim());
+  // `bun test` is bun's own runner, not a script.
+  if (script !== null && script[1] === "bun" && script[3] !== undefined) return null;
+  const body = script === null ? command : scripts[script[2] ?? "test"];
+  if (typeof body !== "string" || [...body.matchAll(nodeTest)].length !== 1) return null;
+  return {
+    runner: "node",
+    command: () => command,
+    env: (file) => ({
+      NODE_OPTIONS: `--test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=${file}`,
+    }),
+  };
+}
 const managed = /^(npm|pnpm|yarn|bun)\s+(?:run(?:-script)?\s+(\S+)|(test|t))(\s.*)?$/;
 
 /**
@@ -36,6 +60,8 @@ export function reportPlan(
   command: string,
   scripts: Readonly<Record<string, unknown>>,
 ): ReportPlan | null {
+  const node = nodePlan(command, scripts);
+  if (node !== null) return node;
   const trimmed = command.trim();
   if (shellSyntax.test(trimmed)) return null;
   const script = managed.exec(trimmed);
@@ -45,10 +71,14 @@ export function reportPlan(
     if (manager === "bun" && short !== undefined) return null;
     const body = scripts[named ?? "test"];
     const inner = typeof body === "string" ? reportPlan(body, {}) : null;
-    if (inner === null || inner.runner === "go") return null;
+    if (inner === null || inner.runner === "go" || inner.runner === "node") return null;
     const separator = manager === "npm" && !/(?:^|\s)--(?:\s|$)/.test(rest) ? " --" : "";
     const append = flags[inner.runner];
-    return { runner: inner.runner, command: (file) => `${trimmed}${separator} ${append(file)}` };
+    return {
+      runner: inner.runner,
+      command: (file) => `${trimmed}${separator} ${append(file)}`,
+      env: noEnv,
+    };
   }
   const found = patterns.filter(([, pattern]) => pattern.test(trimmed));
   const [only] = found;
@@ -57,7 +87,8 @@ export function reportPlan(
   if (runner === "go") {
     // go test -json prints its events on stdout, so they go to the report file.
     const inserted = trimmed.replace(/(^|\s)go\s+test(?=\s|$)/, "$1go test -json");
-    return { runner, command: (file) => `${inserted} > ${quote(file)}` };
+    return { runner, command: (file) => `${inserted} > ${quote(file)}`, env: noEnv };
   }
-  return { runner, command: (file) => `${trimmed} ${flags[runner](file)}` };
+  if (runner === "node") return null;
+  return { runner, command: (file) => `${trimmed} ${flags[runner](file)}`, env: noEnv };
 }
