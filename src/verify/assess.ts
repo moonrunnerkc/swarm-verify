@@ -34,10 +34,11 @@ export function regressionOf(checks: readonly CheckResult[]): Regression {
       unresolved.push(`check ${check.name}`);
     }
   }
+  // Nothing ran against the candidate: nothing is known about a regression either way.
   const status =
     newFailures.length > 0 || removed.length > 0
       ? "found"
-      : unresolved.length > 0
+      : unresolved.length > 0 || checks.length === 0
         ? "unresolved"
         : "none";
   return {
