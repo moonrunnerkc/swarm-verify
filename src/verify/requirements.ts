@@ -15,6 +15,7 @@ import {
 } from "./requirement-evidence.ts";
 import { splitTestName, titleSelects } from "./test-names.ts";
 import { livesIn } from "./test-report.ts";
+import { noSuchCheck, noSuchTest, unobservedAction, witnessTitles } from "./unobserved-action.ts";
 
 export interface RequirementInputs {
   readonly checks: readonly CheckResult[];
@@ -32,9 +33,6 @@ export interface RequirementInputs {
   /** The registry's latest within each constraint that asks for it, by `targetKey`. */
   readonly latest: ReadonlyMap<string, LatestTarget>;
 }
-
-const noSuchTest = "no executed test has this name";
-const noSuchCheck = "no such check ran";
 
 function testRefs(
   selector: Requirement["evidence"]["tests"][number],
@@ -85,57 +83,6 @@ function checkRef(name: string, inputs: RequirementInputs): EvidenceRef {
           ? "fail"
           : "not observed";
   return { kind: "check", ref: name, authority: check.authority, outcome, detail: check.result };
-}
-
-/** Titles of tests the executed results show witnessing the change, not among `mapped`. */
-function witnessTitles(inputs: RequirementInputs, mapped: readonly EvidenceRef[]): string[] {
-  const refs = new Set(mapped.map((one) => one.ref));
-  return inputs.outcomes
-    .filter((one) => witnessing.has(testRef(one).outcome) && !refs.has(testRef(one).ref))
-    .map((one) => one.title)
-    .slice(0, 8);
-}
-
-/** What to do about evidence that was not observed: fix what matched nothing, or run it. */
-function unobservedAction(
-  unobserved: readonly EvidenceRef[],
-  inputs: RequirementInputs,
-  evidence: readonly EvidenceRef[],
-): string {
-  const refs = (detail: string) =>
-    unobserved
-      .filter((one) => one.detail === detail)
-      .map((one) => one.ref)
-      .join(", ");
-  const checks = refs(noSuchCheck);
-  const tests = refs(noSuchTest);
-  const ran = inputs.checks.map((one) => one.name).join(", ") || "none ran";
-  const witnesses = witnessTitles(inputs, evidence);
-  const example =
-    witnesses.find((title) => title.includes(" > ")) ??
-    inputs.outcomes.find((one) => one.title.includes(" > "))?.title ??
-    "suite > test title";
-  const structure = unobserved
-    .filter((one) => one.kind === "structure")
-    .map((one) => `${one.ref}: ${one.detail}`)
-    .join("; ");
-  const steps = [
-    ...(checks.length > 0 ? [`name only checks that ran (${ran}) in place of ${checks}`] : []),
-    ...(tests.length > 0
-      ? [
-          `name tests as they ran (a title, a suite, or a path such as ${example}) in place of ${tests}`,
-        ]
-      : []),
-    ...(structure.length > 0
-      ? [`fix or drop the structure claims that do not hold (${structure})`]
-      : []),
-    ...(witnesses.length > 0
-      ? [
-          `these tests fail before the change and pass after it, and this requirement does not map them: ${witnesses.join(", ")}`,
-        ]
-      : []),
-  ];
-  return steps.length > 0 ? steps.join("; ") : "run a check that exercises it";
 }
 
 /** Status, limitation and next action from a requirement's evidence, by its kind. */

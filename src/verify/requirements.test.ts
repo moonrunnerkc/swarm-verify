@@ -246,3 +246,36 @@ describe("a requirement whose evidence names nothing that ran", () => {
     );
   });
 });
+
+describe("an upgrade claiming a package that did not move", () => {
+  // claimcheck (session 20261101T213431-7eaedd): the task allowed Stryker "to the latest 9.x",
+  // which it already was; the model claimed 9.6.1 as an upgrade, the claim held nothing, and the
+  // next action said only "run a check that exercises it".
+  it("says the claim holds only for a version that changed, and to drop it or correct it", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "unmoved-claim-"));
+    const lock = JSON.stringify({
+      lockfileVersion: 3,
+      packages: { "node_modules/@stryker-mutator/core": { version: "9.6.1" } },
+    });
+    await writeFile(join(dir, "package-lock.json"), lock);
+    const [outcome] = await assessRequirements(
+      [
+        requirementSchema.parse({
+          id: "R1",
+          text: "Bump Stryker to the latest 9.x if one exists",
+          kind: "upgrade",
+          source: "user",
+          evidence: {
+            checks: ["test"],
+            packages: [{ name: "@stryker-mutator/core", ecosystem: "npm", version: "9.6.1" }],
+          },
+        }),
+      ],
+      { ...inputs, outcomes: [], dir, readBase: async () => lock },
+    );
+    expect(outcome?.status).toBe("unverified");
+    expect(outcome?.nextAction).toBe(
+      "a package claim holds where the candidate's lockfile resolves the package to a version the base did not: drop the claim for a package that did not change, or correct it (npm:@stryker-mutator/core: resolved 9.6.1 at the base and 9.6.1 in the candidate)",
+    );
+  });
+});
