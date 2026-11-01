@@ -59,3 +59,42 @@ describe("verifying in a container", () => {
     expect(result.checks[0]?.result).toBe("unresolved");
   });
 });
+
+describe("a lockfile that installs a package from beside the repository", () => {
+  it("exports it next to the checkout, installs it in the container, and records its digest", async () => {
+    const { execFileSync } = await import("node:child_process");
+    const { mkdir, writeFile } = await import("node:fs/promises");
+    const lib = "export const divide = (a, b) => a / b;\n";
+    const files = {
+      "half.mjs": "import { divide } from 'sibling-lib';\nexport const half = n => n;\n",
+      "test/half.test.mjs": halfTest,
+      "package.json": manifest,
+    };
+    const probe = await probeFixture(files, "node --test", parent);
+    const sibling = join(probe.repo, "..", "sibling", "lib");
+    await mkdir(sibling, { recursive: true });
+    await writeFile(
+      join(sibling, "package.json"),
+      '{"name":"sibling-lib","version":"1.0.0","type":"module","main":"index.js"}\n',
+    );
+    await writeFile(join(sibling, "index.js"), lib);
+    execFileSync("npm", ["install", "--no-audit", "--no-fund", "../sibling/lib"], {
+      cwd: probe.repo,
+      stdio: "ignore",
+    });
+    await rm(join(probe.repo, "node_modules"), { recursive: true, force: true });
+    probe.git("add", "-A");
+    probe.git("commit", "-qm", "depend on the sibling");
+    await probe.put(
+      "half.mjs",
+      "import { divide } from 'sibling-lib';\nexport const half = n => divide(n, 2);\n",
+    );
+    const result = await probe.verify([], {
+      mode: "isolated",
+      dependencies: "prepare",
+      network: "closed",
+    });
+    expect(Object.keys(result.execution.dependencies.lockfiles)).toContain("local:../sibling/lib");
+    expect(result.state).toBe("complete");
+  });
+});

@@ -7,7 +7,7 @@ import { executionOf, regressionOf, stateOf, unmeasuredOf } from "./assess.ts";
 import { judgeCandidate } from "./candidate.ts";
 import { type ResolvedChange, runGit } from "./change.ts";
 import { applyChange, cloneBase } from "./checkout.ts";
-import { allChecks, environmentOf, prepareDependencies, privateHome } from "./checks.ts";
+import { allChecks, environmentOf, privateHome } from "./checks.ts";
 import type { TestOutcome } from "./compare.ts";
 import { dependencyIdentity } from "./deps.ts";
 import { alteredSealed, measureBase, readSealed, swarmHome } from "./held-out.ts";
@@ -24,6 +24,7 @@ import type {
   Statement,
 } from "./predicate.ts";
 import { buildStatement } from "./predicate.ts";
+import { prepareDependencies } from "./prepare.ts";
 import { assessRequirements } from "./requirements.ts";
 import { testFileChanges } from "./test-files.ts";
 
@@ -126,7 +127,12 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       options.policy.dependencies,
       context,
     );
-    let dependencies = await dependencyIdentity(checkout.dir, prepared.mode);
+    if (prepared.refused !== null) blocked.push(prepared.refused);
+    let dependencies = await dependencyIdentity(
+      checkout.dir,
+      prepared.mode,
+      prepared.localPackages,
+    );
     const plans = await reportPlans(checkout.dir, checks);
     let baseRuns: readonly MeasuredRun[] = [];
     if (checks.length > 0 && prepared.failure === null && blocked.length === 0) {
@@ -168,7 +174,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
         context,
       );
       candidateSetup = again.failure;
-      dependencies = await dependencyIdentity(checkout.dir, again.mode);
+      dependencies = await dependencyIdentity(checkout.dir, again.mode, again.localPackages);
     } else if (depsChanged && prepared.mode === "linked") {
       reasons.push(
         "the candidate changes its lockfile or manifest, and linked dependencies cannot follow it",

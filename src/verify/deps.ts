@@ -57,8 +57,13 @@ export interface DependencyIdentity {
 export async function dependencyIdentity(
   dir: string,
   mode: DependencyIdentity["mode"],
+  localPackages: readonly { readonly path: string; readonly sha256: string }[] = [],
 ): Promise<DependencyIdentity> {
-  const lockfiles = await lockfileDigests(dir);
+  // A local package outside the repository is part of what the lockfile pins, by its content.
+  const lockfiles = {
+    ...(await lockfileDigests(dir)),
+    ...Object.fromEntries(localPackages.map((one) => [`local:${one.path}`, one.sha256])),
+  };
   if (mode === "linked" || mode === "setup")
     return { mode, lockfiles, treeSha256: null, reproducible: false };
   if (mode === "none") return { mode, lockfiles, treeSha256: null, reproducible: true };
