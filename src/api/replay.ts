@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { envelopeOf } from "../verify/dsse.ts";
 import { type Statement, statementSchema } from "../verify/predicate.ts";
+import { defaultReruns } from "../verify/reruns.ts";
+import { divergencesOf } from "./divergences.ts";
 import { requestVersion } from "./request.ts";
 import type { VerifyResult } from "./result.ts";
 import { verify } from "./verify.ts";
@@ -41,44 +43,6 @@ async function readBundle(
     throw new UnreplayableBundleError("change.patch is not the patch the statement signed");
   }
   return { statement, patch };
-}
-
-/** Every recorded check, test and requirement result the replay does not reproduce. */
-export function divergencesOf(recorded: Statement["predicate"], replayed: VerifyResult): string[] {
-  const found: string[] = [];
-  const same = (what: string, before: unknown, after: unknown) => {
-    if (JSON.stringify(before) !== JSON.stringify(after)) {
-      found.push(`${what}: recorded ${JSON.stringify(before)}, replayed ${JSON.stringify(after)}`);
-    }
-  };
-  same("state", recorded.state, replayed.state);
-  same("regression", recorded.regression.status, replayed.regression.status);
-  same(
-    "lockfiles",
-    recorded.execution.dependencies.lockfiles,
-    replayed.execution.dependencies.lockfiles,
-  );
-  for (const check of recorded.checks) {
-    const again = replayed.checks.find((one) => one.name === check.name);
-    same(`check ${check.name}`, check.result, again?.result ?? "not run");
-    for (const key of [
-      "fixed",
-      "newFailures",
-      "inherited",
-      "removed",
-      "expectationChanges",
-      "witnesses",
-    ] as const) {
-      // Sets of test ids: a statement recorded before they were sorted still compares.
-      const ids = (list: readonly string[] | undefined) => [...(list ?? [])].sort();
-      same(`check ${check.name} ${key}`, ids(check.tests?.[key]), ids(again?.tests?.[key]));
-    }
-  }
-  for (const requirement of recorded.requirements) {
-    const again = replayed.requirements.find((one) => one.id === requirement.id);
-    same(`requirement ${requirement.id}`, requirement.status, again?.status ?? "not judged");
-  }
-  return found;
 }
 
 /**
@@ -130,6 +94,8 @@ export async function replay(
         })),
       policy: {
         behaviorChange: recorded.policy.behaviorChange,
+        // A recording made before reruns existed is replayed with them: the replay is the check.
+        reruns: recorded.policy.reruns ?? defaultReruns,
         execution: {
           mode: "isolated",
           network: recorded.execution.network,

@@ -183,8 +183,10 @@ went through `node:assert`. Files that change what loads before the judge (`.npm
 from a directory `verify` wrote, runs the same base, patch, requirements and request checks
 again in a container from the recorded image with dependencies installed fresh from the
 lockfiles in the tree, and compares the state, the regression, every check's result and test
-lists, every requirement's status and the lockfile digests with what was recorded. It exits 0
-when everything agrees, 1 on any divergence (each named), 5 when it could not run.
+lists, every requirement's status and the lockfile digests with what was recorded. A test
+flaky in both runs agrees; one flaky in only one run is a single divergence naming its runs and
+where the other run put it. It exits 0 when everything agrees, 1 on any divergence (each
+named), 5 when it could not run.
 
 ## Checking a result offline
 
