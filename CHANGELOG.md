@@ -32,6 +32,9 @@ tagged there but never published to npm.
   check judged only by exit code that fails at both commits is `unresolved`, never inherited.
   Test files moved or edited with only their imports changed are matched by test name.
 - **`node --test` is read test by test** through its junit reporter, passed in `NODE_OPTIONS`.
+- **One test id format across runners.** jest, vitest and mocha test ids now join suites to the
+  title with ` > `, as junit's already did (`test/calc.test.js::calc > stays`, where it was
+  `calc stays`). A requirement names a test by its title, a suite, or a contiguous path of both.
 - **Zero collected tests is `no-tests`**, from the report or the runner's printed summary, and
   never counts as passing.
 - **Dependency identity.** `prepare` installs from the lockfile in the checkout and digests the
