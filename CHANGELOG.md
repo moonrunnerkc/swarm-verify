@@ -2,11 +2,18 @@
 
 The standalone verifier, published to npm as `swarm-verify`, with its GitHub Action at the root
 of moonrunnerkc/swarm-verify. Versions before 1.0.0 (0.2.0, released with Swarm Orchestrator
-14.2.0 on 2026-09-27) carried no changelog of their own. Releases up to and including the 2.0.0
-section below were built from swarm-orchestrator's `packages/swarm-verify`; the 2.0.0 section was
-tagged there but never published to npm.
+14.2.0 on 2026-09-27) carried no changelog of their own. Releases up to 1.3.1 were built from
+swarm-orchestrator's `packages/swarm-verify`; 2.0.0 is the first built from this repository. A
+2.0.0 tagged there on 2026-10-29 was never published to npm, and its notes are folded in below.
 
-## Unreleased
+## 2.0.0 - 2026-11-01
+
+Rebuilt with the verifier-first rebuild ([ADR 0014](https://github.com/moonrunnerkc/swarm-orchestrator/blob/v13-main/docs/adr/0014-verifier-first-rebuild.md)).
+The earlier unreleased work (instrument re-derivation and related checks) is superseded and
+remains in the repository's history.
+
+The rebuild's first notes, from 2026-10-29, follow the migration notes; where they disagree with
+the Changed and Fixed sections (protected paths, the predicate type), those describe 2.0.0.
 
 ### Changed
 
@@ -77,8 +84,6 @@ tagged there but never published to npm.
   `blocked`, with exit codes 0, 1 or 4, and 5. The offline checker separates integrity (6 when it
   fails) from acceptance (1 when a signed result is not complete). See docs/migration-2.md.
 
-### Changed
-
 - Declared test checks are judged test by test from the runner's own report (pytest junit,
   jest and vitest JSON, mocha JSON, go test events), with the judge loaded at both commits; a
   check whose runner is not recognized is judged by exit code and says so. Check results carry
@@ -88,13 +93,44 @@ tagged there but never published to npm.
 - pytest runs with `--continue-on-collection-errors`, so a module that fails to import at both
   commits does not stop the rest of the suite from being measured.
 
-## 2.0.0 - 2026-10-29
+### Fixed
 
-Rebuilt with the verifier-first rebuild ([ADR 0014](https://github.com/moonrunnerkc/swarm-orchestrator/blob/v13-main/docs/adr/0014-verifier-first-rebuild.md)).
-The earlier unreleased work (instrument re-derivation and related checks) is superseded and
-remains in the repository's history.
+Root causes found running real tasks on local models (the swarm-orchestrator repository keeps
+the runs under docs/acceptance/2026-10-31/):
 
-### Changed
+- **A cached base run stood for a different verifier.** The cache key now includes a digest of
+  the verifier's own code, and `replay` measures the base afresh: a base cached under the old
+  test-id format had read 98 tests as new failures.
+- **What the base's checks wrote leaked into the candidate run.** Untracked and ignored paths the
+  base run writes (build output, caches) are removed before the change is applied; an unchanged
+  tree had read as 14 new failures, differently in a replay.
+- **A file the change adds collided with one the base's preparation generated** (`uv lock`
+  writing uv.lock), and the change did not apply at all; the candidate's file now replaces it.
+- **No check run read as no regression.** With nothing measured the regression is `unresolved`.
+- **Test ids depended on the runner's order**: they are sorted before the hundred kept, and
+  `replay` compares them as sets.
+- **Test names**: vitest suite paths with empty titles, file-first names
+  (`test/a.test.ts > suite > title`), a bare test file naming every test in it, and the id the
+  verifier itself prints (pytest's dotted classname included) all select their tests.
+- **Next actions** name the checks that ran when a requirement names one that did not, the
+  witnesses a requirement leaves unmapped, why a structure claim fails, and how to record an
+  upgrade that moves no package version.
+- **Container runs**: npm install scripts run one at a time (`--foreground-scripts`), because
+  parallel native builds raced; pnpm runs through corepack; the first run waits for the bind
+  mount to settle; a project that measures its own coverage (pytest-cov, coverage.py in parallel
+  mode) runs as declared, with changed-line coverage unmeasured.
+- **A failed dependency step says which step and why**, by isolation mode.
+- `verify` and `ci` list `--authorize-behavior-change` in their help, and the Action takes it as
+  the `authorize-behavior-change` input.
+- The gates install the packed tarball into a fresh prefix and verify a change through it; CI
+  and the release workflow run the gates.
+
+### Migration
+
+docs/migration-2.md lists what changed from 1.x: states and exit codes, the request and result
+schemas, the predicate type, and the removed subcommands.
+
+### Changed in the 2026-10-29 rebuild
 
 - `swarm-verify verify` reruns the base commit's declared checks on a change (the working tree,
   `--range a..b` or `--patch <file>`) in a clean checkout, refuses protected paths changed
@@ -120,12 +156,12 @@ remains in the repository's history.
   one file within a second, often at the same size, and Python would otherwise run the bytecode
   cached from the previous version.
 
-### Added
+### Added in the 2026-10-29 rebuild
 
 - `swarm-verify-mcp` (`mcp.mjs`): a Model Context Protocol server over stdio with one tool,
   `verify`, which runs `swarm-verify verify --json` and returns the predicate.
 
-### Removed
+### Removed in the 2026-10-29 rebuild
 
 - The custom evidence bundle format and its verifier, and the `check`, `gates`, `verdict`,
   `action`, `hook`, `mcp` and `pre-commit` subcommands (integrations call `verify` or `ci`, and
