@@ -41,6 +41,8 @@ tagged there but never published to npm.
 - **A check with only inherited failures holds as requirement evidence**, in the verifier and in
   `verify.mjs` alike; it was read as unobserved, so a requirement naming it could never be
   satisfied in a repository with one unrelated failing test.
+- **Package claims take a version range** written with `x` (`9.x`), and a resolved version
+  outside the claim fails the requirement instead of leaving it unobserved.
 - **One test id format across runners.** jest, vitest and mocha test ids now join suites to the
   title with ` > `, as junit's already did (`test/calc.test.js::calc > stays`, where it was
   `calc stays`). A requirement names a test by its title, a suite, or a contiguous path of both.

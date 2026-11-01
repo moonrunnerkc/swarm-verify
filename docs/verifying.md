@@ -121,7 +121,9 @@ The status comes from that evidence only. A named check holds when its result is
 - A refactor is `satisfied` when its mapped tests are preserved, no regression is found, and its
   structural claims hold (or source changed, where it names none). No failing baseline is asked for.
 - An upgrade is `satisfied` when the candidate's lockfile resolves each named package to a new
-  version, the candidate's dependencies were installed fresh from it, and nothing regressed.
+  version, the candidate's dependencies were installed fresh from it, and nothing regressed. A
+  package claim's `version` is exact (`10.1.1`) or a range written with `x` (`9.x`, `9.6.x`, or
+  `9`); a resolved version outside it fails the requirement.
 - A requirement with no mapped evidence, or whose evidence was not observed, is `unverified`;
   one whose evidence fails is `failed`.
 

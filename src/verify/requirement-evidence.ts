@@ -74,15 +74,35 @@ export async function packageEvidence(
   const readCandidate = (path: string) => readFile(join(dir, path), "utf8").catch(() => null);
   const before = await resolvedVersion(readBase, claim);
   const after = await resolvedVersion(readCandidate, claim);
-  const matches = after !== null && (claim.version === undefined || after === claim.version);
+  const matches = after !== null && (claim.version === undefined || within(after, claim.version));
   const moved = after !== before;
+  const detail = `resolved ${before ?? "nothing"} at the base and ${after ?? "nothing"} in the candidate`;
+  // A version outside the claim is the candidate contradicting the requirement: a failure.
+  if (after !== null && claim.version !== undefined && !matches) {
+    return {
+      kind: "package",
+      ref: `${claim.ecosystem}:${claim.name}`,
+      authority: "pre-existing",
+      outcome: "fail",
+      detail: `${detail}, outside ${claim.version}`,
+    };
+  }
   return {
     kind: "package",
     ref: `${claim.ecosystem}:${claim.name}`,
     authority: "pre-existing",
     outcome: matches && moved ? "observed" : "not observed",
-    detail: `resolved ${before ?? "nothing"} at the base and ${after ?? "nothing"} in the candidate`,
+    detail,
   };
+}
+
+/** Whether `version` is the claimed one, or within a claim written with x (9.x, 9.6.x, or 9). */
+function within(version: string, claim: string): boolean {
+  const wanted = claim.split(".");
+  const wild = (part: string) => /^[xX*]$/.test(part);
+  if (wanted.length >= 3 && !wanted.some(wild)) return version === claim;
+  const parts = version.split(".");
+  return wanted.every((part, at) => wild(part) || part === parts[at]);
 }
 
 /** Outcomes that show behavior: a test or check failing before and passing after. */
