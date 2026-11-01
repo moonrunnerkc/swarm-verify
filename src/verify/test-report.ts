@@ -130,7 +130,7 @@ export function parseJestJson(text: string, root: string): TestReport | null {
       const title =
         test.ancestorTitles === undefined
           ? (test.fullName ?? test.title)
-          : [...test.ancestorTitles, test.title].join(" > ");
+          : [...test.ancestorTitles.filter((suite) => suite.length > 0), test.title].join(" > ");
       const status: Status =
         test.status === "passed" ? "pass" : test.status === "failed" ? "fail" : "skip";
       put(report, `${file}::${title}`, { status, file });

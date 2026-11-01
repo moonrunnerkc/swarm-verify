@@ -44,6 +44,23 @@ describe("reading recorded reports", () => {
     }
   });
 
+  it("drops the empty suite title vitest gives a file's top level", () => {
+    const report = parseJestJson(
+      JSON.stringify({
+        testResults: [
+          {
+            name: "/work/calc/test/cli.test.ts",
+            assertionResults: [
+              { title: "parses", ancestorTitles: ["", "parseArgs"], status: "passed" },
+            ],
+          },
+        ],
+      }),
+      "/work/calc",
+    );
+    expect(Object.keys(report ?? {})).toEqual(["test/cli.test.ts::parseArgs > parses"]);
+  });
+
   it("reads mocha's JSON, the suites apart from the test's own title", () => {
     expect(statuses(parseMochaJson(fixture("mocha-base.json"), "/work/calc"))).toEqual({
       "test/calc.test.js::calc > stays": "pass",
