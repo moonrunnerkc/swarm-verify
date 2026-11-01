@@ -31,9 +31,6 @@ describe("verifying in a container", () => {
       dependencies: "prepare",
       network: "closed",
     });
-    process.stderr.write(
-      `ISO ${JSON.stringify({ r: result.reasons, c: result.checks, req: result.requirements, f: result.failureOutput.slice(-1200) })}\n`,
-    );
     expect(result.execution).toMatchObject({
       mode: "isolated",
       network: "closed",
