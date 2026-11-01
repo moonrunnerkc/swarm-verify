@@ -20,7 +20,7 @@ export const commandDefinitions: readonly CommandDefinition[] = [
   {
     name: "replay",
     syntax: "replay <evidence-dir> [--workspace <repo>] [--out <dir>] [--json]",
-    description: "run a recorded verification again in a container and compare every result",
+    description: "run a recorded verification again as it was run and compare every result",
   },
   {
     name: "ci",

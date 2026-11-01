@@ -70,6 +70,7 @@ export function divergencesOf(recorded: Predicate, replayed: VerifyResult): stri
     }
   };
   same("state", recorded.state, replayed.state);
+  same("execution", recorded.execution.mode, replayed.execution.mode);
   same("regression", recorded.regression.status, replayed.regression.status);
   same(
     "lockfiles",

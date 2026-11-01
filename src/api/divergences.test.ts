@@ -20,7 +20,7 @@ const tests = (lists: Partial<TestJudgment>) => ({
 const result = (lists: Partial<TestJudgment>, reruns?: number) => ({
   state: "incomplete",
   regression: { status: "none" },
-  execution: { dependencies: { lockfiles: [] } },
+  execution: { mode: "isolated", dependencies: { lockfiles: [] } },
   checks: [{ name: "test", result: "inherited-failures", tests: tests(lists) }],
   requirements: [],
   policy: { behaviorChange: "none", ...(reruns === undefined ? {} : { reruns }) },

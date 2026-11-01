@@ -181,12 +181,15 @@ went through `node:assert`. Files that change what loads before the judge (`.npm
 
 `swarm-verify replay <evidence-dir> [--workspace <repo>]` reads the signed statement and patch
 from a directory `verify` wrote, runs the same base, patch, requirements and request checks
-again in a container from the recorded image with dependencies installed fresh from the
-lockfiles in the tree, and compares the state, the regression, every check's result and test
+again under the recorded execution with dependencies installed fresh from the lockfiles in the
+tree, and compares the state, the execution mode, the regression, every check's result and test
 lists, every requirement's status and the lockfile digests with what was recorded. A test
 flaky in both runs agrees; one flaky in only one run is a single divergence naming its runs and
 where the other run put it. It exits 0 when everything agrees, 1 on any divergence (each
-named), 5 when it could not run.
+named), 5 when it could not run. An isolated recording replays in a container from the recorded image; a
+host recording replays on the host, and only on the platform it recorded (`environment.platform`,
+such as `darwin-arm64`). A recording on linked dependencies is refused: the installed tree it ran
+on is not reproducible.
 
 ## Checking a result offline
 

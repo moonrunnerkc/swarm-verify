@@ -5,7 +5,7 @@ import { envelopeOf } from "../verify/dsse.ts";
 import { type Statement, statementSchema } from "../verify/predicate.ts";
 import { defaultReruns } from "../verify/reruns.ts";
 import { divergencesOf } from "./divergences.ts";
-import { requestVersion } from "./request.ts";
+import { type ExecutionPolicy, requestVersion, type VerifyRequestInput } from "./request.ts";
 import type { VerifyResult } from "./result.ts";
 import { verify } from "./verify.ts";
 
@@ -45,10 +45,97 @@ async function readBundle(
   return { statement, patch };
 }
 
+/** This machine as a host recording names it: `darwin-arm64`, `linux-x64`. */
+export const hostPlatform = () => `${process.platform}-${process.arch}`;
+
+/**
+ * The execution the recording ran under, again. A host recording runs on the host, which must be
+ * the platform it was recorded on; an isolated one in a container from the recorded image. Either
+ * prepares its dependencies fresh as the recording did, and a recording on linked dependencies is
+ * refused: the caller's installed tree as it stood then is gone.
+ */
+export function replayExecution(
+  recorded: Statement["predicate"],
+  platform: string = hostPlatform(),
+): ExecutionPolicy {
+  const { execution, environment } = recorded;
+  if (execution.dependencies.mode === "linked") {
+    throw new UnreplayableBundleError(
+      "it was verified with linked dependencies (the workspace's installed tree as it stood), which no replay can reproduce; verify it again with dependencies prepared from the lockfile",
+    );
+  }
+  const dependencies = execution.dependencies.mode === "none" ? "none" : "prepare";
+  if (execution.mode === "host") {
+    if (environment.platform !== platform) {
+      throw new UnreplayableBundleError(
+        `it was verified on the host on ${environment.platform}, and this host is ${platform}; replay it on ${environment.platform}`,
+      );
+    }
+    return { mode: "host", network: execution.network, dependencies };
+  }
+  const image = execution.image?.split(" (")[0];
+  return {
+    mode: "isolated",
+    network: execution.network,
+    dependencies,
+    ...(image === undefined ? {} : { image }),
+  };
+}
+
+/** The request the recording answered, for its signed patch and the replay's evidence directory. */
+export function replayRequest(
+  recorded: Statement["predicate"],
+  input: {
+    readonly repository: string;
+    readonly patch: { readonly path: string; readonly sha256: string };
+    readonly out: string;
+    readonly platform?: string;
+  },
+): VerifyRequestInput {
+  return {
+    version: requestVersion,
+    repository: input.repository,
+    base: { commit: recorded.base.commit },
+    candidate: { kind: "patch", ...input.patch },
+    requirements: recorded.requirements.map((one) => ({
+      id: one.id,
+      text: one.text,
+      source: one.source,
+      kind: one.kind,
+      required: one.required,
+      assumptions: one.assumptions,
+      evidence: one.expected,
+      versions: one.versions,
+    })),
+    checks: recorded.checks
+      .filter(
+        (check) =>
+          check.authority === "user-acceptance" || check.authority === "independently-generated",
+      )
+      .map((check) => ({
+        name: check.name,
+        command: check.command,
+        kind: check.kind,
+        authority:
+          check.authority === "independently-generated"
+            ? ("independently-generated" as const)
+            : ("user-acceptance" as const),
+      })),
+    policy: {
+      behaviorChange: recorded.policy.behaviorChange,
+      // A recording made before reruns existed is replayed with them: the replay is the check.
+      reruns: recorded.policy.reruns ?? defaultReruns,
+      execution: replayExecution(recorded, input.platform),
+    },
+    artifacts: { directory: input.out },
+    producer: recorded.producer,
+  };
+}
+
 /**
  * Runs the recorded verification again: the same base and signed patch, the same requirements
- * and checks, in a container from the recorded image with dependencies installed fresh from the
- * lockfiles in the tree, then compares every result with what was recorded.
+ * and checks, under the recorded execution with dependencies prepared fresh from the lockfiles
+ * in the tree, then compares every result with what was recorded.
  */
 export async function replay(
   bundle: string,
@@ -61,56 +148,15 @@ export async function replay(
 ): Promise<Replay> {
   const { statement, patch } = await readBundle(bundle);
   const recorded = statement.predicate;
-  const image = recorded.execution.image?.split(" (")[0];
-  const replayed = await verify(
-    {
-      version: requestVersion,
-      repository: options.repository,
-      base: { commit: recorded.base.commit },
-      candidate: { kind: "patch", path: patch, sha256: sha256(await readFile(patch)) },
-      requirements: recorded.requirements.map((one) => ({
-        id: one.id,
-        text: one.text,
-        source: one.source,
-        kind: one.kind,
-        required: one.required,
-        assumptions: one.assumptions,
-        evidence: one.expected,
-        versions: one.versions,
-      })),
-      checks: recorded.checks
-        .filter(
-          (check) =>
-            check.authority === "user-acceptance" || check.authority === "independently-generated",
-        )
-        .map((check) => ({
-          name: check.name,
-          command: check.command,
-          kind: check.kind,
-          authority:
-            check.authority === "independently-generated"
-              ? ("independently-generated" as const)
-              : ("user-acceptance" as const),
-        })),
-      policy: {
-        behaviorChange: recorded.policy.behaviorChange,
-        // A recording made before reruns existed is replayed with them: the replay is the check.
-        reruns: recorded.policy.reruns ?? defaultReruns,
-        execution: {
-          mode: "isolated",
-          network: recorded.execution.network,
-          dependencies: "prepare",
-          ...(image === undefined ? {} : { image }),
-        },
-      },
-      artifacts: { directory: options.out },
-      producer: recorded.producer,
-    },
-    {
-      verifierVersion: options.verifierVersion,
-      freshBase: true,
-      ...(options.swarmHome === undefined ? {} : { swarmHome: options.swarmHome }),
-    },
-  );
+  const request = replayRequest(recorded, {
+    repository: options.repository,
+    patch: { path: patch, sha256: sha256(await readFile(patch)) },
+    out: options.out,
+  });
+  const replayed = await verify(request, {
+    verifierVersion: options.verifierVersion,
+    freshBase: true,
+    ...(options.swarmHome === undefined ? {} : { swarmHome: options.swarmHome }),
+  });
   return { recorded, replayed, divergences: divergencesOf(recorded, replayed) };
 }
