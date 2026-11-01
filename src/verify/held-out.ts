@@ -205,6 +205,8 @@ export async function measureBase(input: {
   readonly home: string;
   readonly environment: Predicate["environment"];
   readonly workspace: string;
+  /** Run the base even where a cached run exists; the fresh run is still written to the cache. */
+  readonly fresh: boolean;
 }): Promise<{ readonly baseline: Baseline; readonly runs: readonly MeasuredRun[] }> {
   // The judge is part of the verifier's code, so its digest is in codeSha256.
   const key = baselineKey({
@@ -218,7 +220,7 @@ export async function measureBase(input: {
   // A base measured on an environment no later run can reproduce (linked or set up by a
   // command no lockfile pins) is neither read from the cache nor written to it.
   const reuse = input.environment.reproducible;
-  const cached = reuse ? await baseCache.read(file) : null;
+  const cached = reuse && !input.fresh ? await baseCache.read(file) : null;
   if (cached !== null) {
     const { checks, heldOut, tests } = cached;
     const runs = checks.map((result, at) => ({

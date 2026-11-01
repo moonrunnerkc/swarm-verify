@@ -139,6 +139,7 @@ export async function replay(
     },
     {
       verifierVersion: options.verifierVersion,
+      freshBase: true,
       ...(options.swarmHome === undefined ? {} : { swarmHome: options.swarmHome }),
     },
   );

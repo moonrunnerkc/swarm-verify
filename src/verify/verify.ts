@@ -1,11 +1,10 @@
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
-import type { ExecutionPolicy, Producer, Requirement, TrustedCheck } from "../api/request.ts";
 import { detectChecks } from "../config/detect.ts";
 import { readSwarmToml } from "../config/swarm-toml.ts";
 import { executionOf, regressionOf, stateOf, unmeasuredOf } from "./assess.ts";
 import { judgeCandidate } from "./candidate.ts";
-import { type ResolvedChange, runGit } from "./change.ts";
+import { runGit } from "./change.ts";
 import { applyChange, cloneBase } from "./checkout.ts";
 import { allChecks, environmentOf, privateHome } from "./checks.ts";
 import type { TestOutcome } from "./compare.ts";
@@ -14,41 +13,12 @@ import { alteredSealed, measureBase, readSealed, swarmHome } from "./held-out.ts
 import { isolate } from "./isolate.ts";
 import { artifactsOf } from "./paths.ts";
 import { type MeasuredRun, reportPlans } from "./per-test.ts";
-import type {
-  Baseline,
-  CheckResult,
-  Coverage,
-  HeldOut,
-  Mutation,
-  Predicate,
-  Statement,
-} from "./predicate.ts";
+import type { Baseline, CheckResult, Coverage, HeldOut, Mutation, Predicate } from "./predicate.ts";
 import { buildStatement } from "./predicate.ts";
 import { prepareDependencies } from "./prepare.ts";
 import { assessRequirements } from "./requirements.ts";
 import { testFileChanges } from "./test-files.ts";
-
-export interface VerifyOptions {
-  readonly workspace: string;
-  readonly change: ResolvedChange;
-  readonly requirements?: readonly Requirement[];
-  readonly trustedChecks?: readonly TrustedCheck[];
-  readonly policy: ExecutionPolicy;
-  readonly behaviorChange?: "none" | "authorized";
-  readonly producer?: Producer;
-  readonly swarmHome?: string;
-  readonly signal?: AbortSignal;
-  readonly version: string;
-}
-
-export interface VerifyOutcome {
-  readonly statement: Statement;
-  readonly patch: Buffer;
-  /** The files the statement's `logs` name, for the caller to write beside it. */
-  readonly logs: readonly { readonly name: string; readonly text: string }[];
-  /** What failed, as the checks printed it: the text a person or the agent acts on. */
-  readonly failureText: string;
-}
+import type { VerifyOptions, VerifyOutcome } from "./verify-options.ts";
 
 const skipped = (reason: string) => ({ status: "unmeasured" as const, reason });
 const noTestFiles = {
@@ -147,6 +117,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
         home,
         environment,
         workspace,
+        fresh: options.freshBase === true,
       });
       baseline = measured.baseline;
       baseRuns = measured.runs;

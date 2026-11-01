@@ -31,6 +31,8 @@ export interface VerifyCallOptions {
   readonly sigstore?: boolean;
   /** Where baselines and sealed checks live; SWARM_HOME or ~/.swarm by default. */
   readonly swarmHome?: string;
+  /** Measure the base again rather than reuse a cached run of it, as a replay must. */
+  readonly freshBase?: boolean;
   readonly verifierVersion: string;
 }
 
@@ -96,6 +98,7 @@ export async function verify(
     version: options.verifierVersion,
     ...(options.swarmHome === undefined ? {} : { swarmHome: options.swarmHome }),
     ...(options.signal === undefined ? {} : { signal: options.signal }),
+    ...(options.freshBase === true ? { freshBase: true } : {}),
   });
   const directory = resolve(request.artifacts.directory);
   const problems: string[] = [];

@@ -126,6 +126,8 @@ describe("replaying an authorized behavior change", () => {
       swarmHome: probe.home,
     });
     expect(replayed.replayed.policy).toEqual({ behaviorChange: "authorized" });
+    // A replay measures the base again rather than reading the run it is checking.
+    expect(replayed.replayed.baseline).toMatchObject({ status: "measured", cached: false });
     expect(replayed.divergences).toEqual([]);
   });
 });
