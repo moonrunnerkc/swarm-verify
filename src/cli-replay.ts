@@ -1,15 +1,15 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { replay } from "./api/replay.ts";
+import { replay, UnreplayableBundleError } from "./api/replay.ts";
 import { buildVersion } from "./build-version.ts";
 import { UsageError } from "./cli-command-definitions.ts";
 
 const write = (text: string) => process.stdout.write(`${text}\n`);
 
 /**
- * `replay <bundle>`: the recorded verification run again in a container with dependencies
- * installed fresh, and every result compared. 0 when the replay agrees, 1 when it diverges, 5
- * when it could not run.
+ * `replay <bundle>`: the recorded verification run again under its recorded execution (in a
+ * container, or on the host it was recorded on) with dependencies installed fresh, and every
+ * result compared. 0 when the replay agrees, 1 when it diverges, 5 when it could not run.
  */
 export async function replayCommand(args: readonly string[]): Promise<number> {
   const { values, positionals } = parseArgs({
@@ -22,11 +22,18 @@ export async function replayCommand(args: readonly string[]): Promise<number> {
     throw new UsageError("replay needs the evidence directory verify wrote");
   const directory = resolve(bundle);
   const out = resolve(values.out ?? `${directory}.replay-${Date.now()}`);
-  const ran = await replay(directory, {
-    repository: resolve(values.workspace ?? process.cwd()),
-    out,
-    verifierVersion: buildVersion,
-  });
+  let ran: Awaited<ReturnType<typeof replay>>;
+  try {
+    ran = await replay(directory, {
+      repository: resolve(values.workspace ?? process.cwd()),
+      out,
+      verifierVersion: buildVersion,
+    });
+  } catch (error) {
+    if (!(error instanceof UnreplayableBundleError)) throw error;
+    process.stderr.write(`${error.message}\n`);
+    return 5;
+  }
   if (values.json === true) {
     write(
       JSON.stringify({ divergences: ran.divergences, state: ran.replayed.state, evidence: out }),
