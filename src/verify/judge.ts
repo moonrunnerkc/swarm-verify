@@ -183,13 +183,6 @@ if _report:
     _atexit.register(_judge)
 `;
 
-/** A digest of the judge's code, so a cached base run made by another judge is never reused. */
-export const judgeSha256 = createHash("sha256")
-  .update(nodeHooks)
-  .update(nodeJudge)
-  .update(pythonJudge)
-  .digest("hex");
-
 export interface Judge {
   /** The variables that load the judge into a check's Node and Python processes. */
   readonly env: Readonly<Record<string, string>>;

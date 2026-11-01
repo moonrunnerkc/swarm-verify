@@ -7,7 +7,8 @@ import type { DeclaredCheck } from "../config/swarm-toml.ts";
 import { gitText } from "./change.ts";
 import { type BaseCheckout, resetTracked, restoreFromBase } from "./checkout.ts";
 import { baseCache, type CheckContext, type CheckRun, runCheck } from "./checks.ts";
-import { judgeSha256, prepareJudge, readJudge } from "./judge.ts";
+import { baselineKey, codeSha256 } from "./code-digest.ts";
+import { prepareJudge, readJudge } from "./judge.ts";
 import { type MeasuredRun, runMeasured } from "./per-test.ts";
 import type { Baseline, Predicate } from "./predicate.ts";
 import type { ReportPlan } from "./report-plan.ts";
@@ -205,16 +206,13 @@ export async function measureBase(input: {
   readonly environment: Predicate["environment"];
   readonly workspace: string;
 }): Promise<{ readonly baseline: Baseline; readonly runs: readonly MeasuredRun[] }> {
-  const key = createHash("sha256")
-    .update(
-      JSON.stringify([
-        input.checkout.baseCommit,
-        input.environment.sha256,
-        sealedSha256(input.sealed),
-        judgeSha256,
-      ]),
-    )
-    .digest("hex");
+  // The judge is part of the verifier's code, so its digest is in codeSha256.
+  const key = baselineKey({
+    baseCommit: input.checkout.baseCommit,
+    environmentSha256: input.environment.sha256,
+    sealedSha256: sealedSha256(input.sealed),
+    codeSha256,
+  });
   const file = baseCache.file(input.home, key);
   const environmentSha256 = input.environment.sha256;
   // A base measured on an environment no later run can reproduce (linked or set up by a
