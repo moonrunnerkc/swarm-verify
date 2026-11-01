@@ -116,4 +116,5 @@ export const requirement = (
   required: true,
   assumptions: [],
   evidence: { tests: tests.map((name) => ({ name })), checks: [], structure: [], packages: [] },
+  versions: [],
 });

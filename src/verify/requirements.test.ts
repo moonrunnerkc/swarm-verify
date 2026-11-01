@@ -40,6 +40,7 @@ const inputs: RequirementInputs = {
   changed: true,
   regression: { status: "none", newFailures: [], inherited: [], removed: [], unresolved: [] },
   freshDependencies: true,
+  latest: new Map(),
 };
 
 describe("a requirement whose evidence names nothing that ran", () => {

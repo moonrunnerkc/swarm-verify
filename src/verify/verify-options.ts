@@ -1,5 +1,6 @@
 import type { ExecutionPolicy, Producer, Requirement, TrustedCheck } from "../api/request.ts";
 import type { ResolvedChange } from "./change.ts";
+import type { Registries } from "./latest-version.ts";
 import type { Statement } from "./predicate.ts";
 
 /** What one verification of a resolved change takes, and what it gives back. */
@@ -16,6 +17,8 @@ export interface VerifyOptions {
   readonly freshBase?: boolean;
   readonly signal?: AbortSignal;
   readonly version: string;
+  /** Where a constraint's latest version is looked up; the public registries by default. */
+  readonly registries?: Registries;
 }
 
 export interface VerifyOutcome {

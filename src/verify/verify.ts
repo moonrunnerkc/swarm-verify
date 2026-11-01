@@ -11,6 +11,7 @@ import type { TestOutcome } from "./compare.ts";
 import { dependencyIdentity } from "./deps.ts";
 import { alteredSealed, measureBase, readSealed, swarmHome } from "./held-out.ts";
 import { isolate } from "./isolate.ts";
+import { latestTargets, publicRegistries } from "./latest-version.ts";
 import { artifactsOf } from "./paths.ts";
 import { type MeasuredRun, reportPlans } from "./per-test.ts";
 import type { Baseline, CheckResult, Coverage, HeldOut, Mutation, Predicate } from "./predicate.ts";
@@ -98,6 +99,11 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       context,
     );
     if (prepared.refused !== null) blocked.push(prepared.refused);
+    // Part of the dependency stage: the one stage with the network open, and recorded.
+    const latest = await latestTargets(
+      (options.requirements ?? []).flatMap((requirement) => requirement.versions),
+      options.registries ?? publicRegistries,
+    );
     let dependencies = await dependencyIdentity(
       checkout.dir,
       prepared.mode,
@@ -211,6 +217,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       changed: change.patch.length > 0,
       regression,
       freshDependencies: dependencies.mode === "prepared" && depsChanged && candidateSetup === null,
+      latest,
     });
     const execution = executionOf(options.policy, dependencies, isolated, tamperedTree);
     reasons.unshift(...blocked);

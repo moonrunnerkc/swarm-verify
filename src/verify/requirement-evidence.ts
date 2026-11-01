@@ -2,8 +2,10 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import type { EvidenceRef } from "../api/outcome.ts";
-import type { Requirement } from "../api/request.ts";
+import type { Requirement, VersionConstraint } from "../api/request.ts";
 import type { TestOutcome } from "./compare.ts";
+import type { LatestTarget } from "./latest-version.ts";
+import { parseVersionRange, satisfies } from "./version-range.ts";
 
 type StructureClaim = Requirement["evidence"]["structure"][number];
 type PackageClaim = Requirement["evidence"]["packages"][number];
@@ -45,7 +47,10 @@ export async function structureEvidence(dir: string, claim: StructureClaim): Pro
 type Reader = (path: string) => Promise<string | null>;
 
 /** The version the lockfile `read` returns resolves `name` to, or null. */
-export async function resolvedVersion(read: Reader, claim: PackageClaim): Promise<string | null> {
+export async function resolvedVersion(
+  read: Reader,
+  claim: Pick<PackageClaim, "name" | "ecosystem">,
+): Promise<string | null> {
   if (claim.ecosystem === "npm") {
     const text = await read("package-lock.json");
     if (text === null) return null;
@@ -94,6 +99,51 @@ export async function packageEvidence(
     outcome: matches && moved ? "observed" : "not observed",
     detail,
   };
+}
+
+/**
+ * A version the task's wording constrains, against the candidate's lockfile. Within the range
+ * holds; with the latest asked for, only the registry's latest within the range holds, and a
+ * latest that could not be read leaves it unobserved. Anything else is a failure: the candidate
+ * resolves a version the user's words rule out, whatever the model claimed.
+ */
+export async function constraintEvidence(
+  dir: string,
+  constraint: VersionConstraint,
+  latest: LatestTarget | undefined,
+): Promise<EvidenceRef> {
+  const readCandidate = (path: string) => readFile(join(dir, path), "utf8").catch(() => null);
+  const installed = await resolvedVersion(readCandidate, constraint);
+  const ref = `${constraint.ecosystem}:${constraint.name} within ${constraint.latest ? "the latest " : ""}${constraint.range}`;
+  const from = `from the task's wording "${constraint.wording}"`;
+  const result = (outcome: string, detail: string): EvidenceRef => ({
+    kind: "package",
+    ref,
+    authority: "user-acceptance",
+    outcome,
+    detail: `${detail}; ${from}`,
+  });
+  if (installed === null) {
+    return result("not observed", "the candidate's lockfile does not resolve it");
+  }
+  const looked = constraint.latest ? `; ${latest?.detail ?? "the latest was not looked up"}` : "";
+  const range = parseVersionRange(constraint.range);
+  if (range === null || !satisfies(installed, range)) {
+    return result(
+      "fail",
+      `the candidate resolves ${installed}, outside ${constraint.range}${looked}`,
+    );
+  }
+  if (!constraint.latest) return result("observed", `the candidate resolves ${installed}`);
+  if (latest?.version === undefined || latest.version === null) {
+    return result("not observed", `the candidate resolves ${installed}${looked}`);
+  }
+  return installed === latest.version
+    ? result("observed", `the candidate resolves ${installed}; ${latest.detail}`)
+    : result(
+        "fail",
+        `the candidate resolves ${installed}, not ${latest.version}; ${latest.detail}`,
+      );
 }
 
 /** Whether `version` is the claimed one, or within a claim written with x (9.x, 9.6.x, or 9). */

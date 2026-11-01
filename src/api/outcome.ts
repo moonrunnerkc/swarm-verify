@@ -5,6 +5,7 @@ import {
   requirementSchema,
   requirementSources,
   sha256Schema,
+  versionConstraintSchema,
 } from "./request.ts";
 
 export const requirementStatuses = ["satisfied", "failed", "unverified", "blocked"] as const;
@@ -37,6 +38,8 @@ export const requirementOutcomeSchema = z.strictObject({
   assumptions: z.array(z.string()),
   /** The evidence the request named for it, so a replay judges it the same way. */
   expected: requirementSchema.shape.evidence.unwrap(),
+  /** The version constraints read from the user's wording, so a replay judges them the same way. */
+  versions: z.array(versionConstraintSchema).default([]),
   status: z.enum(requirementStatuses),
   evidence: z.array(evidenceRefSchema),
   limitation: z.string().nullable(),

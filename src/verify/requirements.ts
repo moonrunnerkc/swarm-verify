@@ -1,8 +1,11 @@
 import type { EvidenceRef, Regression, RequirementOutcome } from "../api/outcome.ts";
 import type { Requirement } from "../api/request.ts";
 import type { TestOutcome } from "./compare.ts";
+import type { LatestTarget } from "./latest-version.ts";
+import { targetKey } from "./latest-version.ts";
 import type { CheckResult } from "./predicate.ts";
 import {
+  constraintEvidence,
   failing,
   holding,
   packageEvidence,
@@ -26,6 +29,8 @@ export interface RequirementInputs {
   readonly regression: Regression;
   /** Whether the candidate's dependencies were installed fresh from its own lockfile. */
   readonly freshDependencies: boolean;
+  /** The registry's latest within each constraint that asks for it, by `targetKey`. */
+  readonly latest: ReadonlyMap<string, LatestTarget>;
 }
 
 const noSuchTest = "no executed test has this name";
@@ -238,6 +243,11 @@ export async function assessRequirements(
       ...(await Promise.all(
         packages.map((claim) => packageEvidence(inputs.readBase, inputs.dir, claim)),
       )),
+      ...(await Promise.all(
+        requirement.versions.map((constraint) =>
+          constraintEvidence(inputs.dir, constraint, inputs.latest.get(targetKey(constraint))),
+        ),
+      )),
     ];
     if (
       requirement.kind === "refactor" &&
@@ -260,6 +270,7 @@ export async function assessRequirements(
       required: requirement.required,
       assumptions: [...requirement.assumptions],
       expected: requirement.evidence,
+      versions: requirement.versions,
       evidence,
       ...judged(requirement, evidence, inputs),
     });

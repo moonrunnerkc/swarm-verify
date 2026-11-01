@@ -112,6 +112,7 @@ export async function replay(
         required: one.required,
         assumptions: one.assumptions,
         evidence: one.expected,
+        versions: one.versions,
       })),
       checks: recorded.checks
         .filter(

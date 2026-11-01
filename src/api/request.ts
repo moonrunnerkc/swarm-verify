@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseVersionRange } from "../verify/version-range.ts";
 
 /** The request a caller hands the verifier. A new incompatible shape gets a new version. */
 export const requestVersion = "swarm-verify.request/v1";
@@ -43,6 +44,24 @@ const packageClaimSchema = z.strictObject({
   version: z.string().min(1).optional(),
 });
 
+/**
+ * A version the user's own wording constrains a dependency to ("the latest 9.x", "^9", "pin to
+ * 4.1.2"). The producer's code reads it from the wording, never a model, and the verifier judges
+ * the candidate's lockfile against it: within the range, and the registry's latest within it when
+ * the wording asks for the latest.
+ */
+export const versionConstraintSchema = z.strictObject({
+  name: z.string().min(1),
+  ecosystem: z.enum(["npm", "pypi"]),
+  range: z.string().refine((range) => parseVersionRange(range) !== null, {
+    message: "a version range: 1.2.3, 9, 9.x, 9.6.x, ^9.6.1 or ~9.6",
+  }),
+  latest: z.boolean().default(false),
+  /** The words it was read from, shown beside the result. */
+  wording: z.string().min(1),
+});
+export type VersionConstraint = z.output<typeof versionConstraintSchema>;
+
 export const requirementSchema = z.strictObject({
   id: z.string().regex(/^R\d+$/, "R followed by a number"),
   text: z.string().min(1),
@@ -59,6 +78,7 @@ export const requirementSchema = z.strictObject({
       packages: z.array(packageClaimSchema).default([]),
     })
     .default({ tests: [], checks: [], structure: [], packages: [] }),
+  versions: z.array(versionConstraintSchema).default([]),
 });
 export type Requirement = z.output<typeof requirementSchema>;
 

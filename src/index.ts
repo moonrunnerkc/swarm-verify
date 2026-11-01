@@ -21,6 +21,7 @@ export type {
   TrustedCheck,
   VerifyRequest,
   VerifyRequestInput,
+  VersionConstraint,
 } from "./api/request.ts";
 export {
   checkAuthorities,
@@ -29,6 +30,7 @@ export {
   requirementSchema,
   requirementSources,
   verifyRequestSchema,
+  versionConstraintSchema,
 } from "./api/request.ts";
 export type { VerifyResult } from "./api/result.ts";
 export { resultVersion, verifyResultSchema } from "./api/result.ts";

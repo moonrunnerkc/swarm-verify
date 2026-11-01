@@ -4,6 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import { ZodError } from "zod";
 import { commitOf, git, type ResolvedChange, resolveChange } from "../verify/change.ts";
 import { writeAttestation } from "../verify/dsse.ts";
+import type { Registries } from "../verify/latest-version.ts";
 import { resolveSigningKey } from "../verify/signing.ts";
 import { verifyChange } from "../verify/verify.ts";
 import { type VerifyRequest, type VerifyRequestInput, verifyRequestSchema } from "./request.ts";
@@ -34,6 +35,8 @@ export interface VerifyCallOptions {
   /** Measure the base again rather than reuse a cached run of it, as a replay must. */
   readonly freshBase?: boolean;
   readonly verifierVersion: string;
+  /** Where a version constraint's latest is looked up; the public npm and PyPI registries otherwise. */
+  readonly registries?: Registries;
 }
 
 export function parseRequest(input: VerifyRequestInput): VerifyRequest {
@@ -99,6 +102,7 @@ export async function verify(
     ...(options.swarmHome === undefined ? {} : { swarmHome: options.swarmHome }),
     ...(options.signal === undefined ? {} : { signal: options.signal }),
     ...(options.freshBase === true ? { freshBase: true } : {}),
+    ...(options.registries === undefined ? {} : { registries: options.registries }),
   });
   const directory = resolve(request.artifacts.directory);
   const problems: string[] = [];
