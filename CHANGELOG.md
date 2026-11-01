@@ -6,21 +6,6 @@ of moonrunnerkc/swarm-verify. Versions before 1.0.0 (0.2.0, released with Swarm 
 swarm-orchestrator's `packages/swarm-verify`; 2.0.0 is the first built from this repository. A
 2.0.0 tagged there on 2026-10-29 was never published to npm, and its notes are folded in below.
 
-## Unreleased
-
-### Fixed
-
-- **A flaky test is uncertainty, not a regression or a fix.** A test whose failing first run
-  decides its verdict (a new failure, a rewritten expectation, a failing added test, a fix at
-  the base, a witness against the base's source) is run again on the same snapshot, up to
-  `policy.reruns` times (three by default). One that then passes is `flaky`: its check and the
-  regression are `unresolved`, the regression names it under `flaky`, a requirement mapped to it
-  is `unverified`, and every run is recorded in the check's `tests.reruns`. `verify.mjs` refuses
-  `complete` over a check that records one, and `replay` compares flaky tests as their own set.
-- **`replay` runs as the recording ran.** A host recording replays on the host, and only on the
-  platform it recorded; an isolated one in its recorded image. A recording on linked
-  dependencies, or a host recording from another platform, is refused with exit 5.
-
 ## 2.0.0 - 2026-11-01
 
 Rebuilt with the verifier-first rebuild ([ADR 0014](https://github.com/moonrunnerkc/swarm-orchestrator/blob/v13-main/docs/adr/0014-verifier-first-rebuild.md)).
@@ -32,6 +17,11 @@ the Changed and Fixed sections (protected paths, the predicate type), those desc
 
 ### Changed
 
+- **Versions the task's wording names are held.** A requirement carries `versions` (package,
+  ecosystem, range, whether the latest is asked for, and the words), set by the producer's code.
+  The candidate's lockfile is judged against each: outside the range fails, and with the latest
+  asked for only the registry's latest release within the range holds, read while dependencies
+  are prepared. Ranges are `1.2.3`, `9`, `9.x`, `9.6.x`, `^9.6.1` and `~9.6`.
 - **The verifier's source lives in moonrunnerkc/swarm-verify** with its history since the
   2026-10-28 rebuild. The package builds from this repository, its build refuses a closure that
   reaches a model client, an agent loop or a terminal interface, and the Action builds from
@@ -110,6 +100,16 @@ the Changed and Fixed sections (protected paths, the predicate type), those desc
 
 ### Fixed
 
+- **A flaky test is uncertainty, not a regression or a fix.** A test whose failing first run
+  decides its verdict (a new failure, a rewritten expectation, a failing added test, a fix at
+  the base, a witness against the base's source) is run again on the same snapshot, up to
+  `policy.reruns` times (three by default). One that then passes is `flaky`: its check and the
+  regression are `unresolved`, the regression names it under `flaky`, a requirement mapped to it
+  is `unverified`, and every run is recorded in the check's `tests.reruns`. `verify.mjs` refuses
+  `complete` over a check that records one, and `replay` compares flaky tests as their own set.
+- **`replay` runs as the recording ran.** A host recording replays on the host, and only on the
+  platform it recorded; an isolated one in its recorded image. A recording on linked
+  dependencies, or a host recording from another platform, is refused with exit 5.
 Root causes found running real tasks on local models (the swarm-orchestrator repository keeps
 the runs under docs/acceptance/2026-10-31/):
 
