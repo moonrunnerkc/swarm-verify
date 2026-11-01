@@ -36,13 +36,15 @@ function testRefs(
   inputs: RequirementInputs,
 ): EvidenceRef[] {
   // A name selects the test of that name, every test in the suite of that name, or a path of both,
-  // in the file it names, if it names one.
+  // in the file it names, if it names one. The id the verifier itself prints selects its test
+  // whatever the runner made of the file: pytest's dotted classname is no path.
   const named = splitTestName(selector.name);
   const found = inputs.outcomes.filter(
     (one) =>
-      (named.title === "" || titleSelects(one.title, named.title)) &&
       (selector.file === undefined || livesIn(one.file, selector.file)) &&
-      (named.file === null || livesIn(one.file, named.file)),
+      (one.id === selector.name ||
+        ((named.title === "" || titleSelects(one.title, named.title)) &&
+          (named.file === null || livesIn(one.file, named.file)))),
   );
   if (found.length > 0) return found.map(testRef);
   const label = selector.file === undefined ? selector.name : `${selector.file}::${selector.name}`;

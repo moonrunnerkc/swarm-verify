@@ -190,6 +190,35 @@ describe("a requirement whose evidence names nothing that ran", () => {
     expect(elsewhere?.status).toBe("unverified");
   });
 
+  it("takes a test by the id the verifier printed for it, a pytest classname included", async () => {
+    const pytest: TestOutcome = {
+      ...added,
+      id: "tests.e2e.test_limits::test_event_limit_retains_status",
+      title: "test_event_limit_retains_status",
+      file: "tests/e2e/test_limits",
+      origin: "pre-existing",
+      classification: "fixed",
+    };
+    for (const name of [
+      "tests.e2e.test_limits::test_event_limit_retains_status",
+      "tests/e2e/test_limits.py::test_event_limit_retains_status",
+    ]) {
+      const [outcome] = await assessRequirements(
+        [
+          requirementSchema.parse({
+            id: "R1",
+            text: "keep the event limit status",
+            kind: "fix",
+            source: "user",
+            evidence: { tests: [{ name }] },
+          }),
+        ],
+        { ...inputs, outcomes: [pytest] },
+      );
+      expect(outcome?.evidence.map((one) => one.outcome)).toEqual(["fixed"]);
+    }
+  });
+
   it("tells an upgrade with no package claim what to name, or how to record a change of no version", async () => {
     const [outcome] = await assessRequirements(
       [
