@@ -72,3 +72,8 @@ Open choices made while building Swarm Verify, dated, with the reason. Append on
 - The rule for a check that exits worse with no failing test fires only where the run's report has no failing test, for the obligation run and the candidate's own. A superseded expectation fails in the obligation run by design and explains its exit.
 - The predicate records `policy.behaviorChange`, and replay reruns under it; without it a replay of an authorized run would judge the rewrite as unauthorized and diverge.
 - A requirement with no mapped evidence gets a next action naming, by title, up to eight tests the executed results show witnessing the change. This names, it does not map: the requirement stays unverified until the producer maps evidence. Found on an acceptance run where a local model added three witnessing tests, never mapped them, and spent its remaining steps elsewhere.
+
+## 2026-11-01: what a cached base run may stand for
+
+- A cached base run is keyed on a digest of the verifier's own code (non-test source, or the built files), with the base commit, the environment and the sealed set. The version string did not change between builds that read reports differently: an acceptance run reused a base read under the old test ids, and every one of its 98 tests read as a new failure. Caches written by other code are left on disk and never read.
+- `replay` measures the base afresh, through a call option the public API now carries (`freshBase`), and does not read the cache; the fresh run is still written to it. A replay that reads the base it is checking is not independent: the same acceptance run's replay agreed with the false regressions.
