@@ -158,7 +158,11 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
     } else if (checks.length === 0) {
       blocked.push("no checks are declared in swarm.toml or the project's manifests");
     } else if (prepared.failure !== null) {
-      blocked.push("preparing the base's dependencies failed");
+      blocked.push(
+        options.policy.mode === "isolated"
+          ? "the base's dependencies did not install from its lockfile in a clean container: fix the dependency the setup output names, or verify on the host with the workspace's installed dependencies, reported as not isolated and not reproducible"
+          : "the base's dependencies did not install from its lockfile: fix the dependency the setup output names, or use the workspace's installed dependencies (dependencies: linked), reported as not reproducible",
+      );
       failures.push(`setup failed:\n${prepared.failure.outputTail}`);
     } else if (candidateSetup !== null) {
       reasons.push("installing the candidate's dependencies from its lockfile failed");

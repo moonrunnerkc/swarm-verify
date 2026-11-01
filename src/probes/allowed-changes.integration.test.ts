@@ -246,3 +246,23 @@ describe("a requirement that names a check with inherited failures", () => {
     checksOffline(result);
   });
 });
+
+describe("dependencies that do not install from the lockfile", () => {
+  it("blocks, says the lockfile did not install, and says what to do", async () => {
+    const probe = await probeFixture({
+      "half.mjs": "export const half = n => n / 2;\n",
+      "test/half.test.mjs": halfTest,
+      // The manifest asks for a package the lockfile does not hold, so npm ci refuses.
+      "package.json":
+        '{"name":"f","version":"1.0.0","type":"module","dependencies":{"left-pad":"1.3.0"}}\n',
+      "package-lock.json":
+        '{"name":"f","version":"1.0.0","lockfileVersion":3,"requires":true,"packages":{"":{"name":"f","version":"1.0.0"}}}\n',
+    });
+    const result = await probe.verify([], { dependencies: "prepare" });
+    expect(result.state).toBe("blocked");
+    expect(result.reasons).toContain(
+      "the base's dependencies did not install from its lockfile: fix the dependency the setup output names, or use the workspace's installed dependencies (dependencies: linked), reported as not reproducible",
+    );
+    expect(result.failureOutput).toContain("setup failed");
+  });
+});
