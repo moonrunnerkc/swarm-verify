@@ -30,6 +30,8 @@ const holding = new Set([
   "passes before and after",
 ]);
 const failing = new Set(["failing", "fail"]);
+const noSuchTest = "no executed test has this name";
+const noSuchCheck = "no such check ran";
 
 function testRef(outcome: TestOutcome): EvidenceRef {
   const authority = outcome.origin === "pre-existing" ? "pre-existing" : "implementation-authored";
@@ -92,7 +94,7 @@ function testRefs(
       ref: label,
       authority: "pre-existing",
       outcome: "not observed",
-      detail: "no executed test has this name",
+      detail: noSuchTest,
     },
   ];
 }
@@ -105,7 +107,7 @@ function checkRef(name: string, inputs: RequirementInputs): EvidenceRef {
       ref: name,
       authority: "pre-existing",
       outcome: "not observed",
-      detail: "no such check ran",
+      detail: noSuchCheck,
     };
   const outcome =
     check.result === "pass"
@@ -114,6 +116,29 @@ function checkRef(name: string, inputs: RequirementInputs): EvidenceRef {
         ? "fail"
         : "not observed";
   return { kind: "check", ref: name, authority: check.authority, outcome, detail: check.result };
+}
+
+/** What to do about evidence that was not observed: rename what matched nothing, or run it. */
+function unobservedAction(unobserved: readonly EvidenceRef[], inputs: RequirementInputs): string {
+  const refs = (detail: string) =>
+    unobserved
+      .filter((one) => one.detail === detail)
+      .map((one) => one.ref)
+      .join(", ");
+  const checks = refs(noSuchCheck);
+  const tests = refs(noSuchTest);
+  const ran = inputs.checks.map((one) => one.name).join(", ") || "none ran";
+  const example =
+    inputs.outcomes.find((one) => one.title.includes(" > "))?.title ?? "suite > test title";
+  const steps = [
+    ...(checks.length > 0 ? [`name only checks that ran (${ran}) in place of ${checks}`] : []),
+    ...(tests.length > 0
+      ? [
+          `name tests as they ran (a title, a suite, or a path such as ${example}) in place of ${tests}`,
+        ]
+      : []),
+  ];
+  return steps.length > 0 ? steps.join("; ") : "run a check that exercises it";
 }
 
 /** Status, limitation and next action from a requirement's evidence, by its kind. */
@@ -149,7 +174,7 @@ function judged(
     return {
       status: "unverified",
       limitation: `not observed: ${unobserved.map((one) => one.ref).join(", ")}`,
-      nextAction: "run a check that exercises it",
+      nextAction: unobservedAction(unobserved, inputs),
     };
   }
   if (requirement.kind === "fix" || requirement.kind === "feature") {
