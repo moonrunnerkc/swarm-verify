@@ -1,0 +1,39 @@
+name: release
+
+# A v* tag publishes swarm-verify, after the gates, which install the packed tarball into a fresh
+# prefix and verify a change through it.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  # npm provenance signs the tarball against this workflow and commit.
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm run gates
+      - name: Check the tag matches the package version
+        run: |
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "${GITHUB_REF_NAME#v}" != "$PKG" ]; then
+            echo "tag $GITHUB_REF_NAME does not match package.json $PKG; refusing to publish" >&2
+            exit 1
+          fi
+      - name: Publish
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
