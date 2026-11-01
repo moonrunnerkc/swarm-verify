@@ -164,8 +164,9 @@ function judgmentOf(
     witnesses: witnesses.length,
     skipped: ids("skipped").length,
   };
+  // Sorted before capping: a runner's order is not the verdict's, and a replay compares these.
   const capped = Object.fromEntries(
-    Object.entries(lists).map(([key, value]) => [key, value.slice(0, 100)]),
+    Object.entries(lists).map(([key, value]) => [key, [...value].sort().slice(0, 100)]),
   ) as typeof lists;
   const size = (run: MeasuredRun) => Object.keys(run.evidence.report ?? {}).length;
   return {

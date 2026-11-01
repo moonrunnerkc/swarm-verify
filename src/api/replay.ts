@@ -69,7 +69,9 @@ export function divergencesOf(recorded: Statement["predicate"], replayed: Verify
       "expectationChanges",
       "witnesses",
     ] as const) {
-      same(`check ${check.name} ${key}`, check.tests?.[key] ?? [], again?.tests?.[key] ?? []);
+      // Sets of test ids: a statement recorded before they were sorted still compares.
+      const ids = (list: readonly string[] | undefined) => [...(list ?? [])].sort();
+      same(`check ${check.name} ${key}`, ids(check.tests?.[key]), ids(again?.tests?.[key]));
     }
   }
   for (const requirement of recorded.requirements) {

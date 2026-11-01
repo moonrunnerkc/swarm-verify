@@ -2,7 +2,8 @@ import type { Execution, OverallState, Regression, RequirementOutcome } from "..
 import type { ExecutionPolicy } from "../api/request.ts";
 import type { Baseline, CheckResult, Coverage, HeldOut, Mutation } from "./predicate.ts";
 
-const capped = (ids: readonly string[]) => ids.slice(0, 100);
+/** Sorted, then the first hundred: the same ids give the same list whatever order they came in. */
+const capped = (ids: readonly string[]) => [...ids].sort().slice(0, 100);
 
 /**
  * The candidate against the base across every check. A check judged test by test contributes

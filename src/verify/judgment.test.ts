@@ -227,3 +227,20 @@ describe("a mutant against its reports", () => {
     expect(mutantOutcome(head, run(1, null, "it timed out"))).toBe("timeout");
   });
 });
+
+// depose (session 20261101T155037-25f560): the replay found the same 17 inherited failures in
+// another order, read it as a divergence, and with more than 100 the capped list could hold
+// different tests.
+describe("the lists a check reports", () => {
+  it("are sorted before they are capped, whatever order the runner reported in", () => {
+    const ids = Array.from({ length: 150 }, (_, at) => `t::case_${String(at).padStart(3, "0")}`);
+    const report = (order: readonly string[]): TestReport =>
+      Object.fromEntries(order.map((id) => [id, fail()]));
+    const forward = measured(1, evidence(report(ids)));
+    const backward = measured(1, evidence(report([...ids].reverse())));
+    const one = judge(forward, forward).run.result.tests?.inherited;
+    const other = judge(backward, backward).run.result.tests?.inherited;
+    expect(one).toEqual(ids.slice(0, 100));
+    expect(other).toEqual(one);
+  });
+});
