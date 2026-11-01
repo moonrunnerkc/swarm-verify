@@ -210,6 +210,26 @@ describe("measuring every check at the base commit first", () => {
     expect(exitCodeOf(predicate)).toBe(1);
   });
 
+  // depose (session 20261101T154330-6eee82): the base's build check wrote ignored build output,
+  // the candidate's tests loaded it, and an unchanged tree read as 14 new failures.
+  it("runs the candidate on what the base commit holds, not on what the base's checks wrote", async () => {
+    await put(".gitignore", "out/\n");
+    await put("swarm.toml", '[checks]\ntest = "node --test"\nbuild = "node build.mjs"\n');
+    await put(
+      "build.mjs",
+      'import { mkdirSync, writeFileSync } from "node:fs";\nmkdirSync("out", { recursive: true });\nwriteFileSync("out/flag", "built");\n',
+    );
+    await put(
+      "test/fresh.test.mjs",
+      'import { test } from "node:test";\nimport assert from "node:assert/strict";\nimport { existsSync } from "node:fs";\ntest("starts from a fresh tree", () => assert.ok(!existsSync("out/flag")));\n',
+    );
+    run(["add", "-A"]);
+    run(["commit", "-qm", "build output"]);
+    await put("README.md", "notes\n");
+    const predicate = (await verify()).statement.predicate;
+    expect(predicate.regression.newFailures).toEqual([]);
+  });
+
   it("reuses the base run for the same base commit and environment", async () => {
     await put("src/clamp.mjs", correct);
     await verify();

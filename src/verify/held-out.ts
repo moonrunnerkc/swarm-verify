@@ -5,7 +5,13 @@ import { dirname, join } from "node:path";
 import { z } from "zod";
 import type { DeclaredCheck } from "../config/swarm-toml.ts";
 import { gitText } from "./change.ts";
-import { type BaseCheckout, resetTracked, restoreFromBase } from "./checkout.ts";
+import {
+  type BaseCheckout,
+  removeWrittenSince,
+  resetTracked,
+  restoreFromBase,
+  untrackedPaths,
+} from "./checkout.ts";
 import { baseCache, type CheckContext, type CheckRun, runCheck } from "./checks.ts";
 import { baselineKey, codeSha256 } from "./code-digest.ts";
 import { prepareJudge, readJudge } from "./judge.ts";
@@ -233,6 +239,7 @@ export async function measureBase(input: {
     };
   }
   const scratch = dirname(input.checkout.dir);
+  const before = await untrackedPaths(input.checkout);
   const runs: MeasuredRun[] = [];
   for (const [at, check] of input.checks.entries()) {
     const plan = input.plans[at] ?? null;
@@ -251,6 +258,7 @@ export async function measureBase(input: {
     );
   }
   await resetTracked(input.checkout);
+  await removeWrittenSince(input.checkout, before);
   if (reuse) await baseCache.write(file, { checks, tests, heldOut });
   return {
     baseline: { status: "measured", cached: false, environmentSha256, checks, heldOut },

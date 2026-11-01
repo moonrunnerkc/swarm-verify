@@ -123,6 +123,32 @@ export async function restoreFrom(
   }
 }
 
+/** Every untracked path in the checkout, ignored ones included, directories collapsed. */
+export async function untrackedPaths(checkout: BaseCheckout): Promise<ReadonlySet<string>> {
+  const listing = await git(checkout.dir, ["ls-files", "-z", "--others", "--directory"]);
+  return new Set(
+    listing
+      .toString("utf8")
+      .split("\0")
+      .filter((path) => path.length > 0),
+  );
+}
+
+/**
+ * Removes every untracked or ignored path a run wrote since `before`: build output, caches, a
+ * generated lockfile. The candidate then runs on the base commit and its prepared dependencies,
+ * as the base did, not on what the base's checks left. Writes inside a directory that was
+ * already there (node_modules/.vite) are left: the directory is the unit.
+ */
+export async function removeWrittenSince(
+  checkout: BaseCheckout,
+  before: ReadonlySet<string>,
+): Promise<void> {
+  for (const path of await untrackedPaths(checkout)) {
+    if (!before.has(path)) await rm(join(checkout.dir, path), { recursive: true, force: true });
+  }
+}
+
 /** Undoes what a base run wrote to tracked files, so the change applies to the base as committed. */
 export async function resetTracked(checkout: BaseCheckout): Promise<void> {
   await git(checkout.dir, ["checkout", "--quiet", "--", "."]);
