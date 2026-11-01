@@ -81,6 +81,6 @@ export function localInstalls(packages: readonly LocalPackage[]): string[] {
     .filter((one) => one.ownLockfile)
     .map(
       (one) =>
-        `(cd '${one.path.replaceAll("'", "'\\''")}' && npm ci --omit=dev --no-audit --no-fund)`,
+        `(cd '${one.path.replaceAll("'", "'\\''")}' && npm ci --omit=dev --no-audit --no-fund --foreground-scripts)`,
     );
 }

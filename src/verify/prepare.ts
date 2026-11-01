@@ -21,8 +21,9 @@ export async function lockfileInstall(dir: string, isolated = false): Promise<st
       () => true,
       () => false,
     );
-  if (await has("package-lock.json")) return "npm ci --no-audit --no-fund";
-  if (await has("npm-shrinkwrap.json")) return "npm ci --no-audit --no-fund";
+  // Install scripts one at a time: npm runs them in parallel, and concurrent native builds race.
+  const npm = "npm ci --no-audit --no-fund --foreground-scripts";
+  if ((await has("package-lock.json")) || (await has("npm-shrinkwrap.json"))) return npm;
   const manager = isolated ? "corepack " : "";
   if (await has("pnpm-lock.yaml")) return `${manager}pnpm install --frozen-lockfile`;
   if (await has("yarn.lock"))
