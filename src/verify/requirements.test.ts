@@ -76,4 +76,22 @@ describe("a requirement whose evidence names nothing that ran", () => {
       "name tests as they ran (a title, a suite, or a path such as walkRepo > skips extra directories) in place of walkRepo skips extra directories",
     );
   });
+
+  it("names the tests that witness the change when a requirement maps none", async () => {
+    const [outcome] = await assessRequirements(
+      [
+        requirementSchema.parse({
+          id: "R1",
+          text: "skip extra directories",
+          kind: "feature",
+          source: "user",
+        }),
+      ],
+      inputs,
+    );
+    expect(outcome?.status).toBe("unverified");
+    expect(outcome?.nextAction).toBe(
+      "map the tests that exercise it; these fail before the change and pass after it: walkRepo > skips extra directories",
+    );
+  });
 });

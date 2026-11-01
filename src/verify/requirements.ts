@@ -163,10 +163,19 @@ function judged(
     };
   }
   if (evidence.length === 0) {
+    // Executed results already show which tests witness the change; naming them is not mapping
+    // them, which stays the producer's to propose.
+    const witnesses = inputs.outcomes
+      .filter((one) => witnessing.has(testRef(one).outcome))
+      .map((one) => one.title)
+      .slice(0, 8);
     return {
       status: "unverified",
       limitation: "no executed evidence is mapped to this requirement",
-      nextAction: "map a test or check that exercises it",
+      nextAction:
+        witnesses.length === 0
+          ? "map a test or check that exercises it"
+          : `map the tests that exercise it; these fail before the change and pass after it: ${witnesses.join(", ")}`,
     };
   }
   const unobserved = evidence.filter((one) => !holding.has(one.outcome));
