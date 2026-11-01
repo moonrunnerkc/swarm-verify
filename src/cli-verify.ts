@@ -11,7 +11,7 @@ import { UsageError } from "./cli-command-definitions.ts";
 import { commitOf, git } from "./verify/change.ts";
 import { exitCodeOf, renderMarkdown, renderText } from "./verify/report.ts";
 
-const shared = {
+export const sharedOptions = {
   workspace: { type: "string" },
   out: { type: "string" },
   sigstore: { type: "boolean" },
@@ -113,7 +113,7 @@ export async function verify(args: readonly string[]): Promise<number> {
   const { values } = parseArgs({
     args: [...args],
     options: {
-      ...shared,
+      ...sharedOptions,
       base: { type: "string" },
       patch: { type: "string" },
       range: { type: "string" },
@@ -174,7 +174,7 @@ export async function verify(args: readonly string[]): Promise<number> {
 export async function ci(args: readonly string[]): Promise<number> {
   const { values } = parseArgs({
     args: [...args],
-    options: { ...shared, base: { type: "string" } },
+    options: { ...sharedOptions, base: { type: "string" } },
   });
   const workspace = resolve(values.workspace ?? process.cwd());
   const baseRef =

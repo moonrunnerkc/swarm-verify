@@ -9,7 +9,7 @@ export const commandDefinitions: readonly CommandDefinition[] = [
   {
     name: "verify",
     syntax:
-      "verify [--base <ref>] [--patch <file> | --range <a..b>] [--isolation isolated|host] [--dependencies prepare|linked|none] [--requirements <file>] [--out <dir>] [--sigstore] [--json]",
+      "verify [--base <ref>] [--patch <file> | --range <a..b>] [--isolation isolated|host] [--dependencies prepare|linked|none] [--requirements <file>] [--authorize-behavior-change] [--out <dir>] [--sigstore] [--json]",
     description: "rerun the declared checks on a change in a clean checkout and sign the verdict",
   },
   {
@@ -24,7 +24,8 @@ export const commandDefinitions: readonly CommandDefinition[] = [
   },
   {
     name: "ci",
-    syntax: "ci [--base <ref>] [--out <dir>] [--sigstore]",
+    syntax:
+      "ci [--base <ref>] [--isolation isolated|host] [--dependencies prepare|linked|none] [--requirements <file>] [--authorize-behavior-change] [--out <dir>] [--sigstore] [--json]",
     description: "verify HEAD's change against the pull request's base branch",
   },
 ];

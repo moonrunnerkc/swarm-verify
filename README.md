@@ -106,7 +106,9 @@ credential detector the verifier runs checks with.
 ```
 
 The Action builds the verifier from this repository at the ref you name and runs `ci` against
-the pull request's base. Inputs: `base`, `isolation`, `dependencies`, `requirements`.
+the pull request's base. Inputs: `base`, `isolation`, `dependencies`, `requirements`, and
+`authorize-behavior-change` (default `false`), which lets a test the base passes change its
+expectation where the change witnesses the new behavior, and records that it did.
 [docs/integrations.md](docs/integrations.md) covers other CI systems, pre-commit and MCP;
 [docs/verifying.md](docs/verifying.md) says what runs and where its reach ends.
 [docs/migration-2.md](docs/migration-2.md) lists what changed from 1.x.

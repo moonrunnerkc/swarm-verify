@@ -17,6 +17,9 @@ inputs:
   requirements:
     description: Path to a JSON array of requirements in the workspace. Absent means the result covers regressions only.
     default: ""
+  authorize-behavior-change:
+    description: "`true` lets a test the base passes change its expectation where the change witnesses the new behavior, and records that it did. Set it only for a pull request whose request is to change tested behavior."
+    default: "false"
 runs:
   using: composite
   steps:
@@ -40,7 +43,10 @@ runs:
         ISOLATION: ${{ inputs.isolation }}
         DEPENDENCIES: ${{ inputs.dependencies }}
         REQUIREMENTS: ${{ inputs.requirements }}
+        BEHAVIOR_CHANGE: ${{ inputs.authorize-behavior-change }}
       run: |
+        AUTHORIZE=""
+        if [ "$BEHAVIOR_CHANGE" = "true" ]; then AUTHORIZE="--authorize-behavior-change"; fi
         node "$ACTION_ROOT/dist/swarm-verify.js" ci \
           --isolation "$ISOLATION" --dependencies "$DEPENDENCIES" \
-          ${BASE:+--base "$BASE"} ${REQUIREMENTS:+--requirements "$REQUIREMENTS"}
+          ${BASE:+--base "$BASE"} ${REQUIREMENTS:+--requirements "$REQUIREMENTS"} $AUTHORIZE
