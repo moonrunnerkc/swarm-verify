@@ -200,3 +200,28 @@ describe("naming evidence by suite", () => {
     expect(result.requirements[0]?.status).toBe("satisfied");
   });
 });
+
+describe("an approved behavior change", () => {
+  const expects = (value: string) =>
+    `import {test} from 'node:test';\nimport assert from 'node:assert/strict';\nimport {half} from '../half.mjs';\ntest('half', () => assert.equal(half(5), ${value}));\n`;
+
+  it("supersedes an old expectation only when the request authorizes it, and records that it did", async () => {
+    const probe = await probeFixture({
+      "half.mjs": "export const half = n => n / 2;\n",
+      "test/half.test.mjs": expects("2.5"),
+    });
+    await probe.put("half.mjs", "export const half = n => Math.floor(n / 2);\n");
+    await probe.put("test/half.test.mjs", expects("2"));
+    const rounds = [requirement("R1", "half(n) rounds down", "fix", ["half"])];
+    const refused = await probe.verify(rounds);
+    expect(refused.checks[0]?.tests?.expectationChanges).toEqual(["test/half.test.mjs::half"]);
+    expect(refused.state).not.toBe("complete");
+    expect(refused.policy).toEqual({ behaviorChange: "none" });
+    const allowed = await probe.verify(rounds, { behaviorChange: "authorized" });
+    expect(allowed.checks[0]?.tests?.superseded).toEqual(["test/half.test.mjs::half"]);
+    expect(allowed.requirements[0]?.status).toBe("satisfied");
+    expect(allowed.state).toBe("complete");
+    expect(allowed.policy).toEqual({ behaviorChange: "authorized" });
+    checksOffline(allowed);
+  });
+});

@@ -268,6 +268,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       producer: options.producer ?? { instructions: [] },
       environment: await environmentOf(checkout.dir, checks, dependencies, isolated),
       execution,
+      policy: { behaviorChange: options.behaviorChange ?? "none" },
       unmeasured: unmeasuredOf({
         checks: runs,
         unmeasuredChecks,

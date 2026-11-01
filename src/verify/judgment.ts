@@ -242,10 +242,17 @@ export function judgeCheck(input: JudgmentInput): CheckJudgment {
   );
   if (tampered !== null) reasons.push(tampered);
   const blocks = outcomes.some((one) => regressing.has(one.classification)) || tampered !== null;
-  const exitedWorse = !blocks && input.base.run.result.exitCode === 0 && head.result.exitCode !== 0;
+  // A nonzero exit that no failing test explains: the obligation run, or the candidate's own. A
+  // superseded expectation fails in the obligation run by design, which explains its exit.
+  const unexplained = [input.obligation, input.candidate].find(
+    (one) =>
+      one.run.result.exitCode !== 0 &&
+      !Object.values(one.evidence.report ?? {}).some((test) => test.status === "fail"),
+  );
+  const exitedWorse = !blocks && input.base.run.result.exitCode === 0 && unexplained !== undefined;
   if (exitedWorse)
     reasons.push(
-      `check ${name} exits ${head.result.exitCode} against the candidate and 0 at the base commit, though no test in its report fails`,
+      `check ${name} exits ${unexplained.run.result.exitCode} against the candidate and 0 at the base commit, though no test in its report fails`,
     );
   const output = `$ ${command}\n${input.candidate.run.outputTail}`;
   if (blocks || exitedWorse) {

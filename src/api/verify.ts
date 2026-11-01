@@ -91,6 +91,7 @@ export async function verify(
     requirements: request.requirements,
     trustedChecks: request.checks,
     policy: request.policy.execution,
+    behaviorChange: request.policy.behaviorChange,
     producer: request.producer,
     version: options.verifierVersion,
     ...(options.swarmHome === undefined ? {} : { swarmHome: options.swarmHome }),

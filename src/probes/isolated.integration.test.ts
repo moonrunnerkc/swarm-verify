@@ -1,7 +1,8 @@
 import { rm } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
+import { replay } from "../api/replay.ts";
 import { halfTest, probeFixture, requirement } from "./fixture.ts";
 
 /**
@@ -93,5 +94,38 @@ describe("a lockfile that installs a package from beside the repository", () => 
     });
     expect(Object.keys(result.execution.dependencies.lockfiles)).toContain("local:../sibling/lib");
     expect(result.state).toBe("complete");
+  });
+});
+
+describe("replaying an authorized behavior change", () => {
+  it("reruns under the recorded policy and agrees", async () => {
+    const expects = (value: string) =>
+      `import {test} from 'node:test';\nimport assert from 'node:assert/strict';\nimport {half} from '../half.mjs';\ntest('half', () => assert.equal(half(5), ${value}));\n`;
+    const probe = await probeFixture(
+      {
+        "half.mjs": "export const half = n => n / 2;\n",
+        "test/half.test.mjs": expects("2.5"),
+        "package.json": manifest,
+      },
+      "node --test",
+      parent,
+    );
+    await probe.put("half.mjs", "export const half = n => Math.floor(n / 2);\n");
+    await probe.put("test/half.test.mjs", expects("2"));
+    const result = await probe.verify([requirement("R1", "half(n) rounds down", "fix", ["half"])], {
+      behaviorChange: "authorized",
+      mode: "isolated",
+      dependencies: "prepare",
+      network: "closed",
+    });
+    expect(result.state).toBe("complete");
+    const replayed = await replay(dirname(result.evidence.bundle ?? ""), {
+      repository: probe.repo,
+      out: join(probe.home, "replay"),
+      verifierVersion: "probe",
+      swarmHome: probe.home,
+    });
+    expect(replayed.replayed.policy).toEqual({ behaviorChange: "authorized" });
+    expect(replayed.divergences).toEqual([]);
   });
 });

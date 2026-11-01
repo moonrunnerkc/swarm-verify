@@ -137,6 +137,22 @@ describe("a check's result from its reports", () => {
     ]);
   });
 
+  it("does not call an authorized change's failing old expectation an unexplained exit", () => {
+    const report = { "a::fmt": pass() };
+    const obligation = measured(1, evidence({ "a::fmt": fail() }));
+    const judged = judgeCheck({
+      base: measured(0, evidence(report)),
+      obligation,
+      candidate: measured(0, evidence(report)),
+      witness: measured(1, evidence({ "a::fmt": fail() })),
+      changes: { ...none, modified: new Set(["tests/test_a"]) },
+      behaviorChange: "authorized",
+    });
+    expect(judged.run.result.tests?.superseded).toEqual(["a::fmt"]);
+    expect(judged.run.result.result).toBe("pass");
+    expect(judged.reasons.join("\n")).not.toContain("no test in its report fails");
+  });
+
   it("is unresolved where a command could not run or a report did not parse", () => {
     const report = { "a::one": pass() };
     const unparsed = evidence(null, { unreadable: "the pytest report could not be parsed" });

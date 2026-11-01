@@ -195,6 +195,8 @@ export const predicateSchema = z.object({
     reproducible: z.boolean(),
   }),
   execution: executionSchema,
+  /** What the request authorized: whether the task may change what existing tests expect. */
+  policy: z.strictObject({ behaviorChange: z.enum(["none", "authorized"]) }),
   unmeasured: z.array(z.string()),
   /** The log files written beside the statement (each check's full output), by digest. */
   logs: z.array(z.object({ name: z.string().min(1), sha256 })),

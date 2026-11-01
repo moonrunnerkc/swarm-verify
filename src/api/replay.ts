@@ -126,6 +126,7 @@ export async function replay(
               : ("user-acceptance" as const),
         })),
       policy: {
+        behaviorChange: recorded.policy.behaviorChange,
         execution: {
           mode: "isolated",
           network: recorded.execution.network,

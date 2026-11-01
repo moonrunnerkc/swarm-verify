@@ -114,21 +114,30 @@ export function compareRuns(
       continue;
     }
     const deleted = [...changes.deleted].some((path) => livesIn(file, path));
-    const after = runs.obligation[id]?.status ?? null;
-    let classification = beforeAfter(entry.status, after);
+    const obliged = runs.obligation[id]?.status ?? null;
+    let classification = beforeAfter(entry.status, obliged);
     if (deleted) {
       classification = "removed";
     } else if ([...changes.modified].some((path) => livesIn(file, path))) {
       const rewritten = runs.candidate[id]?.status ?? null;
       if (rewritten !== null) claimed.add(id);
-      const rescued = after !== "pass" && rewritten === "pass";
+      const rescued = obliged !== "pass" && rewritten === "pass";
       if (rescued) {
         const failsBefore = witnessOf(id) !== "pass";
         classification =
           behaviorChange === "authorized" && failsBefore ? "superseded" : "expectation-changed";
       }
     }
-    outcomes.push({ ...shared, classification, after, before: null, movedTo: null });
+    // A superseded expectation is replaced by the candidate's version: that is what now holds,
+    // and the witness run is what it did before the change.
+    const superseded = classification === "superseded";
+    outcomes.push({
+      ...shared,
+      classification,
+      after: superseded ? (runs.candidate[id]?.status ?? null) : obliged,
+      before: superseded ? witnessOf(id) : null,
+      movedTo: null,
+    });
   }
   for (const [id, entry] of Object.entries(runs.candidate)) {
     if (claimed.has(id) || id in runs.base) continue;
