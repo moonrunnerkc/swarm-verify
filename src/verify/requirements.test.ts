@@ -129,4 +129,25 @@ describe("a requirement whose evidence names nothing that ran", () => {
       'fix or drop the structure claims that do not hold (config/ contains "semgrep": config/ is a directory, not a file; config/schema.ts contains "string[]": the file does not contain it; config/missing.ts: no file at config/missing.ts); these tests fail before the change and pass after it, and this requirement does not map them: walkRepo > skips extra directories',
     );
   });
+
+  it("counts a check that fails only on inherited failures as holding, not as unobserved", async () => {
+    const inheritedOnly = { ...check("test"), result: "inherited-failures" as const, exitCode: 1 };
+    const [outcome] = await assessRequirements(
+      [
+        requirementSchema.parse({
+          id: "R1",
+          text: "skip extra directories",
+          kind: "feature",
+          source: "user",
+          evidence: { tests: [{ name: "skips extra directories" }], checks: ["test"] },
+        }),
+      ],
+      { ...inputs, checks: [inheritedOnly, check("lint")] },
+    );
+    expect(outcome?.evidence.find((one) => one.kind === "check")).toMatchObject({
+      outcome: "passes but for inherited failures",
+      detail: "inherited-failures",
+    });
+    expect(outcome?.status).toBe("satisfied");
+  });
 });

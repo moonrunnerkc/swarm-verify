@@ -38,6 +38,9 @@ tagged there but never published to npm.
   was judged under (`policy.behaviorChange`), and `replay` reruns under it.
 - **A requirement with nothing mapped is told which tests witness the change**, by title, when
   the executed results show tests that fail before it and pass after it.
+- **A check with only inherited failures holds as requirement evidence**, in the verifier and in
+  `verify.mjs` alike; it was read as unobserved, so a requirement naming it could never be
+  satisfied in a repository with one unrelated failing test.
 - **One test id format across runners.** jest, vitest and mocha test ids now join suites to the
   title with ` > `, as junit's already did (`test/calc.test.js::calc > stays`, where it was
   `calc stays`). A requirement names a test by its title, a suite, or a contiguous path of both.

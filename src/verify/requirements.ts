@@ -63,12 +63,16 @@ function checkRef(name: string, inputs: RequirementInputs): EvidenceRef {
       outcome: "not observed",
       detail: noSuchCheck,
     };
+  // Inherited failures fail at the base and still fail with nothing new failing: the check shows
+  // the change broke nothing it measures, which is what naming it claims.
   const outcome =
     check.result === "pass"
       ? "pass"
-      : check.result === "fail" || check.result === "error"
-        ? "fail"
-        : "not observed";
+      : check.result === "inherited-failures"
+        ? "passes but for inherited failures"
+        : check.result === "fail" || check.result === "error"
+          ? "fail"
+          : "not observed";
   return { kind: "check", ref: name, authority: check.authority, outcome, detail: check.result };
 }
 

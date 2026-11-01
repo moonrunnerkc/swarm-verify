@@ -225,3 +225,24 @@ describe("an approved behavior change", () => {
     checksOffline(allowed);
   });
 });
+
+describe("a requirement that names a check with inherited failures", () => {
+  it("is satisfied by its witness and the check, and the offline checker agrees", async () => {
+    const probe = await probeFixture({
+      "half.mjs": "export const half = n => n;\n",
+      "test/half.test.mjs": `${halfTest}test("unrelated inherited",()=>assert.equal(1,2));\n`,
+    });
+    await probe.put("half.mjs", "export const half = n => n / 2;\n");
+    const fixed = requirement("R1", "half(n) returns n / 2", "fix", ["half positive"]);
+    const result = await probe.verify([
+      { ...fixed, evidence: { ...fixed.evidence, checks: ["test"] } },
+    ]);
+    expect(result.checks[0]?.result).toBe("inherited-failures");
+    expect(result.requirements[0]?.evidence.map((ref) => ref.outcome)).toEqual([
+      "fixed",
+      "passes but for inherited failures",
+    ]);
+    expect(result.state).toBe("complete");
+    checksOffline(result);
+  });
+});

@@ -113,7 +113,8 @@ A check without a report read is judged by its exit code and the count its runne
 
 A request may name requirements, each with the evidence that should show it: tests by name,
 checks by name, structural claims about the candidate tree, and packages an upgrade resolves.
-The status comes from that evidence only:
+The status comes from that evidence only. A named check holds when its result is `pass` or
+`inherited-failures`; `no-tests` and `unresolved` leave it unobserved.
 
 - A fix or feature is `satisfied` when a mapped test fails before and passes after (fixed, a
   witness, or superseded under an authorized behavior change), and nothing mapped fails.

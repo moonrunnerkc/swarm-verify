@@ -93,6 +93,7 @@ export const holding = new Set([
   "pass",
   "observed",
   "passes before and after",
+  "passes but for inherited failures",
 ]);
 export const failing = new Set(["failing", "fail"]);
 
