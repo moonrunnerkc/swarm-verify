@@ -1,3 +1,6 @@
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { requirementSchema } from "../api/request.ts";
 import type { TestOutcome } from "./compare.ts";
@@ -73,7 +76,7 @@ describe("a requirement whose evidence names nothing that ran", () => {
       inputs,
     );
     expect(outcome?.nextAction).toBe(
-      "name tests as they ran (a title, a suite, or a path such as walkRepo > skips extra directories) in place of walkRepo skips extra directories",
+      "name tests as they ran (a title, a suite, or a path such as walkRepo > skips extra directories) in place of walkRepo skips extra directories; these tests fail before the change and pass after it, and this requirement does not map them: walkRepo > skips extra directories",
     );
   });
 
@@ -92,6 +95,38 @@ describe("a requirement whose evidence names nothing that ran", () => {
     expect(outcome?.status).toBe("unverified");
     expect(outcome?.nextAction).toBe(
       "map the tests that exercise it; these fail before the change and pass after it: walkRepo > skips extra directories",
+    );
+  });
+
+  it("says why a structure claim fails, and names the witnesses it left unmapped", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "structure-"));
+    await mkdir(join(dir, "config"));
+    await writeFile(join(dir, "config", "schema.ts"), "export const ruleset = 'auto';\n");
+    const [outcome] = await assessRequirements(
+      [
+        requirementSchema.parse({
+          id: "R1",
+          text: "accept an array of rulesets",
+          kind: "feature",
+          source: "user",
+          evidence: {
+            structure: [
+              { path: "config/", contains: "semgrep" },
+              { path: "config/schema.ts", contains: "string[]" },
+              { path: "config/missing.ts" },
+            ],
+          },
+        }),
+      ],
+      { ...inputs, dir },
+    );
+    expect(outcome?.evidence.map((one) => one.detail)).toEqual([
+      "config/ is a directory, not a file",
+      "the file does not contain it",
+      "no file at config/missing.ts",
+    ]);
+    expect(outcome?.nextAction).toBe(
+      'fix or drop the structure claims that do not hold (config/ contains "semgrep": config/ is a directory, not a file; config/schema.ts contains "string[]": the file does not contain it; config/missing.ts: no file at config/missing.ts); these tests fail before the change and pass after it, and this requirement does not map them: walkRepo > skips extra directories',
     );
   });
 });

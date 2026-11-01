@@ -2,7 +2,14 @@ import type { EvidenceRef, Regression, RequirementOutcome } from "../api/outcome
 import type { Requirement } from "../api/request.ts";
 import type { TestOutcome } from "./compare.ts";
 import type { CheckResult } from "./predicate.ts";
-import { packageEvidence, structureEvidence } from "./requirement-evidence.ts";
+import {
+  failing,
+  holding,
+  packageEvidence,
+  structureEvidence,
+  testRef,
+  witnessing,
+} from "./requirement-evidence.ts";
 import { livesIn, titleSelects } from "./test-report.ts";
 
 export interface RequirementInputs {
@@ -20,61 +27,8 @@ export interface RequirementInputs {
   readonly freshDependencies: boolean;
 }
 
-/** Outcomes that show behavior: a test or check failing before and passing after. */
-const witnessing = new Set(["fixed", "witness", "superseded"]);
-const holding = new Set([
-  ...witnessing,
-  "preserved",
-  "pass",
-  "observed",
-  "passes before and after",
-]);
-const failing = new Set(["failing", "fail"]);
 const noSuchTest = "no executed test has this name";
 const noSuchCheck = "no such check ran";
-
-function testRef(outcome: TestOutcome): EvidenceRef {
-  const authority = outcome.origin === "pre-existing" ? "pre-existing" : "implementation-authored";
-  const ref = outcome.id;
-  switch (outcome.classification) {
-    case "fixed":
-      return { kind: "test", ref, authority, outcome: "fixed" };
-    case "superseded":
-      return {
-        kind: "test",
-        ref,
-        authority,
-        outcome: "superseded",
-        detail: "authorized behavior change",
-      };
-    case "preserved":
-    case "renamed":
-      return { kind: "test", ref: outcome.movedTo ?? ref, authority, outcome: "preserved" };
-    case "added":
-      return outcome.before !== null && outcome.before !== "pass"
-        ? {
-            kind: "test",
-            ref,
-            authority,
-            outcome: "witness",
-            detail: "fails against the base's source",
-          }
-        : {
-            kind: "test",
-            ref,
-            authority,
-            outcome: "passes before and after",
-            detail:
-              outcome.before === null
-                ? "no run against the base's source"
-                : "passes against the base's source too",
-          };
-    case "skipped":
-      return { kind: "test", ref, authority, outcome: "not observed", detail: "skipped" };
-    default:
-      return { kind: "test", ref, authority, outcome: "failing", detail: outcome.classification };
-  }
-}
 
 function testRefs(
   selector: Requirement["evidence"]["tests"][number],
@@ -118,8 +72,21 @@ function checkRef(name: string, inputs: RequirementInputs): EvidenceRef {
   return { kind: "check", ref: name, authority: check.authority, outcome, detail: check.result };
 }
 
-/** What to do about evidence that was not observed: rename what matched nothing, or run it. */
-function unobservedAction(unobserved: readonly EvidenceRef[], inputs: RequirementInputs): string {
+/** Titles of tests the executed results show witnessing the change, not among `mapped`. */
+function witnessTitles(inputs: RequirementInputs, mapped: readonly EvidenceRef[]): string[] {
+  const refs = new Set(mapped.map((one) => one.ref));
+  return inputs.outcomes
+    .filter((one) => witnessing.has(testRef(one).outcome) && !refs.has(testRef(one).ref))
+    .map((one) => one.title)
+    .slice(0, 8);
+}
+
+/** What to do about evidence that was not observed: fix what matched nothing, or run it. */
+function unobservedAction(
+  unobserved: readonly EvidenceRef[],
+  inputs: RequirementInputs,
+  evidence: readonly EvidenceRef[],
+): string {
   const refs = (detail: string) =>
     unobserved
       .filter((one) => one.detail === detail)
@@ -130,11 +97,24 @@ function unobservedAction(unobserved: readonly EvidenceRef[], inputs: Requiremen
   const ran = inputs.checks.map((one) => one.name).join(", ") || "none ran";
   const example =
     inputs.outcomes.find((one) => one.title.includes(" > "))?.title ?? "suite > test title";
+  const structure = unobserved
+    .filter((one) => one.kind === "structure")
+    .map((one) => `${one.ref}: ${one.detail}`)
+    .join("; ");
+  const witnesses = witnessTitles(inputs, evidence);
   const steps = [
     ...(checks.length > 0 ? [`name only checks that ran (${ran}) in place of ${checks}`] : []),
     ...(tests.length > 0
       ? [
           `name tests as they ran (a title, a suite, or a path such as ${example}) in place of ${tests}`,
+        ]
+      : []),
+    ...(structure.length > 0
+      ? [`fix or drop the structure claims that do not hold (${structure})`]
+      : []),
+    ...(witnesses.length > 0
+      ? [
+          `these tests fail before the change and pass after it, and this requirement does not map them: ${witnesses.join(", ")}`,
         ]
       : []),
   ];
@@ -165,10 +145,7 @@ function judged(
   if (evidence.length === 0) {
     // Executed results already show which tests witness the change; naming them is not mapping
     // them, which stays the producer's to propose.
-    const witnesses = inputs.outcomes
-      .filter((one) => witnessing.has(testRef(one).outcome))
-      .map((one) => one.title)
-      .slice(0, 8);
+    const witnesses = witnessTitles(inputs, evidence);
     return {
       status: "unverified",
       limitation: "no executed evidence is mapped to this requirement",
@@ -183,7 +160,7 @@ function judged(
     return {
       status: "unverified",
       limitation: `not observed: ${unobserved.map((one) => one.ref).join(", ")}`,
-      nextAction: unobservedAction(unobserved, inputs),
+      nextAction: unobservedAction(unobserved, inputs, evidence),
     };
   }
   if (requirement.kind === "fix" || requirement.kind === "feature") {
