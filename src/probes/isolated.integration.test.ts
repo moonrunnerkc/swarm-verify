@@ -9,7 +9,8 @@ import { halfTest, probeFixture, requirement } from "./fixture.ts";
  * The isolated backend end to end: needs a docker daemon, as isolated verification does. The
  * fixtures live under the user's home, which a docker VM shares, as the verifier's own home does.
  */
-const parent = join(homedir(), ".swarm", "test-work");
+// Apart for each test process: afterAll removes it, and other checkouts may run at once.
+const parent = join(homedir(), ".swarm", "test-work", `${process.pid}`);
 afterAll(async () => {
   await rm(parent, { recursive: true, force: true });
 });

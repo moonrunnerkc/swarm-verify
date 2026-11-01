@@ -13,7 +13,8 @@ import { halfTest, probeFixture } from "./fixture.ts";
  * the result's assurance away. None of them may leave a complete, intact-looking result.
  */
 const checker = join(import.meta.dirname, "..", "..", "verify.mjs");
-const parent = join(homedir(), ".swarm", "test-work-integrity");
+// Apart for each test process: afterAll removes it, and other checkouts may run at once.
+const parent = join(homedir(), ".swarm", "test-work-integrity", `${process.pid}`);
 afterAll(async () => {
   await rm(parent, { recursive: true, force: true });
 });
