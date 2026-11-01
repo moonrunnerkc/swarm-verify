@@ -51,11 +51,31 @@ export async function cloneBase(
   return { dir, baseCommit, remove: scratch.remove };
 }
 
+/**
+ * Removes each untracked file the patch creates. The patch is taken against the base commit, so
+ * such a file can only be a by-product of the base's own run (`uv lock` writes uv.lock where the
+ * project tracks none); the candidate's version is the one being judged. Tracked files are never
+ * touched, so a patch that conflicts with the base still does not apply.
+ */
+async function clearCreatedPaths(dir: string, patchFile: string): Promise<void> {
+  const summary = await runGit(dir, ["apply", "--summary", patchFile]);
+  const created = summary.stdout
+    .toString("utf8")
+    .split("\n")
+    .map((line) => /^ create mode \d+ (.+)$/.exec(line)?.[1])
+    .filter((path): path is string => path !== undefined && !path.startsWith('"'));
+  for (const path of created) {
+    const tracked = await runGit(dir, ["ls-files", "--error-unmatch", "--", path]);
+    if (tracked.code !== 0) await rm(join(dir, path), { force: true });
+  }
+}
+
 /** Applies the patch to the base checkout and reads what changed from git itself. */
 export async function applyChange(checkout: BaseCheckout, patch: Buffer): Promise<ApplyOutcome> {
   const patchFile = join(checkout.dir, "..", "change.patch");
   await writeFile(patchFile, patch);
   if (patch.length > 0) {
+    await clearCreatedPaths(checkout.dir, patchFile);
     const applied = await runGit(checkout.dir, [
       "apply",
       "--index",
