@@ -78,9 +78,10 @@ function testRefs(
   selector: Requirement["evidence"]["tests"][number],
   inputs: RequirementInputs,
 ): EvidenceRef[] {
+  // A name selects the test of that name, or every test in the suite of that name.
   const found = inputs.outcomes.filter(
     (one) =>
-      (one.title === selector.name || one.title.endsWith(` > ${selector.name}`)) &&
+      one.title.split(" > ").includes(selector.name) &&
       (selector.file === undefined || livesIn(one.file, selector.file)),
   );
   if (found.length > 0) return found.map(testRef);

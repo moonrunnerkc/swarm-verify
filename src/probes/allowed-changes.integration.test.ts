@@ -154,3 +154,29 @@ describe("changes the verifier accepts for a valid reason", () => {
     checksOffline(result);
   });
 });
+
+describe("naming evidence by suite", () => {
+  it("maps a requirement named by its describe block to every test in it", async () => {
+    const probe = await probeFixture({
+      "half.mjs": "export const half = n => n / 2;\n",
+      "test/half.test.mjs": halfTest,
+    });
+    await probe.put(
+      "half.mjs",
+      "export const half = n => n / 2;\nexport const double = n => n * 2;\n",
+    );
+    await probe.put(
+      "test/double.test.mjs",
+      "import {describe, test} from 'node:test';\nimport assert from 'node:assert/strict';\nimport {double, half} from '../half.mjs';\ndescribe('double', () => {\n  test('doubles', () => assert.equal(double(4), 8));\n  test('leaves half alone', () => assert.equal(half(4), 2));\n});\n",
+    );
+    const result = await probe.verify([
+      requirement("R1", "export double(n)", "feature", ["double"]),
+    ]);
+    // Against the base's source the file cannot import double, so both of its tests fail before.
+    expect(result.requirements[0]?.evidence.map((ref) => ref.outcome)).toEqual([
+      "witness",
+      "witness",
+    ]);
+    expect(result.requirements[0]?.status).toBe("satisfied");
+  });
+});
