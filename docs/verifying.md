@@ -84,6 +84,10 @@ Each base test is judged by its original version against the candidate:
 | present | its file deleted by the candidate | removed: blocks |
 | any | fails, but the candidate's rewrite of it passes | expectation changed: blocks, unless the task authorized a behavior change and the rewrite fails against the base's source (superseded) |
 
+Only the request authorizes a behavior change (`policy.behaviorChange`, or
+`--authorize-behavior-change`); the result records which policy it was judged under, and
+`replay` reruns under the same one.
+
 Tests the candidate added are labeled `implementation-authored`. One that passes against the
 candidate and fails against the base's source is a witness; one that fails against the candidate
 blocks. A test file moved or edited with only its imports changed is matched to the base by the

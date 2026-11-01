@@ -32,6 +32,12 @@ tagged there but never published to npm.
   check judged only by exit code that fails at both commits is `unresolved`, never inherited.
   Test files moved or edited with only their imports changed are matched by test name.
 - **`node --test` is read test by test** through its junit reporter, passed in `NODE_OPTIONS`.
+- **An authorized behavior change takes effect.** `policy.behaviorChange: "authorized"` (the
+  CLI's `--authorize-behavior-change`) was dropped at the API boundary, so a superseded
+  expectation was always judged as an unauthorized rewrite. The result now records the policy it
+  was judged under (`policy.behaviorChange`), and `replay` reruns under it.
+- **A requirement with nothing mapped is told which tests witness the change**, by title, when
+  the executed results show tests that fail before it and pass after it.
 - **One test id format across runners.** jest, vitest and mocha test ids now join suites to the
   title with ` > `, as junit's already did (`test/calc.test.js::calc > stays`, where it was
   `calc stays`). A requirement names a test by its title, a suite, or a contiguous path of both.
