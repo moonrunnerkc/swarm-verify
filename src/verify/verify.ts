@@ -18,6 +18,7 @@ import type { Baseline, CheckResult, Coverage, HeldOut, Mutation, Predicate } fr
 import { buildStatement } from "./predicate.ts";
 import { prepareDependencies } from "./prepare.ts";
 import { assessRequirements } from "./requirements.ts";
+import { defaultReruns } from "./reruns.ts";
 import { testFileChanges } from "./test-files.ts";
 import type { VerifyOptions, VerifyOutcome } from "./verify-options.ts";
 
@@ -139,17 +140,14 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       (one) => one.category === "lockfiles" || one.category === "manifests",
     );
     let candidateSetup: MeasuredRun["run"] | null = null;
-    if (
+    const install = () =>
+      prepareDependencies(options.workspace, config?.setup ?? null, "prepare", context);
+    const ownDependencies =
       depsChanged &&
       prepared.failure === null &&
-      (prepared.mode === "prepared" || prepared.mode === "setup")
-    ) {
-      const again = await prepareDependencies(
-        options.workspace,
-        config?.setup ?? null,
-        "prepare",
-        context,
-      );
+      (prepared.mode === "prepared" || prepared.mode === "setup");
+    if (ownDependencies) {
+      const again = await install();
       candidateSetup = again.failure;
       dependencies = await dependencyIdentity(checkout.dir, again.mode, again.localPackages);
     } else if (depsChanged && prepared.mode === "linked") {
@@ -190,6 +188,13 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
         candidateTree: applied.result.gitTree,
         candidateSha256: applied.result.treeSha256,
         behaviorChange: options.behaviorChange ?? "none",
+        reruns: options.reruns ?? defaultReruns,
+        reinstallBase: ownDependencies
+          ? async () => {
+              const again = await install();
+              return again.failure === null && again.refused === null;
+            }
+          : null,
       });
       tamperedTree.push(...judged.problems);
       logs.push(...judged.logs);
@@ -250,7 +255,10 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       producer: options.producer ?? { instructions: [] },
       environment: await environmentOf(checkout.dir, checks, dependencies, isolated),
       execution,
-      policy: { behaviorChange: options.behaviorChange ?? "none" },
+      policy: {
+        behaviorChange: options.behaviorChange ?? "none",
+        reruns: options.reruns ?? defaultReruns,
+      },
       unmeasured: unmeasuredOf({
         checks: runs,
         unmeasuredChecks,

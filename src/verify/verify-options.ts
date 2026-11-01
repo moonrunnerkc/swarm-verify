@@ -11,6 +11,8 @@ export interface VerifyOptions {
   readonly trustedChecks?: readonly TrustedCheck[];
   readonly policy: ExecutionPolicy;
   readonly behaviorChange?: "none" | "authorized";
+  /** Reruns of a test whose failing first run decides its verdict; three where unset. */
+  readonly reruns?: number;
   readonly producer?: Producer;
   readonly swarmHome?: string;
   /** Measure the base again instead of reading a cached run: a replay checks, it does not reuse. */

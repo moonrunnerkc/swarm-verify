@@ -44,7 +44,7 @@ function lines(predicate: Predicate): readonly (readonly [string, string])[] {
   const regression = predicate.regression;
   rows.push([
     "regression",
-    `${regression.status}${regression.newFailures.length > 0 ? `: new failures ${regression.newFailures.slice(0, 5).join(", ")}` : ""}${regression.inherited.length > 0 ? `; ${regression.inherited.length} inherited` : ""}${regression.unresolved.length > 0 ? `; unresolved ${regression.unresolved.join(", ")}` : ""}`,
+    `${regression.status}${regression.newFailures.length > 0 ? `: new failures ${regression.newFailures.slice(0, 5).join(", ")}` : ""}${regression.inherited.length > 0 ? `; ${regression.inherited.length} inherited` : ""}${regression.unresolved.length > 0 ? `; unresolved ${regression.unresolved.join(", ")}` : ""}${regression.flaky.length > 0 ? `; flaky ${regression.flaky.slice(0, 5).join(", ")}` : ""}`,
   ]);
   rows.push(["base", predicate.base.commit]);
   rows.push([

@@ -35,6 +35,7 @@ interface RequestExtras {
   readonly dependencies: "prepare" | "linked" | "none";
   readonly mode: "isolated" | "host";
   readonly network: "open" | "closed";
+  readonly reruns: number;
 }
 
 process.env.SWARM_SIGNING_KEY ??= generateKeyPairSync("ed25519")
@@ -88,6 +89,7 @@ export async function probeFixture(
           requirements: [...requirements],
           policy: {
             behaviorChange: extra.behaviorChange ?? "none",
+            ...(extra.reruns === undefined ? {} : { reruns: extra.reruns }),
             execution: {
               mode: extra.mode ?? "host",
               network: extra.network ?? "open",

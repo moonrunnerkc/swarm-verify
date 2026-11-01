@@ -172,6 +172,15 @@ function judged(
           : `map the tests that exercise it; these fail before the change and pass after it: ${witnesses.join(", ")}`,
     };
   }
+  const flaky = evidence.filter((one) => one.outcome === "flaky");
+  if (flaky.length > 0) {
+    return {
+      status: "unverified",
+      limitation: `flaky: ${flaky.map((one) => `${one.ref} (${one.detail ?? ""})`).join(", ")}`,
+      nextAction:
+        "make the test deterministic, or map one that is: it failed and then passed on the same snapshot",
+    };
+  }
   const unobserved = evidence.filter((one) => !holding.has(one.outcome));
   if (unobserved.length > 0) {
     return {

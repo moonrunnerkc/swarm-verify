@@ -206,6 +206,15 @@ export function testRef(outcome: TestOutcome): EvidenceRef {
           };
     case "skipped":
       return { kind: "test", ref, authority, outcome: "not observed", detail: "skipped" };
+    case "flaky":
+      // Failed and passed on the same snapshot: it shows neither the fix nor a failure.
+      return {
+        kind: "test",
+        ref,
+        authority,
+        outcome: "flaky",
+        detail: `${outcome.rerun?.snapshot ?? "unknown"}: ${outcome.rerun?.results.join(", ") ?? ""}`,
+      };
     default:
       return { kind: "test", ref, authority, outcome: "failing", detail: outcome.classification };
   }

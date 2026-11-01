@@ -215,9 +215,9 @@ if (statement !== null) {
  * requirements.ts and assess.ts): complete only when the change applied, every required
  * requirement is satisfied by evidence that holds (a fix or feature by a test failing before and
  * passing after, a refactor and an upgrade with nothing regressed, an upgrade by a resolved
- * package on a fresh install), nothing regressed or stayed unresolved, no check failed, the
- * held-out checks passed and the execution policy was met. A recorded `blocked` stands: it can
- * only withhold acceptance, never grant it.
+ * package on a fresh install), nothing regressed or stayed unresolved, no check failed or
+ * recorded a flaky test, the held-out checks passed and the execution policy was met. A recorded
+ * `blocked` stands: it can only withhold acceptance, never grant it.
  */
 const witnessing = new Set(["fixed", "witness", "superseded"]);
 const holding = new Set([
@@ -247,8 +247,11 @@ function satisfied(one, predicate) {
 function derivedState(predicate) {
   if (predicate.state === "blocked") return "blocked";
   const required = (predicate.requirements ?? []).filter((one) => one.required);
+  // A flaky test failed and passed on one snapshot: it leaves its check unresolved.
   const checksHold = (predicate.checks ?? []).every(
-    (check) => check.result === "pass" || check.result === "inherited-failures",
+    (check) =>
+      (check.result === "pass" || check.result === "inherited-failures") &&
+      (check.tests?.flaky ?? []).length === 0,
   );
   const heldOut = predicate.heldOut;
   const heldOutHolds = heldOut?.status !== "measured" || heldOut.heldOutPassRate === 1;

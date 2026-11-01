@@ -136,6 +136,11 @@ export const verifyRequestSchema = z.strictObject({
   policy: z.strictObject({
     /** Whether the task authorizes changing what existing tests expect. */
     behaviorChange: z.enum(["none", "authorized"]).default("none"),
+    /**
+     * Reruns of a check on the same snapshot when a test's failure there decides the verdict. A
+     * test that passes on one is flaky: uncertain, never a regression and never a fix.
+     */
+    reruns: z.number().int().min(0).max(10).default(3),
     execution: executionPolicySchema,
   }),
   /** Where the statement, bundle, patch and logs are written. Outside the candidate's tree. */

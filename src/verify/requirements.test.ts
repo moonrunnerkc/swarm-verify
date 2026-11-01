@@ -38,7 +38,14 @@ const inputs: RequirementInputs = {
   readBase: async () => null,
   sourceChanged: ["src/walk.ts"],
   changed: true,
-  regression: { status: "none", newFailures: [], inherited: [], removed: [], unresolved: [] },
+  regression: {
+    status: "none",
+    newFailures: [],
+    inherited: [],
+    removed: [],
+    unresolved: [],
+    flaky: [],
+  },
   freshDependencies: true,
   latest: new Map(),
 };

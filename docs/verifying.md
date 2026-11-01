@@ -99,6 +99,17 @@ the report or from the summary its runner printed; exit code zero is not test su
 `unresolved`: a report did not parse, no collected test passes against the candidate, or the
 check has no report read and fails at both commits. Unresolved never claims inheritance.
 
+A failing run decides some verdicts by itself: a new failure, a rewritten expectation, a failing
+added test, a fix (failing at the base), a witness (failing against the base's source). Each such
+test is run again on the same snapshot, up to three times (`policy.reruns` in the request, zero to
+ten), and stops at its first pass. A test that fails and then passes is `flaky`: it is never a
+regression and never a fix or a witness, its check is `unresolved`, the regression is
+`unresolved` and names it under `flaky`, and a requirement mapped to it stays `unverified`. A test
+that fails on every run keeps its verdict. Every run of every rerun test is recorded in the
+check's `tests.reruns` with the snapshot it ran on (`base`, `obligation`, `candidate` or
+`witness`). Reruns at the base and against the base's source run after every candidate run,
+with the base's dependencies installed again where the candidate installed its own.
+
 A check without a report read is judged by its exit code and the count its runner printed:
 
 | At base | Against the candidate | Result |
@@ -124,8 +135,8 @@ The status comes from that evidence only. A named check holds when its result is
   version, the candidate's dependencies were installed fresh from it, and nothing regressed. A
   package claim's `version` is exact (`10.1.1`) or a range written with `x` (`9.x`, `9.6.x`, or
   `9`); a resolved version outside it fails the requirement.
-- A requirement with no mapped evidence, or whose evidence was not observed, is `unverified`;
-  one whose evidence fails is `failed`.
+- A requirement with no mapped evidence, or whose evidence was not observed or is a flaky test,
+  is `unverified`; one whose evidence fails is `failed`.
 
 The overall state is `complete` only when every required requirement is satisfied, the regression
 is `none`, and the execution policy was met; `blocked` when no check is declared, dependencies

@@ -53,7 +53,8 @@ const ids = z.array(z.string());
  * The candidate against the base, test by test where a runner's report was read. found: a test
  * or check that passed at base no longer does. unresolved: some comparison could not be made
  * (an unparsed report, a check failing at both commits judged only by exit code), so no claim
- * of inheritance is made for it.
+ * of inheritance is made for it. A flaky test (failing, then passing on a rerun of the same
+ * snapshot) is never found: it leaves the regression unresolved and is named in `flaky`.
  */
 export const regressionSchema = z.strictObject({
   status: z.enum(["none", "found", "unresolved"]),
@@ -61,6 +62,7 @@ export const regressionSchema = z.strictObject({
   inherited: ids,
   removed: ids,
   unresolved: ids,
+  flaky: ids.default([]),
 });
 export type Regression = z.infer<typeof regressionSchema>;
 

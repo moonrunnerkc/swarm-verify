@@ -60,6 +60,7 @@ describe("replaying an evaluation trial the exit code left unmeasured", () => {
       witness: null,
       changes: none,
       behaviorChange: "none",
+      reruns: [],
     });
   };
 
@@ -80,6 +81,7 @@ describe("replaying an evaluation trial the exit code left unmeasured", () => {
       addedFailing: 0,
       witnesses: 0,
       skipped: 2350,
+      flaky: 0,
     });
   });
 

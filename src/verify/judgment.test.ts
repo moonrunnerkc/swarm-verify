@@ -72,6 +72,7 @@ const judge = (base: MeasuredRun, head: MeasuredRun, extra: Partial<JudgmentInpu
     witness: null,
     changes: none,
     behaviorChange: "none",
+    reruns: [],
     ...extra,
   });
 
@@ -147,6 +148,7 @@ describe("a check's result from its reports", () => {
       witness: measured(1, evidence({ "a::fmt": fail() })),
       changes: { ...none, modified: new Set(["tests/test_a"]) },
       behaviorChange: "authorized",
+      reruns: [],
     });
     expect(judged.run.result.tests?.superseded).toEqual(["a::fmt"]);
     expect(judged.run.result.result).toBe("pass");

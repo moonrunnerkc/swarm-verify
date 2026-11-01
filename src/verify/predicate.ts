@@ -19,6 +19,21 @@ const unmeasured = z.object({ status: z.literal("unmeasured"), reason: z.string(
 
 const testIds = z.array(z.string());
 
+/** The trees a check runs on, any of which a rerun lays out again. */
+export const rerunSnapshots = ["base", "obligation", "candidate", "witness"] as const;
+export type RerunSnapshot = (typeof rerunSnapshots)[number];
+
+/**
+ * Every run of one test on one snapshot, its first run included. `missing`: that run's report
+ * did not list the test. A test with a pass after its first failure is flaky.
+ */
+export const testRunsSchema = z.object({
+  id: z.string().min(1),
+  snapshot: z.enum(rerunSnapshots),
+  results: z.array(z.enum(["pass", "fail", "skip", "missing"])).min(1),
+});
+export type TestRuns = z.infer<typeof testRunsSchema>;
+
 /**
  * A check judged test by test from its runner's reports at the base, against the candidate, and
  * for the candidate's own tests against the base's source. Each list holds at most its first
@@ -43,6 +58,7 @@ export const testJudgmentSchema = z.object({
     addedFailing: z.number().int().nonnegative(),
     witnesses: z.number().int().nonnegative(),
     skipped: z.number().int().nonnegative(),
+    flaky: z.number().int().nonnegative().default(0),
   }),
   fixed: testIds,
   newFailures: testIds,
@@ -55,6 +71,10 @@ export const testJudgmentSchema = z.object({
   addedFailing: testIds,
   /** Tests the candidate added or rewrote that fail against the base's source and pass now. */
   witnesses: testIds,
+  /** Tests that failed and then passed on reruns of one snapshot: they judge nothing. */
+  flaky: testIds.default([]),
+  /** Every test rerun because its failing first run decided the verdict, with each run's result. */
+  reruns: z.array(testRunsSchema).default([]),
 });
 export type TestJudgment = z.infer<typeof testJudgmentSchema>;
 
@@ -196,7 +216,11 @@ export const predicateSchema = z.object({
   }),
   execution: executionSchema,
   /** What the request authorized: whether the task may change what existing tests expect. */
-  policy: z.strictObject({ behaviorChange: z.enum(["none", "authorized"]) }),
+  policy: z.strictObject({
+    behaviorChange: z.enum(["none", "authorized"]),
+    /** How often a test whose failure decides its verdict is run again; absent where none was. */
+    reruns: z.number().int().nonnegative().optional(),
+  }),
   unmeasured: z.array(z.string()),
   /** The log files written beside the statement (each check's full output), by digest. */
   logs: z.array(z.object({ name: z.string().min(1), sha256 })),

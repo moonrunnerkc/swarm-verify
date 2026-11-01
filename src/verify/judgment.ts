@@ -7,7 +7,9 @@ import {
   type TestOutcome,
 } from "./compare.ts";
 import type { MeasuredRun } from "./per-test.ts";
-import type { CheckResult, TestJudgment } from "./predicate.ts";
+import type { CheckResult, TestJudgment, TestRuns } from "./predicate.ts";
+import { describeRuns, withReruns } from "./reruns.ts";
+import { testJudgmentOf } from "./test-judgment.ts";
 
 export interface CheckJudgment {
   readonly run: CheckRun;
@@ -30,6 +32,8 @@ export interface JudgmentInput {
   readonly witness: MeasuredRun | null;
   readonly changes: TestFileChanges;
   readonly behaviorChange: "none" | "authorized";
+  /** This check's tests run again on the snapshot whose failing first run decided them. */
+  readonly reruns: readonly TestRuns[];
 }
 
 const listed = (ids: readonly string[]) =>
@@ -120,63 +124,6 @@ function byExitCode(input: JudgmentInput, tampered: string | null): CheckJudgmen
   };
 }
 
-function judgmentOf(
-  runner: TestJudgment["runner"],
-  outcomes: readonly TestOutcome[],
-  input: JudgmentInput,
-): TestJudgment {
-  const ids = (...kinds: TestOutcome["classification"][]) =>
-    outcomes.filter((one) => kinds.includes(one.classification)).map((one) => one.id);
-  const witnesses = outcomes
-    .filter(
-      (one) =>
-        one.origin !== "pre-existing" &&
-        one.after === "pass" &&
-        one.before !== null &&
-        one.before !== "pass",
-    )
-    .map((one) => one.id);
-  const lists = {
-    fixed: ids("fixed"),
-    newFailures: ids("new-failure"),
-    inherited: ids("inherited"),
-    removed: ids("removed"),
-    renamed: outcomes
-      .filter((one) => one.classification === "renamed")
-      .map((one) => `${one.id} => ${one.movedTo}`),
-    superseded: ids("superseded"),
-    expectationChanges: ids("expectation-changed"),
-    added: ids("added"),
-    addedFailing: ids("added-failing"),
-    witnesses,
-  };
-  const counts = {
-    preserved: ids("preserved").length,
-    renamed: lists.renamed.length,
-    fixed: lists.fixed.length,
-    newFailures: lists.newFailures.length,
-    inherited: lists.inherited.length,
-    removed: lists.removed.length,
-    superseded: lists.superseded.length,
-    expectationChanges: lists.expectationChanges.length,
-    added: lists.added.length,
-    addedFailing: lists.addedFailing.length,
-    witnesses: witnesses.length,
-    skipped: ids("skipped").length,
-  };
-  // Sorted before capping: a runner's order is not the verdict's, and a replay compares these.
-  const capped = Object.fromEntries(
-    Object.entries(lists).map(([key, value]) => [key, [...value].sort().slice(0, 100)]),
-  ) as typeof lists;
-  const size = (run: MeasuredRun) => Object.keys(run.evidence.report ?? {}).length;
-  return {
-    runner,
-    collected: { base: size(input.base), candidate: size(input.candidate) },
-    counts,
-    ...capped,
-  };
-}
-
 /** One check judged test by test across the base, obligation, candidate and witness runs. */
 export function judgeCheck(input: JudgmentInput): CheckJudgment {
   const head = input.obligation.run;
@@ -213,8 +160,8 @@ export function judgeCheck(input: JudgmentInput): CheckJudgment {
     candidate: input.candidate.evidence.report ?? {},
     witness: input.witness?.evidence.report ?? null,
   };
-  const outcomes = compareRuns(runs, input.changes, input.behaviorChange);
-  const tests = judgmentOf(runner, outcomes, input);
+  const outcomes = withReruns(compareRuns(runs, input.changes, input.behaviorChange), input.reruns);
+  const tests = testJudgmentOf(runner, outcomes, input);
   const reasons: string[] = [];
   const say = (ids: readonly string[], total: number, what: string) => {
     if (total > 0) reasons.push(`check ${name}: ${total} test(s) ${what}: ${listed(ids)}`);
@@ -240,6 +187,14 @@ export function judgeCheck(input: JudgmentInput): CheckJudgment {
     tests.inherited,
     tests.counts.inherited,
     "fail at the base commit and still fail, which does not block",
+  );
+  const flaky = outcomes.flatMap((one) =>
+    one.classification === "flaky" && one.rerun !== undefined ? [describeRuns(one.rerun)] : [],
+  );
+  say(
+    flaky.sort(),
+    tests.counts.flaky,
+    "failed and then passed on a rerun of the same snapshot, so they are flaky and show neither a regression nor a fix",
   );
   if (tampered !== null) reasons.push(tampered);
   const blocks = outcomes.some((one) => regressing.has(one.classification)) || tampered !== null;
@@ -285,13 +240,25 @@ export function judgeCheck(input: JudgmentInput): CheckJudgment {
       unmeasured: `check ${name}: ${why}`,
     };
   }
-  const result = tests.counts.inherited > 0 ? "inherited-failures" : "pass";
+  const inherited = tests.counts.inherited > 0 ? output : null;
+  if (tests.counts.flaky > 0) {
+    const why = `${tests.counts.flaky} flaky test(s) leave the comparison with the base uncertain`;
+    return {
+      run: withResult(head, "unresolved", tests),
+      outcomes,
+      reasons,
+      failure: null,
+      inherited,
+      unmeasured: `check ${name}: ${why}`,
+    };
+  }
+  const result = inherited === null ? "pass" : "inherited-failures";
   return {
     run: withResult(head, result, tests),
     outcomes,
     reasons,
     failure: null,
-    inherited: result === "inherited-failures" ? output : null,
+    inherited,
     unmeasured: null,
   };
 }

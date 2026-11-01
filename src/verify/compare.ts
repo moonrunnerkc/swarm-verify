@@ -1,3 +1,4 @@
+import type { TestRuns } from "./predicate.ts";
 import { livesIn, type TestReport } from "./test-report.ts";
 
 type Status = TestReport[string]["status"];
@@ -16,7 +17,8 @@ export type Classification =
   | "expectation-changed"
   | "added"
   | "added-failing"
-  | "skipped";
+  | "skipped"
+  | "flaky";
 
 /** What the candidate did to the base's test files. */
 export interface TestFileChanges {
@@ -53,6 +55,8 @@ export interface TestOutcome {
   readonly before: Status | null;
   /** The candidate's id for a base test that moved. */
   readonly movedTo: string | null;
+  /** Every run of the test where its failing first run was rerun. */
+  readonly rerun?: TestRuns;
 }
 
 export const titleOf = (id: string) => {
