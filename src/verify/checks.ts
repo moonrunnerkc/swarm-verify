@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { lstat, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { z } from "zod";
 import type { TrustedCheck } from "../api/request.ts";
 import type { DeclaredCheck } from "../config/swarm-toml.ts";
