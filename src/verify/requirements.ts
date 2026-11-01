@@ -40,7 +40,7 @@ function testRefs(
   const named = splitTestName(selector.name);
   const found = inputs.outcomes.filter(
     (one) =>
-      titleSelects(one.title, named.title) &&
+      (named.title === "" || titleSelects(one.title, named.title)) &&
       (selector.file === undefined || livesIn(one.file, selector.file)) &&
       (named.file === null || livesIn(one.file, named.file)),
   );

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { titleSelects } from "./test-names.ts";
+import { splitTestName, titleSelects } from "./test-names.ts";
 import {
   livesIn,
   parseGoJson,
@@ -119,6 +119,16 @@ describe("naming a test", () => {
     ]) {
       expect(titleSelects(title, name)).toBe(false);
     }
+  });
+});
+
+describe("reading a test name", () => {
+  it("takes a bare file as every test in it, and a bare title with a slash as a title", () => {
+    expect(splitTestName("tests/unit/test_codec.py")).toEqual({
+      file: "tests/unit/test_codec.py",
+      title: "",
+    });
+    expect(splitTestName("handles a/b paths")).toEqual({ file: null, title: "handles a/b paths" });
   });
 });
 

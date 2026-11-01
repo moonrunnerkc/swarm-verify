@@ -1,8 +1,10 @@
-const looksLikeFile = (part: string) => part.includes("/") || /\.(?:[cm]?[jt]sx?|py)$/.test(part);
+const sourceFile = /\.(?:[cm]?[jt]sx?|py)$/;
+const looksLikeFile = (part: string) => part.includes("/") || sourceFile.test(part);
 
 /**
  * A test name as a producer may write it: a title path, the file first as runners print it
- * ("test/a.test.ts > suite > title"), or a test id ("test/a.test.ts::suite > title").
+ * ("test/a.test.ts > suite > title"), a test id ("test/a.test.ts::suite > title"), or a file
+ * alone, which names every test in it (an empty title).
  */
 export function splitTestName(name: string): {
   readonly file: string | null;
@@ -12,6 +14,11 @@ export function splitTestName(name: string): {
   if (id > 0) return { file: name.slice(0, id), title: name.slice(id + 2) };
   const parts = name.split(" > ");
   const [first, ...rest] = parts;
+  // A file alone names every test in it; a title alone may hold a slash, so only an extension
+  // makes a bare name a file.
+  if (first !== undefined && rest.length === 0 && sourceFile.test(first)) {
+    return { file: first, title: "" };
+  }
   return first !== undefined && rest.length > 0 && looksLikeFile(first)
     ? { file: first, title: rest.join(" > ") }
     : { file: null, title: name };

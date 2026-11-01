@@ -155,6 +155,8 @@ describe("a requirement whose evidence names nothing that ran", () => {
     for (const name of [
       "test/walk.test.ts > walkRepo > skips extra directories",
       "test/walk.test.ts::walkRepo > skips extra directories",
+      // A file alone names every test in it.
+      "test/walk.test.ts",
     ]) {
       const [outcome] = await assessRequirements(
         [
