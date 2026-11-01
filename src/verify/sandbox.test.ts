@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { containerRun, defaultImages, type Sandbox } from "./sandbox.ts";
+import { containerRun, defaultImages, pnpmShim, type Sandbox, settleWait } from "./sandbox.ts";
 
 const sandbox: Sandbox = {
   image: defaultImages.node,
@@ -29,7 +29,7 @@ describe("the container a command runs in", () => {
     expect(run).toContain("type=bind,src=/s/run/judge,dst=/s/run/judge,readonly");
     expect(run).toContain("type=tmpfs,dst=/s/run/tree/.git");
     expect(run.join(" ")).not.toContain("/swarm-cache");
-    expect(run.slice(-4)).toEqual([defaultImages.node, "/bin/sh", "-c", "npm test"]);
+    expect(run.slice(-4)).toEqual([defaultImages.node, "/bin/sh", "-c", `${pnpmShim}npm test`]);
   });
 
   it("opens the network and mounts the dependency cache only while dependencies are prepared", () => {
@@ -69,5 +69,14 @@ describe("choosing the image", () => {
     expect(await imageFor(bare, ["python3 -m pytest -q"])).toBe(defaultImages.python);
     await writeFile(join(bare, "pyproject.toml"), "[project]\nname = 'x'\n");
     expect(await imageFor(bare, ["node --test"])).toBe(defaultImages.python);
+  });
+
+  it("waits the whole settle time before a sandbox's first run, and the rest of it after a run", () => {
+    // The host has just written the checkout and the run's home: a shared VM filesystem may not
+    // show them yet (seen: "bind source path does not exist" on the first run).
+    expect(settleWait(0, 10_000, 1500)).toBe(1500);
+    expect(settleWait(10_000, 10_400, 1500)).toBe(1100);
+    expect(settleWait(10_000, 12_000, 1500)).toBe(0);
+    expect(settleWait(0, 10_000, 0)).toBe(0);
   });
 });

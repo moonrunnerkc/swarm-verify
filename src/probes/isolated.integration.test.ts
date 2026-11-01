@@ -131,3 +131,30 @@ describe("replaying an authorized behavior change", () => {
     expect(replayed.divergences).toEqual([]);
   });
 });
+
+describe("a pnpm project in a container", () => {
+  it("runs its declared pnpm scripts, which the image has no pnpm for of its own", async () => {
+    const probe = await probeFixture(
+      {
+        "half.mjs": "export const half = n => n;\n",
+        "test/half.test.mjs": halfTest,
+        "package.json":
+          '{"name":"fixture","version":"1.0.0","type":"module","private":true,"packageManager":"pnpm@9.15.0","scripts":{"test":"node --test"}}\n',
+        "pnpm-lock.yaml":
+          "lockfileVersion: '9.0'\n\nsettings:\n  autoInstallPeers: true\n  excludeLinksFromLockfile: false\n\nimporters:\n\n  .: {}\n",
+        // The declared check, as `swarm init` writes it for a pnpm project.
+        "swarm.toml": '[checks]\ntest = "pnpm run test"\n',
+      },
+      "pnpm run test",
+      parent,
+    );
+    await probe.put("half.mjs", "export const half = n => n / 2;\n");
+    const result = await probe.verify([requirement("R1", "half", "fix", ["half positive"])], {
+      mode: "isolated",
+      dependencies: "prepare",
+      network: "closed",
+    });
+    expect(result.checks[0]).toMatchObject({ command: "pnpm run test", result: "pass" });
+    expect(result.requirements[0]?.status).toBe("satisfied");
+  });
+});

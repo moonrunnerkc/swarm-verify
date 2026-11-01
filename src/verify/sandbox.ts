@@ -37,6 +37,16 @@ export interface Sandbox {
  */
 export const sharedFilesystemSettleMs = process.platform === "linux" ? 0 : 1500;
 
+/**
+ * How long to wait before a container run: the settle time less what passed since the last run
+ * ended. A sandbox's first run (no run yet, `lastEnded` 0) waits all of it, since the host has
+ * just written the checkout and the run's home.
+ */
+export function settleWait(lastEnded: number, now: number, settleMs: number): number {
+  const since = lastEnded === 0 ? 0 : now - lastEnded;
+  return Math.max(0, settleMs - since);
+}
+
 /** Images pinned by their multi-architecture index digests, so arm64 and amd64 hosts resolve the same pin. */
 export const defaultImages = {
   node: "node:24@sha256:e7add2a490bb17d97b485b8641bd88455fff7839ade0f5eba493c3508124d413",
@@ -125,6 +135,14 @@ export function containerPath(dir: string): string {
   return `${join(dir, ".venv", "bin")}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
 }
 
+/**
+ * Node images ship corepack but no pnpm. A shim in the run's own home lets a declared `pnpm`
+ * command run with the version the manifest pins, fetched while dependencies are prepared and
+ * read from the home's corepack cache after. The command itself runs as declared.
+ */
+export const pnpmShim =
+  'command -v corepack >/dev/null 2>&1 && mkdir -p "$HOME/.swarm-bin" && corepack enable --install-directory "$HOME/.swarm-bin" pnpm >/dev/null 2>&1; ';
+
 export interface ContainerRun {
   readonly name: string;
   readonly args: readonly string[];
@@ -154,9 +172,11 @@ export function containerRun(
       ? [["--mount", `type=bind,src=${sandbox.cache},dst=/swarm-cache`]]
       : []),
   ].flat();
+  const shims = input.env.HOME === undefined ? "" : `${input.env.HOME}/.swarm-bin:`;
   const env = {
     ...input.env,
-    PATH: containerPath(input.cwd),
+    PATH: `${shims}${containerPath(input.cwd)}`,
+    COREPACK_ENABLE_DOWNLOAD_PROMPT: "0",
     ...(input.stage === "prepare"
       ? {
           npm_config_cache: "/swarm-cache/npm",
@@ -181,7 +201,7 @@ export function containerRun(
     sandbox.image,
     "/bin/sh",
     "-c",
-    input.command,
+    `${pnpmShim}${input.command}`,
   ];
   return { name, args };
 }
@@ -225,7 +245,7 @@ export async function runInSandbox(
       return value === undefined ? [] : [[name, value]];
     }),
   );
-  const waited = sharedFilesystemSettleMs - (Date.now() - sandbox.clock.lastEnded);
+  const waited = settleWait(sandbox.clock.lastEnded, Date.now(), sharedFilesystemSettleMs);
   if (waited > 0) await new Promise((settle) => setTimeout(settle, waited));
   const ran = await runProcessGroup("docker", run.args, {
     cwd: sandbox.scratch,
