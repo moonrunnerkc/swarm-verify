@@ -150,4 +150,41 @@ describe("a requirement whose evidence names nothing that ran", () => {
     });
     expect(outcome?.status).toBe("satisfied");
   });
+
+  it("takes a test named with its file first, as runners print it, or by its id", async () => {
+    for (const name of [
+      "test/walk.test.ts > walkRepo > skips extra directories",
+      "test/walk.test.ts::walkRepo > skips extra directories",
+    ]) {
+      const [outcome] = await assessRequirements(
+        [
+          requirementSchema.parse({
+            id: "R1",
+            text: "skip extra directories",
+            kind: "feature",
+            source: "user",
+            evidence: { tests: [{ name }] },
+          }),
+        ],
+        inputs,
+      );
+      expect(outcome?.evidence.map((one) => one.outcome)).toEqual(["witness"]);
+      expect(outcome?.status).toBe("satisfied");
+    }
+    const [elsewhere] = await assessRequirements(
+      [
+        requirementSchema.parse({
+          id: "R1",
+          text: "skip extra directories",
+          kind: "feature",
+          source: "user",
+          evidence: {
+            tests: [{ name: "test/other.test.ts > walkRepo > skips extra directories" }],
+          },
+        }),
+      ],
+      inputs,
+    );
+    expect(elsewhere?.status).toBe("unverified");
+  });
 });

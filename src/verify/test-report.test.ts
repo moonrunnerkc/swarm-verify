@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { titleSelects } from "./test-names.ts";
 import {
   livesIn,
   parseGoJson,
@@ -8,7 +9,6 @@ import {
   parseJunit,
   parseMochaJson,
   parseReport,
-  titleSelects,
 } from "./test-report.ts";
 
 const fixture = (name: string) =>

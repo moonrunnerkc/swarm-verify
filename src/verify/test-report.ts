@@ -154,16 +154,6 @@ const mochaTitle = (test: z.infer<typeof mochaTest>): string => {
   return `${test.fullTitle.slice(0, -own.length - 1)} > ${own}`;
 };
 
-/** A name selects a test when its parts are a contiguous run of the test's suite path and title. */
-export function titleSelects(title: string, name: string): boolean {
-  if (name.trim().length === 0) return false;
-  const parts = title.split(" > ");
-  const wanted = name.split(" > ");
-  for (let start = 0; start + wanted.length <= parts.length; start += 1) {
-    if (wanted.every((part, at) => parts[start + at] === part)) return true;
-  }
-  return false;
-}
 const mochaShape = z.object({
   passes: z.array(mochaTest),
   failures: z.array(mochaTest),

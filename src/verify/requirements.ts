@@ -10,7 +10,8 @@ import {
   testRef,
   witnessing,
 } from "./requirement-evidence.ts";
-import { livesIn, titleSelects } from "./test-report.ts";
+import { splitTestName, titleSelects } from "./test-names.ts";
+import { livesIn } from "./test-report.ts";
 
 export interface RequirementInputs {
   readonly checks: readonly CheckResult[];
@@ -34,11 +35,14 @@ function testRefs(
   selector: Requirement["evidence"]["tests"][number],
   inputs: RequirementInputs,
 ): EvidenceRef[] {
-  // A name selects the test of that name, every test in the suite of that name, or a path of both.
+  // A name selects the test of that name, every test in the suite of that name, or a path of both,
+  // in the file it names, if it names one.
+  const named = splitTestName(selector.name);
   const found = inputs.outcomes.filter(
     (one) =>
-      titleSelects(one.title, selector.name) &&
-      (selector.file === undefined || livesIn(one.file, selector.file)),
+      titleSelects(one.title, named.title) &&
+      (selector.file === undefined || livesIn(one.file, selector.file)) &&
+      (named.file === null || livesIn(one.file, named.file)),
   );
   if (found.length > 0) return found.map(testRef);
   const label = selector.file === undefined ? selector.name : `${selector.file}::${selector.name}`;
@@ -99,13 +103,15 @@ function unobservedAction(
   const checks = refs(noSuchCheck);
   const tests = refs(noSuchTest);
   const ran = inputs.checks.map((one) => one.name).join(", ") || "none ran";
+  const witnesses = witnessTitles(inputs, evidence);
   const example =
-    inputs.outcomes.find((one) => one.title.includes(" > "))?.title ?? "suite > test title";
+    witnesses.find((title) => title.includes(" > ")) ??
+    inputs.outcomes.find((one) => one.title.includes(" > "))?.title ??
+    "suite > test title";
   const structure = unobserved
     .filter((one) => one.kind === "structure")
     .map((one) => `${one.ref}: ${one.detail}`)
     .join("; ");
-  const witnesses = witnessTitles(inputs, evidence);
   const steps = [
     ...(checks.length > 0 ? [`name only checks that ran (${ran}) in place of ${checks}`] : []),
     ...(tests.length > 0
