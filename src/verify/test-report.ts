@@ -126,7 +126,11 @@ export function parseJestJson(text: string, root: string): TestReport | null {
       put(report, file, { status: "fail", file });
     }
     for (const test of suite.assertionResults) {
-      const title = test.fullName ?? [...(test.ancestorTitles ?? []), test.title].join(" ");
+      // Suites joined as junit joins them, so a test reads the same whichever report it came from.
+      const title =
+        test.ancestorTitles === undefined
+          ? (test.fullName ?? test.title)
+          : [...test.ancestorTitles, test.title].join(" > ");
       const status: Status =
         test.status === "passed" ? "pass" : test.status === "failed" ? "fail" : "skip";
       put(report, `${file}::${title}`, { status, file });
@@ -135,7 +139,31 @@ export function parseJestJson(text: string, root: string): TestReport | null {
   return report;
 }
 
-const mochaTest = z.object({ fullTitle: z.string(), file: z.string().optional() });
+const mochaTest = z.object({
+  title: z.string().optional(),
+  fullTitle: z.string(),
+  file: z.string().optional(),
+});
+
+/** Mocha joins the suites and the title with spaces; only the title's own end is certain. */
+const mochaTitle = (test: z.infer<typeof mochaTest>): string => {
+  const own = test.title;
+  if (own === undefined || own === test.fullTitle || !test.fullTitle.endsWith(` ${own}`)) {
+    return test.fullTitle;
+  }
+  return `${test.fullTitle.slice(0, -own.length - 1)} > ${own}`;
+};
+
+/** A name selects a test when its parts are a contiguous run of the test's suite path and title. */
+export function titleSelects(title: string, name: string): boolean {
+  if (name.trim().length === 0) return false;
+  const parts = title.split(" > ");
+  const wanted = name.split(" > ");
+  for (let start = 0; start + wanted.length <= parts.length; start += 1) {
+    if (wanted.every((part, at) => parts[start + at] === part)) return true;
+  }
+  return false;
+}
 const mochaShape = z.object({
   passes: z.array(mochaTest),
   failures: z.array(mochaTest),
@@ -153,7 +181,7 @@ export function parseMochaJson(text: string, root: string): TestReport | null {
   ] as const) {
     for (const test of tests) {
       const file = test.file === undefined ? null : fromRoot(root, test.file);
-      put(report, `${file ?? ""}::${test.fullTitle}`, { status, file });
+      put(report, `${file ?? ""}::${mochaTitle(test)}`, { status, file });
     }
   }
   return report;

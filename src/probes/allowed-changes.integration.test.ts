@@ -179,4 +179,24 @@ describe("naming evidence by suite", () => {
     ]);
     expect(result.requirements[0]?.status).toBe("satisfied");
   });
+
+  it("maps a requirement named by a suite and test path as a runner prints it", async () => {
+    const probe = await probeFixture({
+      "half.mjs": "export const half = n => n / 2;\n",
+      "test/half.test.mjs": halfTest,
+    });
+    await probe.put(
+      "half.mjs",
+      "export const half = n => n / 2;\nexport const double = n => n * 2;\n",
+    );
+    await probe.put(
+      "test/double.test.mjs",
+      "import {describe, test} from 'node:test';\nimport assert from 'node:assert/strict';\nimport {double} from '../half.mjs';\ndescribe('double', () => {\n  test('doubles', () => assert.equal(double(4), 8));\n});\n",
+    );
+    const result = await probe.verify([
+      requirement("R1", "export double(n)", "feature", ["double > doubles"]),
+    ]);
+    expect(result.requirements[0]?.evidence.map((ref) => ref.outcome)).toEqual(["witness"]);
+    expect(result.requirements[0]?.status).toBe("satisfied");
+  });
 });

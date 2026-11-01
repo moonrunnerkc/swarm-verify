@@ -8,6 +8,7 @@ import {
   parseJunit,
   parseMochaJson,
   parseReport,
+  titleSelects,
 } from "./test-report.ts";
 
 const fixture = (name: string) =>
@@ -29,27 +30,27 @@ describe("reading recorded reports", () => {
     expect(report?.["tests.test_calc.TestCalc::test_red"]?.file).toBe("tests/test_calc/TestCalc");
   });
 
-  it("reads jest's and vitest's JSON with paths from the checkout root", () => {
+  it("reads jest's and vitest's JSON with paths from the checkout root and suites as in junit", () => {
     for (const name of ["jest-head.json", "vitest-head.json"]) {
       const report = parseJestJson(fixture(name), "/work/calc");
       expect(statuses(report)).toEqual({
-        "test/calc.test.js::calc stays": "pass",
-        "test/calc.test.js::calc fixed": "pass",
-        "test/calc.test.js::calc broken": "fail",
-        "test/calc.test.js::calc red": "fail",
-        "test/calc.test.js::calc added": "pass",
+        "test/calc.test.js::calc > stays": "pass",
+        "test/calc.test.js::calc > fixed": "pass",
+        "test/calc.test.js::calc > broken": "fail",
+        "test/calc.test.js::calc > red": "fail",
+        "test/calc.test.js::calc > added": "pass",
       });
-      expect(report?.["test/calc.test.js::calc red"]?.file).toBe("test/calc.test.js");
+      expect(report?.["test/calc.test.js::calc > red"]?.file).toBe("test/calc.test.js");
     }
   });
 
-  it("reads mocha's JSON", () => {
+  it("reads mocha's JSON, the suites apart from the test's own title", () => {
     expect(statuses(parseMochaJson(fixture("mocha-base.json"), "/work/calc"))).toEqual({
-      "test/calc.test.js::calc stays": "pass",
-      "test/calc.test.js::calc fixed": "fail",
-      "test/calc.test.js::calc broken": "pass",
-      "test/calc.test.js::calc red": "fail",
-      "test/calc.test.js::calc gone": "pass",
+      "test/calc.test.js::calc > stays": "pass",
+      "test/calc.test.js::calc > fixed": "fail",
+      "test/calc.test.js::calc > broken": "pass",
+      "test/calc.test.js::calc > red": "fail",
+      "test/calc.test.js::calc > gone": "pass",
     });
   });
 
@@ -77,6 +78,30 @@ describe("reading recorded reports", () => {
     expect(
       parseReport("go", "# example.com/calc\n./calc.go:3: syntax error\n", "/", null),
     ).toBeNull();
+  });
+});
+
+describe("naming a test", () => {
+  it("selects a test by its own title, a suite, or a contiguous run of the path between", () => {
+    const title = "walkRepo > options > skips extra directories";
+    for (const name of [
+      "skips extra directories",
+      "walkRepo",
+      "options",
+      "walkRepo > options > skips extra directories",
+      "options > skips extra directories",
+      "walkRepo > options",
+    ]) {
+      expect(titleSelects(title, name)).toBe(true);
+    }
+    for (const name of [
+      "walkRepo > skips extra directories",
+      "skips extra",
+      "walkRepo options skips extra directories",
+      "",
+    ]) {
+      expect(titleSelects(title, name)).toBe(false);
+    }
   });
 });
 

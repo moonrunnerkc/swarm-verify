@@ -3,7 +3,7 @@ import type { Requirement } from "../api/request.ts";
 import type { TestOutcome } from "./compare.ts";
 import type { CheckResult } from "./predicate.ts";
 import { packageEvidence, structureEvidence } from "./requirement-evidence.ts";
-import { livesIn } from "./test-report.ts";
+import { livesIn, titleSelects } from "./test-report.ts";
 
 export interface RequirementInputs {
   readonly checks: readonly CheckResult[];
@@ -78,10 +78,10 @@ function testRefs(
   selector: Requirement["evidence"]["tests"][number],
   inputs: RequirementInputs,
 ): EvidenceRef[] {
-  // A name selects the test of that name, or every test in the suite of that name.
+  // A name selects the test of that name, every test in the suite of that name, or a path of both.
   const found = inputs.outcomes.filter(
     (one) =>
-      one.title.split(" > ").includes(selector.name) &&
+      titleSelects(one.title, selector.name) &&
       (selector.file === undefined || livesIn(one.file, selector.file)),
   );
   if (found.length > 0) return found.map(testRef);
