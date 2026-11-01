@@ -189,4 +189,23 @@ describe("a requirement whose evidence names nothing that ran", () => {
     );
     expect(elsewhere?.status).toBe("unverified");
   });
+
+  it("tells an upgrade with no package claim what to name, or how to record a change of no version", async () => {
+    const [outcome] = await assessRequirements(
+      [
+        requirementSchema.parse({
+          id: "R1",
+          text: "support Node 24",
+          kind: "upgrade",
+          source: "user",
+          evidence: { checks: ["test"] },
+        }),
+      ],
+      inputs,
+    );
+    expect(outcome?.status).toBe("unverified");
+    expect(outcome?.nextAction).toBe(
+      "name the upgraded package with the version it resolves to; where no package version changes, the requirement is not an upgrade: record it as kind other, with the structure and checks that show it",
+    );
+  });
 });

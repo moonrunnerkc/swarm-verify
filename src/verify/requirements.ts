@@ -194,7 +194,8 @@ function judged(
       return {
         status: "unverified",
         limitation: "no resolved package version is mapped",
-        nextAction: "name the upgraded package",
+        nextAction:
+          "name the upgraded package with the version it resolves to; where no package version changes, the requirement is not an upgrade: record it as kind other, with the structure and checks that show it",
       };
     }
     if (!inputs.freshDependencies) {
