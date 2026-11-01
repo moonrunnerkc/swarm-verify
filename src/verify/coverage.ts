@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { DeclaredCheck } from "../config/swarm-toml.ts";
 import type { ChangedFile } from "./checkout.ts";
 import { type CheckContext, runCheck } from "./checks.ts";
+import { ownCoverage } from "./own-coverage.ts";
 import type { Coverage } from "./predicate.ts";
 
 export interface CoverageRange {
@@ -162,6 +163,8 @@ async function pythonInstrumentation(
   if (parsed.some((match) => match === null)) {
     return unmeasured("a test check is not a pytest command coverage.py can wrap");
   }
+  const own = await ownCoverage(context.dir);
+  if (own !== null) return unmeasured(own);
   const first = parsed[0] as RegExpExecArray;
   const python = `${first[1] ?? ""}${first[2] ?? "python3"}`;
   const probe = await runCheck(
