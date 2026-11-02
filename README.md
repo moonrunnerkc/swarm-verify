@@ -11,6 +11,7 @@ npx swarm-verify verify --range main..feature     # a branch's change
 npx swarm-verify verify --patch change.diff       # a patch against HEAD (or --base)
 npx swarm-verify ci --base origin/main            # HEAD against a pull request's base
 npx swarm-verify init                             # write swarm.toml from the project's scripts
+npx swarm-verify replay <evidence-dir>            # rerun a recorded result and compare
 ```
 
 ## What a result says
