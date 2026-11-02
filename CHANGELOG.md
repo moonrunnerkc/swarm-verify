@@ -100,6 +100,9 @@ the Changed and Fixed sections (protected paths, the predicate type), those desc
 
 ### Fixed
 
+- **An unobserved package claim said only "run a check that exercises it".** The next action now
+  names each claim with what it resolved to at the base and in the candidate, and says to drop a
+  claim for a package that did not change or to correct it.
 - **A flaky test is uncertainty, not a regression or a fix.** A test whose failing first run
   decides its verdict (a new failure, a rewritten expectation, a failing added test, a fix at
   the base, a witness against the base's source) is run again on the same snapshot, up to
