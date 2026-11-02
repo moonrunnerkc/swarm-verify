@@ -1,0 +1,35 @@
+# Run by hand after moving the v2 alias: proves `moonrunnerkc/swarm-verify@v2` resolves and
+# verifies a small change, outside a pull request.
+name: action-smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write a fixture repository with a base commit and a change on top
+        shell: bash
+        run: |
+          git init -q -b main .
+          git config user.name smoke
+          git config user.email smoke@example.invalid
+          cat > package.json <<'JSON'
+          { "name": "fixture", "version": "1.0.0", "private": true, "type": "module",
+            "scripts": { "test": "node --test" } }
+          JSON
+          printf 'export const add = (a, b) => a - b;\n' > add.js
+          printf 'import { test } from "node:test";\nimport assert from "node:assert/strict";\nimport { add } from "./add.js";\ntest("adds zero", () => assert.equal(add(2, 0), 2));\n' > add.test.js
+          git add . && git commit -q -m base
+          git branch base
+          printf 'export const add = (a, b) => a + b;\n' > add.js
+          printf 'test("adds two numbers", () => assert.equal(add(2, 3), 5));\n' >> add.test.js
+          git commit -q -am "Add two numbers"
+      - uses: moonrunnerkc/swarm-verify@v2
+        with:
+          base: base
+          dependencies: none
