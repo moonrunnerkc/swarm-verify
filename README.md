@@ -113,6 +113,14 @@ expectation where the change witnesses the new behavior, and records that it did
 [docs/verifying.md](docs/verifying.md) says what runs and where its reach ends.
 [docs/migration-2.md](docs/migration-2.md) lists what changed from 1.x.
 
+## Releases
+
+A full version tag (`v2.0.0`) on `main` runs the release workflow: the gates, a check that the tag
+matches `package.json`, then `npm publish` with provenance. `v2` is the Action alias: it is moved
+to each 2.x release so `moonrunnerkc/swarm-verify@v2` follows the major version, and it is not a
+release tag; pushing it publishes nothing. Pin a full tag or a commit where you need the exact
+verifier.
+
 ## Ownership
 
 This repository owns the verifier: source, tests, build, releases and the Action. Swarm
