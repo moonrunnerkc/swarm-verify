@@ -29,6 +29,7 @@ const none: TestFileChanges = {
   modified: new Set(),
   deleted: new Set(),
   moved: new Map(),
+  movedAndEdited: new Map(),
   relocated: new Set(),
 };
 

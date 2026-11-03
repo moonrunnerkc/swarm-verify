@@ -15,6 +15,7 @@ const none: TestFileChanges = {
   modified: new Set(),
   deleted: new Set(),
   moved: new Map(),
+  movedAndEdited: new Map(),
   relocated: new Set(),
 };
 
@@ -102,6 +103,31 @@ describe("classifying tests across the base and the candidate", () => {
     );
     expect(classes(outcomes)).toEqual({ "old/t.js::a": "renamed", "old/t.js::b": "fixed" });
     expect(outcomes[0]?.movedTo).toBe("new/t.js::a");
+  });
+
+  it("judges a moved and edited file's tests by the base's version, following them to the copy", () => {
+    const base = report({ "old/t.js::a": "pass", "old/t.js::b": "pass", "old/t.js::c": "fail" });
+    const obligation = report({
+      "old/t.js::a": "pass",
+      "old/t.js::b": "fail",
+      "old/t.js::c": "pass",
+    });
+    const candidate = report({
+      "new/t.js::a": "pass",
+      "new/t.js::b": "pass",
+      "new/t.js::c": "pass",
+      "new/t.js::d": "pass",
+    });
+    const changes = { ...none, movedAndEdited: new Map([["old/t.js", "new/t.js"]]) };
+    const outcomes = compareRuns({ base, obligation, candidate, witness: null }, changes, "none");
+    expect(classes(outcomes)).toEqual({
+      "old/t.js::a": "preserved",
+      "old/t.js::b": "expectation-changed",
+      "old/t.js::c": "fixed",
+      "new/t.js::d": "added",
+    });
+    expect(outcomes[0]?.movedTo).toBe("new/t.js::a");
+    expect(outcomes.find((one) => one.id === "new/t.js::d")?.origin).toBe("candidate-modified");
   });
 
   it("calls a deleted test file's tests removed, and a missing original a new failure", () => {

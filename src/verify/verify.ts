@@ -19,17 +19,10 @@ import { buildStatement } from "./predicate.ts";
 import { prepareDependencies } from "./prepare.ts";
 import { assessRequirements } from "./requirements.ts";
 import { defaultReruns } from "./reruns.ts";
-import { testFileChanges } from "./test-files.ts";
+import { noTestFiles, testFileChanges, testFilesRecord } from "./test-files.ts";
 import type { VerifyOptions, VerifyOutcome } from "./verify-options.ts";
 
 const skipped = (reason: string) => ({ status: "unmeasured" as const, reason });
-const noTestFiles = {
-  added: new Set<string>(),
-  modified: new Set<string>(),
-  deleted: new Set<string>(),
-  moved: new Map<string, string>(),
-  relocated: new Set<string>(),
-};
 
 export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcome> {
   const change = options.change;
@@ -252,13 +245,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       baseline,
       heldOut,
       artifacts,
-      testFiles: {
-        added: [...testFiles.added],
-        modified: [...testFiles.modified],
-        deleted: [...testFiles.deleted],
-        moved: [...testFiles.moved].map(([from, to]) => ({ from, to })),
-        relocated: [...testFiles.relocated],
-      },
+      testFiles: testFilesRecord(testFiles),
       coverage,
       mutation,
       producer: options.producer ?? { instructions: [] },

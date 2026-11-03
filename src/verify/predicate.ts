@@ -198,6 +198,8 @@ export const predicateSchema = z.object({
     modified: z.array(z.string()),
     deleted: z.array(z.string()),
     moved: z.array(z.object({ from: z.string(), to: z.string() })),
+    // Absent from statements before 2.0.1, which had no such category.
+    movedAndEdited: z.array(z.object({ from: z.string(), to: z.string() })).default([]),
     relocated: z.array(z.string()),
   }),
   coverage: coverageSchema,

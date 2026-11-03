@@ -27,6 +27,11 @@ export interface TestFileChanges {
   readonly deleted: ReadonlySet<string>;
   /** Base path to candidate path, for a file moved with only its imports changed. */
   readonly moved: ReadonlyMap<string, string>;
+  /**
+   * Base path to candidate path, for a file git pairs as a rename whose body changed too: judged
+   * as rewritten in place, the base's version at its old path holding the new code to account.
+   */
+  readonly movedAndEdited: ReadonlyMap<string, string>;
   /** Modified in place with only its imports changed. */
   readonly relocated: ReadonlySet<string>;
 }
@@ -68,7 +73,9 @@ function originOf(file: string | null, changes: TestFileChanges): Origin {
   if (file === null) return "pre-existing";
   const within = (paths: Iterable<string>) => [...paths].some((path) => livesIn(file, path));
   if (within(changes.added) || within(changes.moved.values())) return "implementation-authored";
-  if (within(changes.modified)) return "candidate-modified";
+  if (within(changes.modified) || within(changes.movedAndEdited.values())) {
+    return "candidate-modified";
+  }
   return "pre-existing";
 }
 
@@ -118,16 +125,19 @@ export function compareRuns(
       continue;
     }
     const deleted = [...changes.deleted].some((path) => livesIn(file, path));
+    const edited = [...changes.movedAndEdited].find(([from]) => livesIn(file, from));
+    // The candidate's version of this test: in place, or in the file it moved to.
+    const own = edited === undefined ? id : counterpart(runs.candidate, edited[1], title);
     const obliged = runs.obligation[id]?.status ?? null;
     let classification = beforeAfter(entry.status, obliged);
     if (deleted) {
       classification = "removed";
-    } else if ([...changes.modified].some((path) => livesIn(file, path))) {
-      const rewritten = runs.candidate[id]?.status ?? null;
-      if (rewritten !== null) claimed.add(id);
+    } else if (edited !== undefined || [...changes.modified].some((path) => livesIn(file, path))) {
+      const rewritten = own === null ? null : (runs.candidate[own]?.status ?? null);
+      if (own !== null && rewritten !== null) claimed.add(own);
       const rescued = obliged !== "pass" && rewritten === "pass";
       if (rescued) {
-        const failsBefore = witnessOf(id) !== "pass";
+        const failsBefore = witnessOf(own ?? id) !== "pass";
         classification =
           behaviorChange === "authorized" && failsBefore ? "superseded" : "expectation-changed";
       }
@@ -138,9 +148,9 @@ export function compareRuns(
     outcomes.push({
       ...shared,
       classification,
-      after: superseded ? (runs.candidate[id]?.status ?? null) : obliged,
-      before: superseded ? witnessOf(id) : null,
-      movedTo: null,
+      after: superseded ? (runs.candidate[own ?? id]?.status ?? null) : obliged,
+      before: superseded ? witnessOf(own ?? id) : null,
+      movedTo: edited === undefined ? null : own,
     });
   }
   for (const [id, entry] of Object.entries(runs.candidate)) {

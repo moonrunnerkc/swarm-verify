@@ -94,7 +94,12 @@ Only the request authorizes a behavior change (`policy.behaviorChange`, or
 Tests the candidate added are labeled `implementation-authored`. One that passes against the
 candidate and fails against the base's source is a witness; one that fails against the candidate
 blocks. A test file moved or edited with only its imports changed is matched to the base by the
-tests' names, so a refactor that moves tests is not read as deleting them.
+tests' names, so a refactor that moves tests is not read as deleting them. A deleted test file
+and an added one that git pairs as a rename, with more than imports changed (a fixture path one
+directory further up, say), were moved and edited: the base's version runs at its old path against
+the candidate's source, with the moved copy out of that run, and each test is read as one
+rewritten in place, its rewrite being the test of the same name in the moved copy. A pair git does
+not see as a rename stays a deletion and an addition.
 
 A check's result is `pass`, `inherited-failures` (nothing new fails, inherited failures remain),
 `fail`, `error` (it could not run with the candidate), `no-tests` (it collected none, read from

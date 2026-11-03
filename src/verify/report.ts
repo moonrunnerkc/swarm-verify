@@ -75,6 +75,7 @@ function lines(predicate: Predicate): readonly (readonly [string, string])[] {
     files.modified.length > 0 ? `${files.modified.length} modified` : "",
     files.deleted.length > 0 ? `${files.deleted.length} deleted` : "",
     files.moved.length > 0 ? `${files.moved.length} moved` : "",
+    files.movedAndEdited.length > 0 ? `${files.movedAndEdited.length} moved and edited` : "",
     files.relocated.length > 0 ? `${files.relocated.length} with only imports changed` : "",
   ].filter(Boolean);
   if (touched.length > 0) rows.push(["test files", touched.join(", ")]);

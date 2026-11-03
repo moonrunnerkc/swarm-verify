@@ -49,6 +49,7 @@ describe("replaying an evaluation trial the exit code left unmeasured", () => {
     modified: new Set<string>(),
     deleted: new Set<string>(),
     moved: new Map<string, string>(),
+    movedAndEdited: new Map<string, string>(),
     relocated: new Set<string>(),
   };
   const judge = (runner: TestEvidence["runner"]) => {

@@ -4,6 +4,7 @@ import { runGit } from "./change.ts";
 import type { ChangedFile } from "./checkout.ts";
 import type { TestFileChanges } from "./compare.ts";
 import { categoryOf } from "./paths.ts";
+import type { Predicate } from "./predicate.ts";
 
 const importStatements = [
   // import x from "y"; import {\n a,\n b\n} from "y"; export * from "y"
@@ -29,10 +30,29 @@ export function withoutImports(text: string): string {
 /** Test code, as opposed to a runner's configuration, which is a test-category file too. */
 const testCode = /\.(?:[cm]?[jt]sx?|py)$/;
 
+/** Base path to candidate path for each rename git finds among the staged changes. */
+async function renames(dir: string, baseCommit: string): Promise<ReadonlyMap<string, string>> {
+  const listing = await runGit(dir, ["diff", "--cached", "--name-status", "-z", "-M", baseCommit]);
+  const fields = listing.code === 0 ? listing.stdout.toString("utf8").split("\0") : [];
+  const pairs = new Map<string, string>();
+  for (let at = 0; at < fields.length; ) {
+    // A rename names two paths; with -M and no -C, every other status names one.
+    if ((fields[at] ?? "").startsWith("R")) {
+      pairs.set(fields[at + 1] ?? "", fields[at + 2] ?? "");
+      at += 3;
+    } else {
+      at += 2;
+    }
+  }
+  return pairs;
+}
+
 /**
  * What the candidate did to test files. A modified file whose only differences are its imports
  * was relocated; a deleted file and an added one that differ only in imports were one move. Both
- * are refactors of where code lives, judged by the tests' names rather than as rewrites.
+ * are refactors of where code lives, judged by the tests' names rather than as rewrites. A deleted
+ * file and an added one that git pairs as a rename, with more than imports changed, were moved and
+ * edited: judged like a file rewritten in place, by the base's version against the new code.
  */
 export async function testFileChanges(
   dir: string,
@@ -72,9 +92,37 @@ export async function testFileChanges(
     moved.set(path, target);
     addedBodies.delete(target);
   }
-  for (const [from, to] of moved) {
+  const movedAndEdited = new Map<string, string>();
+  for (const [from, to] of await renames(dir, baseCommit)) {
+    if (deleted.has(from) && !moved.has(from) && addedBodies.has(to)) movedAndEdited.set(from, to);
+  }
+  for (const [from, to] of [...moved, ...movedAndEdited]) {
     deleted.delete(from);
     added.delete(to);
   }
-  return { added, modified, deleted, moved, relocated };
+  return { added, modified, deleted, moved, movedAndEdited, relocated };
+}
+
+export const noTestFiles: TestFileChanges = {
+  added: new Set(),
+  modified: new Set(),
+  deleted: new Set(),
+  moved: new Map(),
+  movedAndEdited: new Map(),
+  relocated: new Set(),
+};
+
+const pairs = (paths: ReadonlyMap<string, string>) =>
+  [...paths].map(([from, to]) => ({ from, to }));
+
+/** The changes as the statement records them. */
+export function testFilesRecord(changes: TestFileChanges): Predicate["testFiles"] {
+  return {
+    added: [...changes.added],
+    modified: [...changes.modified],
+    deleted: [...changes.deleted],
+    moved: pairs(changes.moved),
+    movedAndEdited: pairs(changes.movedAndEdited),
+    relocated: [...changes.relocated],
+  };
 }

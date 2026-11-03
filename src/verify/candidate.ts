@@ -136,12 +136,17 @@ export async function judgeCandidate(input: CandidateInput): Promise<CandidateJu
     ...testFiles.added,
     ...testFiles.modified,
     ...testFiles.moved.values(),
+    ...testFiles.movedAndEdited.values(),
     ...testFiles.relocated,
   ]);
   const otherPaths = changed
     .map((file) => file.path)
     .filter(
-      (path) => !testPaths.has(path) && !testFiles.deleted.has(path) && !testFiles.moved.has(path),
+      (path) =>
+        !testPaths.has(path) &&
+        !testFiles.deleted.has(path) &&
+        !testFiles.moved.has(path) &&
+        !testFiles.movedAndEdited.has(path),
     );
   const sets = await measureCandidate({
     checkout,
@@ -177,7 +182,11 @@ export async function judgeCandidate(input: CandidateInput): Promise<CandidateJu
   const rerun: RerunInput = { ...input, times: input.reruns };
   // The candidate's side first: whether a check fails there decides the mutation pass.
   const first = outcomesOf(judgeAll([]));
-  const rewrittenTests = [...testFiles.modified, ...testFiles.deleted];
+  const rewrittenTests = [
+    ...testFiles.modified,
+    ...testFiles.deleted,
+    ...[...testFiles.movedAndEdited].flat(),
+  ];
   const atObligation = suspectsOn(["obligation"], first, firstRuns);
   const atCandidate = suspectsOn(["candidate"], first, firstRuns);
   const candidateSide = [
