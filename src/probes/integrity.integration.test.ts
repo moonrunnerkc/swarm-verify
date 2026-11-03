@@ -64,6 +64,37 @@ describe("tampering with the oracle and the evidence", () => {
     );
   });
 
+  it("says the sealed held-out checks did not run when the run stops first, not that none are sealed", async () => {
+    const lock = {
+      name: "probe",
+      lockfileVersion: 3,
+      packages: {
+        "": { name: "probe", dependencies: { core: "file:../missing/core" } },
+        "../missing/core": { name: "core", version: "1.0.0" },
+      },
+    };
+    const probe = await probeFixture({
+      "half.mjs": "export const half = n => n;\n",
+      "test/half.test.mjs": halfTest,
+      "test/hidden/edge.test.mjs": halfTest.replace("half positive", "hidden"),
+      "package-lock.json": `${JSON.stringify(lock)}\n`,
+    });
+    await seal(
+      probe.repo,
+      "test/hidden/**",
+      [{ name: "test", command: "node --test", kind: "test" }],
+      probe.home,
+    );
+    probe.git("commit", "-qam", "seal");
+    await probe.put("half.mjs", "export const half = n => n / 2;\n");
+    const result = await probe.verify([], { dependencies: "prepare" });
+    expect(result.state).toBe("blocked");
+    expect(result.heldOut).toEqual({
+      status: "unmeasured",
+      reason: "the sealed held-out checks did not run",
+    });
+  });
+
   it("refuses a report that states other than what was signed", async () => {
     const { result } = await fixed();
     const report = join(result.evidence.directory, "report.json");

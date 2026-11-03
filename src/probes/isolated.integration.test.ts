@@ -1,8 +1,9 @@
 import { rm } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { replay } from "../api/replay.ts";
+import { seal } from "../verify/held-out.ts";
 import { halfTest, probeFixture, requirement } from "./fixture.ts";
 
 /**
@@ -41,6 +42,39 @@ describe("verifying in a container", () => {
     expect(result.execution.statement).toMatch(/^isolated: docker node:24@sha256:/);
     expect(result.environment.platform).toMatch(/^linux-/);
     expect(result.requirements[0]?.status).toBe("satisfied");
+    expect(result.state).toBe("complete");
+  });
+
+  // A judging clone verified with SWARM_HOME=../home was blocked: docker resolved the relative
+  // cache mount from the scratch directory it ran in, a path that did not exist.
+  it("runs a sealed held-out check with SWARM_HOME given relative to where it started", async () => {
+    const files = {
+      "half.mjs": "export const half = n => n;\n",
+      "test/half.test.mjs": halfTest,
+      "test/hidden/edge.test.mjs": halfTest
+        .replace("half positive", "hidden")
+        .replace("../half.mjs", "../../half.mjs"),
+      "package.json": manifest,
+      // A lockfile, so dependencies are prepared in a container with the cache mounted.
+      "package-lock.json": `${JSON.stringify({ name: "fixture", version: "1.0.0", lockfileVersion: 3, requires: true, packages: { "": { name: "fixture", version: "1.0.0" } } })}\n`,
+    };
+    const probe = await probeFixture(files, "node --test", parent);
+    await seal(
+      probe.repo,
+      "test/hidden/**",
+      [{ name: "test", command: "node --test", kind: "test" }],
+      probe.home,
+    );
+    probe.git("commit", "-qam", "seal");
+    await probe.put("half.mjs", "export const half = n => n / 2;\n");
+    const fix = requirement("R1", "half(n) returns n / 2", "fix", ["half positive"]);
+    const result = await probe.verify([fix], {
+      mode: "isolated",
+      dependencies: "prepare",
+      network: "closed",
+      swarmHome: relative(process.cwd(), probe.home),
+    });
+    expect(result.heldOut).toMatchObject({ status: "measured", heldOutPassRate: 1 });
     expect(result.state).toBe("complete");
   });
 

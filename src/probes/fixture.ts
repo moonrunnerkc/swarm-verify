@@ -36,6 +36,8 @@ interface RequestExtras {
   readonly mode: "isolated" | "host";
   readonly network: "open" | "closed";
   readonly reruns: number;
+  /** Where baselines and sealed checks live, if not the fixture's own home. */
+  readonly swarmHome: string;
 }
 
 process.env.SWARM_SIGNING_KEY ??= generateKeyPairSync("ed25519")
@@ -99,7 +101,7 @@ export async function probeFixture(
           artifacts: { directory: join(out, "evidence") },
           producer,
         },
-        { verifierVersion: "probe", swarmHome: home },
+        { verifierVersion: "probe", swarmHome: extra.swarmHome ?? home },
       );
     },
   };

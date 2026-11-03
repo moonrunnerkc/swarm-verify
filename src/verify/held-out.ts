@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { chmod, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { z } from "zod";
 import type { DeclaredCheck } from "../config/swarm-toml.ts";
 import { gitText } from "./change.ts";
@@ -35,9 +35,12 @@ export class SealError extends Error {
   }
 }
 
-/** Where sealed sets live: outside the workspace, under SWARM_HOME or ~/.swarm, owner-only. */
+/**
+ * Where sealed sets live: outside the workspace, under SWARM_HOME or ~/.swarm, owner-only. Made
+ * absolute here, because a container's mounts are read from wherever docker runs.
+ */
 export function swarmHome(env: Readonly<Record<string, string | undefined>> = process.env): string {
-  return env.SWARM_HOME ?? join(homedir(), ".swarm");
+  return resolve(env.SWARM_HOME ?? join(homedir(), ".swarm"));
 }
 
 export async function sealedDirectory(

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { detectChecks } from "../config/detect.ts";
 import { readSwarmToml } from "../config/swarm-toml.ts";
 import { executionOf, regressionOf, stateOf, unmeasuredOf } from "./assess.ts";
@@ -33,7 +33,7 @@ const noTestFiles = {
 
 export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcome> {
   const change = options.change;
-  const home = options.swarmHome ?? swarmHome();
+  const home = resolve(options.swarmHome ?? swarmHome());
   // A container mounts the scratch directory, and a docker VM (colima, Docker Desktop) shares the
   // user's home with it but not the system's temporary directory.
   const parent = options.policy.mode === "isolated" ? join(home, "work") : undefined;
@@ -90,7 +90,11 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
     let runs: CheckResult[] = [];
     let outcomes: TestOutcome[] = [];
     let baseline: Baseline = skipped("no checks are declared");
-    let heldOut: HeldOut = skipped("no held-out checks are sealed for this workspace");
+    let heldOut: HeldOut = skipped(
+      sealed === null
+        ? "no held-out checks are sealed for this workspace"
+        : "the sealed held-out checks did not run",
+    );
     let coverage: Coverage = skipped("the checks did not run");
     let mutation: Mutation = skipped("the checks did not run");
     const prepared = await prepareDependencies(
