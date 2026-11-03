@@ -129,6 +129,10 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       });
       baseline = measured.baseline;
       baseRuns = measured.runs;
+    } else if (checks.length > 0) {
+      baseline = skipped(
+        `the base was not measured: ${blocked[0] ?? "its dependencies did not install"}`,
+      );
     }
     const applied = await applyChange(checkout, change.patch);
     const changed = applied.applied ? applied.result.changed : [];
