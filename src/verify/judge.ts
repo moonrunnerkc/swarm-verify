@@ -112,7 +112,7 @@ if (report) {
   const root = process.env.SWARM_JUDGE_ROOT;
   if (root) register(process.env.SWARM_JUDGE_HOOKS, import.meta.url, { data: { root } });
   appendFileSync(report, "start " + createHash("sha256").update(nonce).digest("hex") + "\n");
-  process.on("exit", () => {
+  const finish = () => {
     for (const [name, holder, key, found] of watched) {
       const now = describe(holder, key);
       if (now === undefined || now.value !== found.value || now.get !== found.get || now.set !== found.set)
@@ -121,7 +121,20 @@ if (report) {
     let names = "";
     for (const name of changed) names = names === "" ? name : names + "," + name;
     appendFileSync(report, (names === "" ? "ok " + nonce + " " + calls : "tampered " + nonce + " " + names) + "\n");
-  });
+  };
+  process.on("exit", finish);
+  // A signal's default action runs no exit handler, and test runners end their worker processes
+  // with SIGTERM. The check runs, then the signal is raised again with its default action, unless
+  // the process handles it itself, which then decides how it ends.
+  for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"]) {
+    const ending = () => {
+      finish();
+      if (process.listenerCount(signal) > 1) return;
+      process.removeListener(signal, ending);
+      process.kill(process.pid, signal);
+    };
+    process.on(signal, ending);
+  }
 }
 `;
 
