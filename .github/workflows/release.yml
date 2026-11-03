@@ -1,7 +1,8 @@
 name: release
 
-# A full version tag (v2.0.0) publishes swarm-verify, after the gates, which install the packed
-# tarball into a fresh prefix and verify a change through it. An Action alias such as v2 is not a
+# A full version tag (v2.0.1) publishes swarm-verify, after the gates, which install the packed
+# tarball into a fresh prefix and verify a change through it. Where the version is already on the
+# registry, published from a workstation, it compares a pack of the tag with it instead. An Action alias such as v2 is not a
 # release and starts nothing.
 on:
   push:

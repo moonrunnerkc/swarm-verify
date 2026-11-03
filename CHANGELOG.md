@@ -6,6 +6,36 @@ of moonrunnerkc/swarm-verify. Versions before 1.0.0 (0.2.0, released with Swarm 
 swarm-orchestrator's `packages/swarm-verify`; 2.0.0 is the first built from this repository. A
 2.0.0 tagged there on 2026-10-29 was never published to npm, and its notes are folded in below.
 
+## 2.0.1 - 2026-11-02
+
+### Fixed
+
+- **A refused dependency preparation is recorded as refused.** A lockfile package from beside the
+  repository that is missing makes the run blocked; the statement recorded the dependencies as
+  `none`, so replay prepared nothing and diverged. `execution.dependencies.mode` and
+  `environment.dependencies` now say `refused`, with the reason, and replay meets the same refusal.
+  A 2.0.0 statement keeps `none` and replays as before. With checks declared and the base not
+  measured for that reason, the baseline says so instead of "no checks are declared".
+- **The judge checks a process a signal ends.** SIGTERM, SIGINT and SIGHUP write its end line,
+  then the signal is raised again, so a vitest pool's workers no longer read as tampering.
+- **A worker thread its runner terminated is unchecked, not a held-out failure.** It is named among
+  the unmeasured reasons; a thread that changes an assertion is still caught.
+- **`SWARM_HOME` is resolved before use.** A relative one lost the sealed held-out checks, and the
+  result said none were sealed; where a sealed set exists and did not run, it now says that.
+- **A test file moved and edited is judged by its base version.** A deleted test file and an
+  added one that git pairs as a rename, with more than imports changed, are recorded as
+  `testFiles.movedAndEdited`; the base's version runs at its old path against the candidate's
+  source, without the moved copy, and each test is judged as rewritten in place. Read as a deletion,
+  a correct move that fixed a fixture path had its tests "gone" and both copies run together.
+- **No mutant inside a multi-line string or comment.** Literals and comments are blanked over the
+  whole file, so a docstring's prose is never the one mutant.
+
+### Changed
+
+- The release workflow compares a pack of the tag with the registry where the version is already
+  published, instead of publishing. 2.0.1 was published from a workstation with npm's browser
+  approval and has no provenance statement.
+
 ## 2.0.0 - 2026-11-01
 
 Rebuilt with the verifier-first rebuild ([ADR 0014](https://github.com/moonrunnerkc/swarm-orchestrator/blob/v13-main/docs/adr/0014-verifier-first-rebuild.md)).

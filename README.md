@@ -89,7 +89,7 @@ const result = await verify(
     policy: { execution: { mode: "host", network: "open", dependencies: "linked" } },
     artifacts: { directory: "/tmp/evidence" },
   },
-  { verifierVersion: "2.0.0" },
+  { verifierVersion: "2.0.1" },
 );
 ```
 
@@ -116,8 +116,10 @@ expectation where the change witnesses the new behavior, and records that it did
 
 ## Releases
 
-A full version tag (`v2.0.0`) on `main` runs the release workflow: the gates, a check that the tag
-matches `package.json`, then `npm publish` with provenance. `v2` is the Action alias: it is moved
+A full version tag (`v2.0.1`) on `main` runs the release workflow: the gates, a check that the tag
+matches `package.json`, then `npm publish` with provenance. Where the version is already on the
+registry, published from a workstation with npm's browser approval (2.0.1 was, and carries no
+provenance), it packs the tag instead and fails unless the pack's integrity equals the registry's. `v2` is the Action alias: it is moved
 to each 2.x release so `moonrunnerkc/swarm-verify@v2` follows the major version, and it is not a
 release tag; pushing it publishes nothing. Pin a full tag or a commit where you need the exact
 verifier.
