@@ -82,11 +82,54 @@ function codeOf(line: string): string {
   return comment === null ? blanked : blanked.slice(0, comment.index);
 }
 
+/** Where the literal or comment starting at `at` with `opener` ends, past its closer. */
+function endOf(text: string, at: number, opener: string): number {
+  if (opener === "#" || opener === "//") {
+    const newline = text.indexOf("\n", at);
+    return newline < 0 ? text.length : newline;
+  }
+  if (opener === "/*") {
+    const closer = text.indexOf("*/", at + 2);
+    return closer < 0 ? text.length : closer + 2;
+  }
+  // A quoted string ends at its quote or, unterminated, at the line's end; a template literal and
+  // a triple-quoted string may span lines.
+  const spans = opener.length === 3 || opener === "`";
+  for (let index = at + opener.length; index < text.length; index += 1) {
+    if (text[index] === "\\") index += 1;
+    else if (text.startsWith(opener, index)) return index + opener.length;
+    else if (text[index] === "\n" && !spans) return index;
+  }
+  return text.length;
+}
+
+/**
+ * The file's lines with string literals and comments blanked, columns kept. Read a line at a
+ * time, the inside of a docstring, a template literal or a block comment looked like code, and
+ * the one mutant could change prose no test can see.
+ */
+export function codeLines(text: string, python: boolean): string[] {
+  const openers = python ? ['"""', "'''", '"', "'", "#"] : ["/*", "//", "`", '"', "'"];
+  let visible = "";
+  for (let at = 0; at < text.length; ) {
+    const opener = openers.find((one) => text.startsWith(one, at));
+    if (opener === undefined) {
+      visible += text[at];
+      at += 1;
+      continue;
+    }
+    const end = endOf(text, at, opener);
+    visible += text.slice(at, end).replace(/[^\n]/g, " ");
+    at = end;
+  }
+  return visible.split("\n");
+}
+
 export function mutateLine(
   line: string,
   python = false,
+  visible = codeOf(line),
 ): { readonly text: string; readonly operator: string } | null {
-  const visible = codeOf(line);
   if (/^\s*(?:import|export\s+\{|from\s)/.test(visible)) return null;
   for (const [operator, pattern, replacement] of operators) {
     const match = pattern.exec(visible);
@@ -122,7 +165,9 @@ export async function mutationWitness(
     const absolute = join(context.dir, candidate.path);
     const original = await readFile(absolute, "utf8");
     const lines = original.split("\n");
-    const mutant = mutateLine(lines[candidate.line - 1] ?? "", candidate.path.endsWith(".py"));
+    const python = candidate.path.endsWith(".py");
+    const visible = codeLines(original, python)[candidate.line - 1] ?? "";
+    const mutant = mutateLine(lines[candidate.line - 1] ?? "", python, visible);
     if (mutant === null) continue;
     lines[candidate.line - 1] = mutant.text;
     const text = lines.join("\n");

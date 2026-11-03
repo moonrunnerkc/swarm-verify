@@ -153,10 +153,11 @@ requirements is `regression-only` and says so.
 
 ## Mutation
 
-One mutant of a changed source line runs against the test checks, preferring covered lines. It
-is syntax-checked first (`node --check` for JavaScript, Node's TypeScript transform for
-TypeScript, `ast.parse` with the checkout's Python), and a mutant that does not parse is refused
-and the next tried. `killed` means a test that passed with the candidate fails under the mutant;
+One mutant of a changed source line runs against the test checks, preferring covered lines.
+Operators inside string literals and comments are not mutated, including those that span lines (a
+docstring, a template literal, a block comment). It is syntax-checked first (`node --check` for
+JavaScript, Node's TypeScript transform for TypeScript, `ast.parse` with the host's `python3`), and
+a mutant that does not parse is refused and the next tried. `killed` means a test that passed with the candidate fails under the mutant;
 `timeout` and `runner-crash` (no report, or tests that vanished) are told apart from it, and
 `invalid-mutant` says no mutant parsed. Only `killed` counts as detection strength. Coverage and
 mutation describe how strong the evidence is; they never substitute for a requirement.

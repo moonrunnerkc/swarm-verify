@@ -48,4 +48,41 @@ describe("one mutant of the change", () => {
     );
     expect(mutation).toMatchObject({ status: "killed", line: 2, syntax: "valid", rejected: 1 });
   });
+
+  // The one mutant of tracemantle's history shim changed "and" to "or" on the fourth line of its
+  // docstring: prose no test can see, reported as a surviving mutant (orchestrator patch release,
+  // t6 comparison).
+  it("mutates no line inside a multi-line string or comment", async () => {
+    const python = [
+      '"""Compatibility path.',
+      "Attributes and anything patched on one path are the same on the other.",
+      '"""',
+      "LIMIT = 3 + 1",
+      "",
+    ].join("\n");
+    const script = [
+      "/* Kept small and simple,",
+      "   and never awaited. */",
+      "const note = `first line",
+      "  and second line`;",
+      "export const ok = note.length > 0;",
+      "",
+    ].join("\n");
+    await writeFile(join(dir, "shim.py"), python);
+    await writeFile(join(dir, "note.js"), script);
+    const sites = [
+      { path: "shim.py", status: "added" as const, addedLines: [1, 2, 3, 4] },
+      { path: "note.js", status: "added" as const, addedLines: [1, 2, 3, 4, 5] },
+    ];
+    const none = { status: "unmeasured" as const, reason: "not measured here" };
+    const first = await mutationWitness(sites.slice(0, 1), none, async () => "survived", context());
+    expect(first).toMatchObject({
+      status: "survived",
+      path: "shim.py",
+      line: 4,
+      operator: "+ to -",
+    });
+    const second = await mutationWitness(sites.slice(1), none, async () => "survived", context());
+    expect(second).toMatchObject({ status: "survived", path: "note.js", line: 5 });
+  });
 });
