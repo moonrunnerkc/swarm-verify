@@ -34,7 +34,29 @@ jobs:
             echo "tag $GITHUB_REF_NAME does not match package.json $PKG; refusing to publish" >&2
             exit 1
           fi
+      # A version published from a workstation (the account's two-factor setting needs a person)
+      # is compared, not published again: the registry's tarball must be this commit's pack.
+      - name: Compare with the registry where this version is already published
+        id: registry
+        run: |
+          NAME="$(node -p "require('./package.json').name")"
+          PKG="$(node -p "require('./package.json').version")"
+          PUBLISHED="$(npm view "$NAME@$PKG" dist.integrity 2>/dev/null || true)"
+          if [ -z "$PUBLISHED" ]; then
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Built first, so the pack's JSON is all it prints; prepack would build the same files.
+          npm run build >&2
+          PACKED="$(npm pack --json --ignore-scripts --pack-destination "$RUNNER_TEMP" | node -e 'let s = ""; process.stdin.on("data", (c) => (s += c)).on("end", () => console.log(JSON.parse(s)[0].integrity))')"
+          if [ "$PUBLISHED" != "$PACKED" ]; then
+            echo "$NAME@$PKG on the registry is $PUBLISHED, and this commit packs to $PACKED" >&2
+            exit 1
+          fi
+          echo "$NAME@$PKG on the registry is this commit's pack ($PACKED)"
+          echo "published=true" >> "$GITHUB_OUTPUT"
       - name: Publish
+        if: steps.registry.outputs.published == 'false'
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
