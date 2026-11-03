@@ -39,7 +39,10 @@ policy is not met, and the result is not complete.
 3. Dependencies are prepared as the policy says: `prepare` runs the base's `[verify] setup`
    command or the install its lockfile asks for (`npm ci`, pnpm, yarn, bun, `uv sync --frozen`)
    in the checkout and digests the installed tree; `linked` links the workspace's `node_modules`
-   and `.venv`, which is never reproducible; `none` prepares nothing.
+   and `.venv`, which is never reproducible; `none` prepares nothing. A preparation that cannot
+   start, such as a lockfile package from beside the repository that is not there, is recorded
+   as `refused` with its reason, and the result is blocked; a replay prepares again and meets the
+   same refusal.
 4. Every check and every sealed held-out check runs at the base commit with each runner's report
    written and the judge loaded. Results are kept under `$SWARM_HOME/baselines/` keyed by the
    base, the environment digest (commands, lockfiles and the installed tree), the sealed set and

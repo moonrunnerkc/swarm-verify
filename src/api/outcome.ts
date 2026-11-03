@@ -76,7 +76,7 @@ export const executionSchema = z.strictObject({
   network: z.enum(["closed", "open"]),
   image: z.string().nullable(),
   dependencies: z.strictObject({
-    mode: z.enum(["prepared", "setup", "linked", "none"]),
+    mode: z.enum(["prepared", "setup", "linked", "none", "refused"]),
     reproducible: z.boolean(),
     lockfiles: z.record(z.string(), sha256Schema),
     treeSha256: sha256Schema.nullable(),

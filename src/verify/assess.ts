@@ -59,6 +59,7 @@ export interface PreparedDependencies {
   readonly mode: Execution["dependencies"]["mode"];
   readonly lockfiles: Readonly<Record<string, string>>;
   readonly treeSha256: string | null;
+  readonly refused?: string | null;
 }
 
 /** The container the checks ran in, or null for a host run. */
@@ -85,11 +86,13 @@ export function executionOf(
       ? "linked, not reproducible: the caller's installed tree was used as it stood"
       : prepared.mode === "setup"
         ? "prepared by the base's declared setup command; its result is not digested"
-        : prepared.mode === "none"
-          ? "no dependencies were prepared"
-          : reproducible
-            ? "prepared from the lockfile and digested"
-            : "prepared from the lockfile; the installed tree was not digested";
+        : prepared.mode === "refused"
+          ? `not prepared: ${prepared.refused ?? "the preparation was refused"}`
+          : prepared.mode === "none"
+            ? "no dependencies were prepared"
+            : reproducible
+              ? "prepared from the lockfile and digested"
+              : "prepared from the lockfile; the installed tree was not digested";
   if (policy.mode === "isolated" && isolation === null) {
     found.push("isolated execution was requested and this run did not provide it");
   }

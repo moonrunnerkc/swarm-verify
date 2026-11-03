@@ -37,7 +37,8 @@ export async function lockfileInstall(dir: string, isolated = false): Promise<st
 }
 
 export interface Preparation {
-  readonly mode: "prepared" | "setup" | "linked" | "none";
+  /** refused: preparation was asked for and could not start; `refused` says why. */
+  readonly mode: "prepared" | "setup" | "linked" | "none" | "refused";
   readonly failure: CheckRun | null;
   /** Packages the lockfile installs from outside the repository, exported beside the checkout. */
   readonly localPackages: readonly LocalPackage[];
@@ -68,7 +69,7 @@ export async function prepareDependencies(
         localPackages = await exportLocalPackages(workspace, context.dir, dirname(context.dir));
     } catch (error) {
       if (!(error instanceof LocalPackageError)) throw error;
-      return { mode: "none", failure: null, localPackages: [], refused: error.message };
+      return { mode: "refused", failure: null, localPackages: [], refused: error.message };
     }
     const command = [...localInstalls(localPackages), install].join(" && ");
     const ran = await runCheck({ name: "setup", command, kind: "other" }, context, {}, "prepare");

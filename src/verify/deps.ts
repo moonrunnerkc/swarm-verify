@@ -41,12 +41,14 @@ export async function dependencyTreeDigest(dir: string): Promise<string | null> 
 }
 
 export interface DependencyIdentity {
-  readonly mode: "prepared" | "setup" | "linked" | "none";
+  readonly mode: "prepared" | "setup" | "linked" | "none" | "refused";
   readonly lockfiles: Readonly<Record<string, string>>;
   /** Digest of the installed tree, only where it was installed into the checkout. */
   readonly treeSha256: string | null;
   /** Whether a later run with the same lockfiles reproduces this tree, so a baseline may be reused. */
   readonly reproducible: boolean;
+  /** Why preparation was refused, where it was. */
+  readonly refused: string | null;
 }
 
 /**
@@ -58,15 +60,18 @@ export async function dependencyIdentity(
   dir: string,
   mode: DependencyIdentity["mode"],
   localPackages: readonly { readonly path: string; readonly sha256: string }[] = [],
+  refused: string | null = null,
 ): Promise<DependencyIdentity> {
   // A local package outside the repository is part of what the lockfile pins, by its content.
   const lockfiles = {
     ...(await lockfileDigests(dir)),
     ...Object.fromEntries(localPackages.map((one) => [`local:${one.path}`, one.sha256])),
   };
-  if (mode === "linked" || mode === "setup")
-    return { mode, lockfiles, treeSha256: null, reproducible: false };
-  if (mode === "none") return { mode, lockfiles, treeSha256: null, reproducible: true };
+  // A refusal rests on what lies beside the checkout, which no lockfile pins.
+  if (mode === "linked" || mode === "setup" || mode === "refused")
+    return { mode, lockfiles, treeSha256: null, reproducible: false, refused };
+  if (mode === "none")
+    return { mode, lockfiles, treeSha256: null, reproducible: true, refused: null };
   const treeSha256 = await dependencyTreeDigest(dir);
-  return { mode, lockfiles, treeSha256, reproducible: treeSha256 !== null };
+  return { mode, lockfiles, treeSha256, reproducible: treeSha256 !== null, refused: null };
 }

@@ -109,6 +109,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       checkout.dir,
       prepared.mode,
       prepared.localPackages,
+      prepared.refused,
     );
     const plans = await reportPlans(checkout.dir, checks);
     let baseRuns: readonly MeasuredRun[] = [];

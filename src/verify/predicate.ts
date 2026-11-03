@@ -208,7 +208,7 @@ export const predicateSchema = z.object({
     node: z.string(),
     platform: z.string(),
     git: z.string(),
-    dependencies: z.enum(["prepared", "linked", "setup", "none"]),
+    dependencies: z.enum(["prepared", "linked", "setup", "none", "refused"]),
     /** The installed dependency tree's digest, where it was installed from the lockfile. */
     dependencyTreeSha256: sha256.nullable(),
     /** Whether the same lockfiles reproduce this environment; linked trees never do. */
