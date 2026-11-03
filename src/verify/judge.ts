@@ -32,6 +32,7 @@ export async function load(url, context, next) {
 const nodeJudge = String.raw`import { createHash, randomBytes } from "node:crypto";
 import { appendFileSync } from "node:fs";
 import { createRequire, register, syncBuiltinESMExports } from "node:module";
+import { isMainThread } from "node:worker_threads";
 
 const report = process.env.SWARM_JUDGE_REPORT;
 if (report) {
@@ -111,7 +112,9 @@ if (report) {
   define(globalThis, Symbol.for("swarm-verify.judge"), { value: helper });
   const root = process.env.SWARM_JUDGE_ROOT;
   if (root) register(process.env.SWARM_JUDGE_HOOKS, import.meta.url, { data: { root } });
-  appendFileSync(report, "start " + createHash("sha256").update(nonce).digest("hex") + "\n");
+  // A worker thread has its own builtins and is judged like a process, but a runner may end it
+  // with terminate(), which runs nothing in the thread, so its start is marked apart.
+  appendFileSync(report, (isMainThread ? "start " : "thread ") + createHash("sha256").update(nonce).digest("hex") + "\n");
   const finish = () => {
     for (const [name, holder, key, found] of watched) {
       const now = describe(holder, key);
@@ -126,7 +129,7 @@ if (report) {
   // A signal's default action runs no exit handler, and test runners end their worker processes
   // with SIGTERM. The check runs, then the signal is raised again with its default action, unless
   // the process handles it itself, which then decides how it ends.
-  for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"]) {
+  for (const signal of isMainThread ? ["SIGTERM", "SIGINT", "SIGHUP"] : []) {
     const ending = () => {
       finish();
       if (process.listenerCount(signal) > 1) return;
@@ -240,6 +243,8 @@ export async function prepareJudge(scratch: string, name: string, root: string):
 export interface JudgeReading {
   /** Processes that loaded the judge. */
   readonly processes: number;
+  /** Worker threads that loaded it and were ended before it could check them. */
+  readonly uncheckedThreads: number;
   /** Calls made through node:assert's functions (Python reports none). */
   readonly assertionCalls: number;
   /** What the code under test changed, or why the judge could not tell; null when clean. */
@@ -248,24 +253,28 @@ export interface JudgeReading {
 
 /**
  * Every process that started must end with its own nonce: a `tampered` line, or a start with
- * no end (a process killed, or one whose exit hooks were removed), is a problem.
+ * no end (a process killed, or one whose exit hooks were removed), is a problem. A worker
+ * thread that ends checked is read the same way; one a runner terminated is counted as
+ * unchecked, which says the judge saw nothing there, not that anything changed.
  */
 export async function readJudge(report: string): Promise<JudgeReading> {
   const lines = (await readFile(report, "utf8").catch(() => "")).split("\n");
   const open = new Set<string>();
+  const threads = new Set<string>();
   const changed = new Set<string>();
   let processes = 0;
   let assertionCalls = 0;
   for (const line of lines) {
     const [kind, value = "", detail = ""] = line.split(" ");
-    if (kind === "start") {
-      processes += 1;
-      open.add(value);
+    if (kind === "start" || kind === "thread") {
+      if (kind === "start") processes += 1;
+      (kind === "start" ? open : threads).add(value);
       continue;
     }
     const started = createHash("sha256").update(value).digest("hex");
-    if ((kind === "ok" || kind === "tampered") && open.has(started)) {
+    if ((kind === "ok" || kind === "tampered") && (open.has(started) || threads.has(started))) {
       open.delete(started);
+      threads.delete(started);
       if (kind === "ok") assertionCalls += Number(detail) || 0;
       else for (const name of detail.split(",")) changed.add(name);
     }
@@ -276,5 +285,5 @@ export async function readJudge(report: string): Promise<JudgeReading> {
       : open.size > 0
         ? `${open.size} process(es) exited before the judge could check them`
         : null;
-  return { processes, assertionCalls, problem };
+  return { processes, uncheckedThreads: threads.size, assertionCalls, problem };
 }

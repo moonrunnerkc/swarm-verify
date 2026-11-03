@@ -172,9 +172,13 @@ change) and of a held-out check therefore loads a judge before any project modul
   and pytest's runtest, call and assertion-rewrite hooks. The interpreter's own sitecustomize
   still runs first.
 
-At exit each process reports `ok` or what changed. A held-out check fails when any process
-reports a change, or when a process that loaded the judge never reports (it was killed, or its
-exit hooks were removed). A declared test check fails on a finding its base run did not show,
+At exit each process reports `ok` or what changed, and a Node process ended by SIGTERM, SIGINT
+or SIGHUP reports before the signal ends it, as a test runner's worker processes are ended. A
+held-out check fails when any process reports a change, or when a process that loaded the judge
+never reports (it was killed outright, or its exit hooks were removed). A Node worker thread is
+judged the same way when it ends on its own; one its runner terminates runs nothing more, so it
+is listed under unmeasured as not checked rather than failing the check (vitest 1 runs its tests
+in such threads). A declared test check fails on a finding its base run did not show,
 so a suite whose workers are killed at exit is not refused for that at both commits. The
 predicate records how many processes of the held-out checks loaded the judge and how many calls
 went through `node:assert`. Files that change what loads before the judge (`.npmrc`,
@@ -228,5 +232,7 @@ because something stayed unverified or unresolved, `5` blocked.
 - Submodules are left out of the tree digest and are not checked out in the clean clone; a
   change inside a submodule is not judged.
 - Held-out checks are judged per command.
+- A worker thread a test runner terminates is not checked by the judge; a change made inside one
+  is not caught by it. A Python process ended by a signal is not checked either.
 - A test file moved with more than its imports changed is read as one file deleted and another
   added: its base tests are removed and the new ones are labeled implementation-authored.

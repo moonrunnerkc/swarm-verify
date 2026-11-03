@@ -163,6 +163,8 @@ export interface SealedRun {
   readonly assertionCalls: number;
   /** What the judge found, one line per check it failed. */
   readonly problems: readonly string[];
+  /** Worker threads the judge could not check, one line per check that had any. */
+  readonly unchecked: readonly string[];
 }
 
 /**
@@ -176,6 +178,7 @@ export async function runSealed(
 ): Promise<SealedRun> {
   const runs: CheckRun[] = [];
   const problems: string[] = [];
+  const unchecked: string[] = [];
   let processes = 0;
   let assertionCalls = 0;
   for (const check of sealed.checks) {
@@ -184,6 +187,11 @@ export async function runSealed(
     const reading = await readJudge(judge.report);
     processes += reading.processes;
     assertionCalls += reading.assertionCalls;
+    if (reading.uncheckedThreads > 0) {
+      unchecked.push(
+        `held-out check ${check.name}: ${reading.uncheckedThreads} worker thread(s) its runner terminated were not checked by the judge`,
+      );
+    }
     if (reading.problem === null) {
       runs.push(run);
       continue;
@@ -191,7 +199,7 @@ export async function runSealed(
     problems.push(`held-out check ${check.name}: ${reading.problem}`);
     runs.push({ ...run, result: { ...run.result, result: "fail" } });
   }
-  return { runs, processes, assertionCalls, problems };
+  return { runs, processes, assertionCalls, problems, unchecked };
 }
 
 /** A digest of the sealed set, so a base run is reused only for the same held-out checks. */

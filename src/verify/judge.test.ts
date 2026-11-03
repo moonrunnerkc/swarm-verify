@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -10,11 +10,13 @@ afterEach(async () => {
   await rm(scratch, { recursive: true, force: true });
 });
 
-/** A Node process with the judge loaded, running `program` until a signal arrives. */
-async function judged(program: string) {
+/** A Node process with the judge loaded, running `program` beside `files` in its directory. */
+async function judged(program: string, files: Readonly<Record<string, string>> = {}) {
   scratch = await mkdtemp(join(tmpdir(), "judge-"));
   const judge = await prepareJudge(scratch, "probe", scratch);
+  for (const [name, text] of Object.entries(files)) await writeFile(join(scratch, name), text);
   const child = spawn(process.execPath, ["-e", program], {
+    cwd: scratch,
     env: { ...process.env, ...judge.env },
     stdio: ["ignore", "pipe", "inherit"],
   });
@@ -64,5 +66,35 @@ describe("the judge in a process a signal ends", () => {
       "1 process(es) exited before the judge could check them",
     );
     expect(await readFile(report, "utf8")).toMatch(/^start [0-9a-f]{64}\n$/);
+  });
+});
+
+// vitest 1's default pool runs tests in worker threads and ends them with terminate(), which runs
+// nothing in the thread: claimcheck's held-out check reported 28 starts with no end, and failed
+// whatever its tests did (orchestrator patch run, claimcheck d2f136c).
+describe("the judge in a worker thread", () => {
+  it("counts a thread its runner terminated as unchecked, not as a change", async () => {
+    const { child, report } = await judged(
+      "console.log('ready'); const w = new (require('node:worker_threads').Worker)(require('node:path').resolve('worker.cjs')); w.once('online', () => setTimeout(() => w.terminate().then(() => process.exit(0)), 100));",
+      { "worker.cjs": "setInterval(() => {}, 1000);\n" },
+    );
+    expect(await ended(child)).toEqual({ code: 0, signal: null });
+    expect(await readJudge(report)).toMatchObject({
+      processes: 1,
+      uncheckedThreads: 1,
+      problem: null,
+    });
+  });
+
+  it("still reports a thread that changed an assertion", async () => {
+    const { child, report } = await judged(
+      "console.log('ready'); new (require('node:worker_threads').Worker)(require('node:path').resolve('worker.cjs'));",
+      { "worker.cjs": "require('node:assert').equal = () => {};\n" },
+    );
+    expect(await ended(child)).toEqual({ code: 0, signal: null });
+    expect(await readJudge(report)).toMatchObject({
+      uncheckedThreads: 0,
+      problem: "the code under test changed assert.equal",
+    });
   });
 });

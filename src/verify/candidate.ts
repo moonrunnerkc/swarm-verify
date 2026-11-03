@@ -253,7 +253,10 @@ export async function judgeCandidate(input: CandidateInput): Promise<CandidateJu
     reasons,
     failures: judged.flatMap((one) => (one.failure === null ? [] : [one.failure])),
     inherited: judged.flatMap((one) => (one.inherited === null ? [] : [one.inherited])),
-    unmeasured: judged.flatMap((one) => (one.unmeasured === null ? [] : [one.unmeasured])),
+    unmeasured: [
+      ...judged.flatMap((one) => (one.unmeasured === null ? [] : [one.unmeasured])),
+      ...(hidden?.unchecked ?? []),
+    ],
     problems,
     logs: checks.flatMap((check, at) => {
       const candidate = sets.candidate[at] as MeasuredRun;
