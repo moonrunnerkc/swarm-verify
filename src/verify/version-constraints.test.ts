@@ -71,7 +71,6 @@ async function judge(
     outcomes: [],
     dir,
     readBase: async (path) => (path === "package-lock.json" ? base : null),
-    sourceChanged: [],
     changed: true,
     regression: {
       status: "none",

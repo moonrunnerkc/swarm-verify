@@ -24,8 +24,6 @@ export interface RequirementInputs {
   /** The candidate tree, and a reader of the base's files, for structural and dependency claims. */
   readonly dir: string;
   readonly readBase: (path: string) => Promise<string | null>;
-  /** Paths of source files the candidate changed. */
-  readonly sourceChanged: readonly string[];
   readonly changed: boolean;
   readonly regression: Regression;
   /** Whether the candidate's dependencies were installed fresh from its own lockfile. */
@@ -104,6 +102,15 @@ function judged(
       status: "failed",
       limitation: `failing: ${broken.map((one) => one.ref).join(", ")}`,
       nextAction: "repair the failing evidence",
+    };
+  }
+  // A changed file shows only that something changed; what a refactor leaves is named and read.
+  if (requirement.kind === "refactor" && !evidence.some((one) => one.kind === "structure")) {
+    return {
+      status: "unverified",
+      limitation: "no structure claim shows what the refactor leaves",
+      nextAction:
+        'name what the refactor leaves in "structure": each file it creates or moves to, with a text it holds ({"path": "file", "contains": "text"}), and each path it removes ({"path": "file", "absent": true})',
     };
   }
   if (evidence.length === 0) {
@@ -205,19 +212,6 @@ export async function assessRequirements(
         ),
       )),
     ];
-    if (
-      requirement.kind === "refactor" &&
-      structure.length === 0 &&
-      inputs.sourceChanged.length > 0
-    ) {
-      evidence.push({
-        kind: "change",
-        ref: inputs.sourceChanged.slice(0, 5).join(", "),
-        authority: "pre-existing",
-        outcome: "observed",
-        detail: `${inputs.sourceChanged.length} source file(s) changed`,
-      });
-    }
     outcomes.push({
       id: requirement.id,
       text: requirement.text,

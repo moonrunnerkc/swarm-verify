@@ -36,7 +36,6 @@ const inputs: RequirementInputs = {
   outcomes: [added],
   dir: "/nonexistent",
   readBase: async () => null,
-  sourceChanged: ["src/walk.ts"],
   changed: true,
   regression: {
     status: "none",

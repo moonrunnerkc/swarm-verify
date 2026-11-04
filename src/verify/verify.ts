@@ -220,7 +220,6 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
         const shown = await runGit(checkout.dir, ["show", `${change.baseCommit}:${path}`]);
         return shown.code === 0 ? shown.stdout.toString("utf8") : null;
       },
-      sourceChanged: artifacts.filter((one) => one.category === "source").map((one) => one.path),
       changed: change.patch.length > 0,
       regression,
       freshDependencies: dependencies.mode === "prepared" && depsChanged && candidateSetup === null,
