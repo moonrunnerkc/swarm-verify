@@ -1,8 +1,8 @@
 name: release
 
-# A full version tag (v2.0.1) publishes swarm-verify, after the gates, which install the packed
+# A full version tag (v2.0.2) publishes swarm-verify, after the gates, which install the packed
 # tarball into a fresh prefix and verify a change through it. Where the version is already on the
-# registry, published from a workstation, it compares a pack of the tag with it instead. An Action alias such as v2 is not a
+# registry, it compares a pack of the tag with it instead. An Action alias such as v2 is not a
 # release and starts nothing.
 on:
   push:
@@ -11,7 +11,8 @@ on:
 
 permissions:
   contents: read
-  # npm provenance signs the tarball against this workflow and commit.
+  # Trusted publishing: npm takes this job's OIDC token in place of a stored npm token, and signs
+  # the provenance statement against this workflow and commit.
   id-token: write
 
 jobs:
@@ -24,8 +25,17 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
-          cache: npm
+          # No dependency cache in a release build, as npm's trusted-publishing example has it.
           registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm 11.5.1 or later (docs.npmjs.com/trusted-publishers).
+      - name: Check npm meets the trusted-publishing minimum
+        run: |
+          node -e '
+            const [major, minor, patch] = process.argv[1].split(".").map(Number);
+            if (major > 11 || (major === 11 && (minor > 5 || (minor === 5 && patch >= 1)))) process.exit(0);
+            console.error(`npm ${process.argv[1]} is older than 11.5.1, which trusted publishing needs`);
+            process.exit(1);
+          ' "$(npm --version)"
       - run: npm ci
       - run: npm run gates
       - name: Check the tag matches the package version
@@ -35,8 +45,8 @@ jobs:
             echo "tag $GITHUB_REF_NAME does not match package.json $PKG; refusing to publish" >&2
             exit 1
           fi
-      # A version published from a workstation (the account's two-factor setting needs a person)
-      # is compared, not published again: the registry's tarball must be this commit's pack.
+      # A version already published (2.0.1 was, from a workstation) is compared, not published
+      # again: the registry's tarball must be this commit's pack.
       - name: Compare with the registry where this version is already published
         id: registry
         run: |
@@ -59,5 +69,3 @@ jobs:
       - name: Publish
         if: steps.registry.outputs.published == 'false'
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
