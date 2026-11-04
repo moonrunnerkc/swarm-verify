@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { envelopeOf } from "../verify/dsse.ts";
+import { keptLockName, type PinnedLocks } from "../verify/generated-lock.ts";
 import { type Statement, statementSchema } from "../verify/predicate.ts";
 import { defaultReruns } from "../verify/reruns.ts";
 import { divergencesOf } from "./divergences.ts";
@@ -43,6 +44,24 @@ async function readBundle(
     throw new UnreplayableBundleError("change.patch is not the patch the statement signed");
   }
   return { statement, patch };
+}
+
+/** The uv.lock each side's preparation generated, read from the bundle and held to its signed digest. */
+async function keptLocks(
+  directory: string,
+  recorded: Statement["predicate"],
+): Promise<PinnedLocks> {
+  const pinned: { base?: string; candidate?: string } = {};
+  for (const side of ["base", "candidate"] as const) {
+    const name = keptLockName(side);
+    const logged = recorded.logs.find((log) => log.name === name);
+    if (logged === undefined) continue;
+    const bytes = await readFile(join(directory, name)).catch(() => null);
+    if (bytes === null || sha256(bytes) !== logged.sha256)
+      throw new UnreplayableBundleError(`${name} is not the lock the statement signed`);
+    pinned[side] = bytes.toString("utf8");
+  }
+  return pinned;
 }
 
 /** This machine as a host recording names it: `darwin-arm64`, `linux-x64`. */
@@ -135,7 +154,8 @@ export function replayRequest(
 /**
  * Runs the recorded verification again: the same base and signed patch, the same requirements
  * and checks, under the recorded execution with dependencies prepared fresh from the lockfiles
- * in the tree, then compares every result with what was recorded.
+ * in the tree, or from the uv.lock the recording resolved and kept, then compares every result
+ * with what was recorded.
  */
 export async function replay(
   bundle: string,
@@ -156,6 +176,7 @@ export async function replay(
   const replayed = await verify(request, {
     verifierVersion: options.verifierVersion,
     freshBase: true,
+    pinnedLocks: await keptLocks(bundle, recorded),
     ...(options.swarmHome === undefined ? {} : { swarmHome: options.swarmHome }),
   });
   return { recorded, replayed, divergences: divergencesOf(recorded, replayed) };

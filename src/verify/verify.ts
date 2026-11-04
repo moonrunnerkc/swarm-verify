@@ -9,6 +9,7 @@ import { applyChange, cloneBase } from "./checkout.ts";
 import { allChecks, environmentOf, privateHome } from "./checks.ts";
 import type { TestOutcome } from "./compare.ts";
 import { dependencyIdentity } from "./deps.ts";
+import { generatedLocks } from "./generated-lock.ts";
 import { alteredSealed, measureBase, readSealed, swarmHome } from "./held-out.ts";
 import { isolate } from "./isolate.ts";
 import { latestTargets, publicRegistries } from "./latest-version.ts";
@@ -90,12 +91,15 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
     );
     let coverage: Coverage = skipped("the checks did not run");
     let mutation: Mutation = skipped("the checks did not run");
+    const locks = await generatedLocks(checkout.dir, options.pinnedLocks);
+    await locks.before("base");
     const prepared = await prepareDependencies(
       options.workspace,
       config?.setup ?? null,
       options.policy.dependencies,
       context,
     );
+    await locks.after("base");
     if (prepared.refused !== null) blocked.push(prepared.refused);
     // Part of the dependency stage: the one stage with the network open, and recorded.
     const latest = await latestTargets(
@@ -142,14 +146,15 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       (one) => one.category === "lockfiles" || one.category === "manifests",
     );
     let candidateSetup: MeasuredRun["run"] | null = null;
-    const install = () =>
-      prepareDependencies(options.workspace, config?.setup ?? null, "prepare", context);
+    const install = (relock = false) =>
+      prepareDependencies(options.workspace, config?.setup ?? null, "prepare", context, relock);
     const ownDependencies =
       depsChanged &&
       prepared.failure === null &&
       (prepared.mode === "prepared" || prepared.mode === "setup");
     if (ownDependencies) {
-      const again = await install();
+      const again = await install((await locks.before("candidate")).relock);
+      await locks.after("candidate");
       candidateSetup = again.failure;
       dependencies = await dependencyIdentity(checkout.dir, again.mode, again.localPackages);
     } else if (depsChanged && prepared.mode === "linked") {
@@ -193,6 +198,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
         reruns: options.reruns ?? defaultReruns,
         reinstallBase: ownDependencies
           ? async () => {
+              await locks.restoreBase();
               const again = await install();
               return again.failure === null && again.refused === null;
             }
@@ -225,7 +231,14 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       freshDependencies: dependencies.mode === "prepared" && depsChanged && candidateSetup === null,
       latest,
     });
-    const execution = executionOf(options.policy, dependencies, isolated, tamperedTree);
+    logs.push(...locks.kept());
+    const generated = locks.kept().length > 0;
+    const execution = executionOf(
+      options.policy,
+      { ...dependencies, generated },
+      isolated,
+      tamperedTree,
+    );
     reasons.unshift(...blocked);
     const state = stateOf({ blocked, requirements, regression, execution, failed });
     const predicate: Predicate = {

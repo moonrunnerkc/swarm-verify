@@ -1,5 +1,6 @@
 import type { ExecutionPolicy, Producer, Requirement, TrustedCheck } from "../api/request.ts";
 import type { ResolvedChange } from "./change.ts";
+import type { PinnedLocks } from "./generated-lock.ts";
 import type { Registries } from "./latest-version.ts";
 import type { Statement } from "./predicate.ts";
 
@@ -21,6 +22,8 @@ export interface VerifyOptions {
   readonly version: string;
   /** Where a constraint's latest version is looked up; the public registries by default. */
   readonly registries?: Registries;
+  /** The uv.lock a recording generated for each side, which a replay installs from. */
+  readonly pinnedLocks?: PinnedLocks;
 }
 
 export interface VerifyOutcome {

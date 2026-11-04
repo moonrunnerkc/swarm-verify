@@ -13,9 +13,14 @@ const linkable = ["node_modules", ".venv"];
 /**
  * The install command a lockfile in `dir` asks for, or null where there is none. In a container
  * (`isolated`), a Python project without uv.lock is resolved with `uv lock` first, and the
- * generated lock is what the identity records.
+ * generated lock is what the identity records; `relock` resolves again over a lock the base's
+ * preparation generated, for a candidate whose manifest changed.
  */
-export async function lockfileInstall(dir: string, isolated = false): Promise<string | null> {
+export async function lockfileInstall(
+  dir: string,
+  isolated = false,
+  relock = false,
+): Promise<string | null> {
   const has = (name: string) =>
     lstat(join(dir, name)).then(
       () => true,
@@ -31,8 +36,10 @@ export async function lockfileInstall(dir: string, isolated = false): Promise<st
       ? `${manager}yarn install --immutable`
       : `${manager}yarn install --frozen-lockfile`;
   if ((await has("bun.lock")) || (await has("bun.lockb"))) return "bun install --frozen-lockfile";
+  const resolve = "uv lock && uv sync --frozen --all-extras";
+  if (relock && isolated && (await has("pyproject.toml"))) return resolve;
   if (await has("uv.lock")) return isolated ? "uv sync --frozen --all-extras" : "uv sync --frozen";
-  if (isolated && (await has("pyproject.toml"))) return "uv lock && uv sync --frozen --all-extras";
+  if (isolated && (await has("pyproject.toml"))) return resolve;
   return null;
 }
 
@@ -57,11 +64,12 @@ export async function prepareDependencies(
   setup: string | null,
   mode: "prepare" | "linked" | "none",
   context: CheckContext,
+  relock = false,
 ): Promise<Preparation> {
   if (mode === "none") return { mode: "none", failure: null, localPackages: [], refused: null };
   if (mode === "prepare") {
     const isolated = (context.sandbox ?? null) !== null;
-    const install = setup ?? (await lockfileInstall(context.dir, isolated));
+    const install = setup ?? (await lockfileInstall(context.dir, isolated, relock));
     if (install === null) return { mode: "none", failure: null, localPackages: [], refused: null };
     let localPackages: LocalPackage[] = [];
     try {

@@ -42,7 +42,9 @@ policy is not met, and the result is not complete.
    and `.venv`, which is never reproducible; `none` prepares nothing. A preparation that cannot
    start, such as a lockfile package from beside the repository that is not there, is recorded
    as `refused` with its reason, and the result is blocked; a replay prepares again and meets the
-   same refusal.
+   same refusal. In a container, a Python project that tracks no `uv.lock` is resolved with
+   `uv lock` first; that lock, for the base and for a candidate that resolves again, is kept with
+   the evidence under `lockfiles/` and digested in the statement, and a replay installs from it.
 4. Every check and every sealed held-out check runs at the base commit with each runner's report
    written and the judge loaded. Results are kept under `$SWARM_HOME/baselines/` keyed by the
    base, the environment digest (commands, lockfiles and the installed tree), the sealed set and

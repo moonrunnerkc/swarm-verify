@@ -60,6 +60,8 @@ export interface PreparedDependencies {
   readonly lockfiles: Readonly<Record<string, string>>;
   readonly treeSha256: string | null;
   readonly refused?: string | null;
+  /** The uv.lock it was installed from was resolved while preparing, and kept with the evidence. */
+  readonly generated?: boolean;
 }
 
 /** The container the checks ran in, or null for a host run. */
@@ -90,9 +92,11 @@ export function executionOf(
           ? `not prepared: ${prepared.refused ?? "the preparation was refused"}`
           : prepared.mode === "none"
             ? "no dependencies were prepared"
-            : reproducible
-              ? "prepared from the lockfile and digested"
-              : "prepared from the lockfile; the installed tree was not digested";
+            : reproducible && prepared.generated === true
+              ? "prepared from a uv.lock resolved during preparation, kept with the evidence under lockfiles/, and digested"
+              : reproducible
+                ? "prepared from the lockfile and digested"
+                : "prepared from the lockfile; the installed tree was not digested";
   if (policy.mode === "isolated" && isolation === null) {
     found.push("isolated execution was requested and this run did not provide it");
   }

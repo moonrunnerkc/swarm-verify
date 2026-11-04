@@ -4,6 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import { ZodError } from "zod";
 import { commitOf, git, type ResolvedChange, resolveChange } from "../verify/change.ts";
 import { writeAttestation } from "../verify/dsse.ts";
+import type { PinnedLocks } from "../verify/generated-lock.ts";
 import type { Registries } from "../verify/latest-version.ts";
 import { resolveSigningKey } from "../verify/signing.ts";
 import { verifyChange } from "../verify/verify.ts";
@@ -37,6 +38,8 @@ export interface VerifyCallOptions {
   readonly verifierVersion: string;
   /** Where a version constraint's latest is looked up; the public npm and PyPI registries otherwise. */
   readonly registries?: Registries;
+  /** The uv.lock a recording generated for each side, which a replay installs from. */
+  readonly pinnedLocks?: PinnedLocks;
 }
 
 export function parseRequest(input: VerifyRequestInput): VerifyRequest {
@@ -104,6 +107,7 @@ export async function verify(
     ...(options.signal === undefined ? {} : { signal: options.signal }),
     ...(options.freshBase === true ? { freshBase: true } : {}),
     ...(options.registries === undefined ? {} : { registries: options.registries }),
+    ...(options.pinnedLocks === undefined ? {} : { pinnedLocks: options.pinnedLocks }),
   });
   const directory = resolve(request.artifacts.directory);
   const problems: string[] = [];
