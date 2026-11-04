@@ -149,3 +149,9 @@ Open choices made while building Swarm Verify, dated, with the reason. Append on
 
 - 2.0.2 changes no verifier code; it exists to be the first version published by the release workflow, with provenance. npm trusted publishing (docs.npmjs.com/trusted-publishers, updated 2026-10-06) replaces a stored token: the workflow has `id-token: write` and no `NODE_AUTH_TOKEN`, checks its npm is 11.5.1 or later, and drops the setup-node dependency cache, as the docs' example does. The trusted publisher on npmjs.com names moonrunnerkc/swarm-verify and `release.yml`, no environment, with `npm publish` allowed. The compare step stays for a version already on the registry.
 - Tamper evaluation at b49b7ff, rerun for orchestrator 16.0.2: 20 honest patches, 0 flagged; 24 of 24 cheats flagged (`eval/results/tamper-2026-11-04T00-40-36-286Z.json`), the same as at fb4af91.
+
+## 2026-11-03: 2.0.2, released
+
+- The first release run (41756162835) met `E404` on `PUT /swarm-verify`: no trusted publisher existed for the package. `npm trust github` from npm 11.12.1 then failed with `400` on `POST /-/package/<name>/trust`; that version sends no `permissions`, which npm 11.21.1 adds with `--allow-publish` (`createPackage`). The publishers were created with npm 11.21.1. The failed job was rerun on the same tag and published 2.0.2 through OIDC.
+- `npm view swarm-verify@2.0.2`: integrity `sha512-TdWGEXPAexyT9EcVk0NIeTxk0+6p1SCh76x6XPF6kkch1aaQreWMEU82K5RJ6qfAxlyK1ZgU8R0HYg6iMLrL6w==`, the same as a pack of a fresh clone of 6defb81; `gitHead` 6defb81; a SLSA v1 provenance statement (sigstore log index 3685250665). `latest` is 2.0.2.
+- `v2` moved from fb4af91 to 6defb81; action-smoke resolved `@v2` to 6defb81 and passed (run 41757957540). `patch/2.0.2` is deleted from origin.
