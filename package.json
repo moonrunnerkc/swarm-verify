@@ -1,6 +1,6 @@
 {
   "name": "swarm-verify",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Measure a candidate change against a project's own checks and declared requirements in a clean checkout, test by test against the base, and sign the result as an in-toto Statement in a DSSE envelope that verify.mjs or cosign can check offline.",
   "keywords": [
     "verification",

@@ -6,6 +6,25 @@ of moonrunnerkc/swarm-verify. Versions before 1.0.0 (0.2.0, released with Swarm 
 swarm-orchestrator's `packages/swarm-verify`; 2.0.0 is the first built from this repository. A
 2.0.0 tagged there on 2026-10-29 was never published to npm, and its notes are folded in below.
 
+## 2.0.3 - 2026-11-04
+
+### Fixed
+
+- **A refactor is satisfied only by the structure it names.** A refactor requirement that named
+  no structure was given evidence by the verifier: any changed source file, recorded as observed.
+  With no regression, it was satisfied, whatever the change did. A run asked to move two modules,
+  leave shims and move three test files added two files and was called complete. A refactor now
+  needs at least one structure claim that holds; one that names none is unverified and told what
+  to name. Statements still read the `change` evidence kind, which nothing writes now.
+- **A uv.lock resolved while preparing travels with the evidence.** In a container, a Python
+  project that tracks no uv.lock is resolved with `uv lock`, and the statement called the result
+  reproducible. But the lock was discarded with the checkout, so a replay resolved again and could
+  diverge. Each side's generated lock is now kept under `lockfiles/` in the evidence, digested in
+  the signed statement, and a replay installs from it. A kept lock that differs from the signed
+  one is refused.
+- A candidate that changes its manifest over a generated base lock is resolved again. It used to
+  sync to the base's lock and install the base's dependencies.
+
 ## 2.0.2 - 2026-11-03
 
 No change to the verifier: its source, its statements and its results are 2.0.1's.

@@ -89,7 +89,7 @@ const result = await verify(
     policy: { execution: { mode: "host", network: "open", dependencies: "linked" } },
     artifacts: { directory: "/tmp/evidence" },
   },
-  { verifierVersion: "2.0.2" },
+  { verifierVersion: "2.0.3" },
 );
 ```
 
@@ -116,7 +116,7 @@ expectation where the change witnesses the new behavior, and records that it did
 
 ## Releases
 
-A full version tag (`v2.0.2`) on `main` runs the release workflow: the gates, a check that the tag
+A full version tag (`v2.0.3`) on `main` runs the release workflow: the gates, a check that the tag
 matches `package.json`, then `npm publish` through npm trusted publishing. The workflow holds no
 npm token; npm accepts the job's GitHub OIDC token and records a provenance statement naming this
 repository, the workflow and the commit. Where the version is already on the registry, it packs
