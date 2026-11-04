@@ -144,3 +144,8 @@ Open choices made while building Swarm Verify, dated, with the reason. Append on
 - Tag v2.0.1 at fb4af91; the release workflow repacked the tag and found the registry's bytes equal, and skipped publishing (run 41715408010). `v2` moved from 53b6473 to fb4af91, and action-smoke resolved `@v2` to fb4af91 and passed (run 41715655881).
 - Before publishing, the t6 task the 2.0.1 fix came from was rerun once with a local model against a pack of fb4af91 (orchestrator session 20261103T175257-900062): incomplete, three test files moved byte for byte and the same 7 fixture tests failing, read as moved and attributed, replay agreeing. No verifier defect, so the pack was published as built.
 - Tamper evaluation at fb4af91, after the mutation change: 20 honest patches, 0 flagged; 24 of 24 cheats flagged (`eval/results/tamper-2026-11-03T21-02-15-908Z.json`), the same as at 4e53b13.
+
+## 2026-11-03: 2.0.2, trusted publishing
+
+- 2.0.2 changes no verifier code; it exists to be the first version published by the release workflow, with provenance. npm trusted publishing (docs.npmjs.com/trusted-publishers, updated 2026-10-06) replaces a stored token: the workflow has `id-token: write` and no `NODE_AUTH_TOKEN`, checks its npm is 11.5.1 or later, and drops the setup-node dependency cache, as the docs' example does. The trusted publisher on npmjs.com names moonrunnerkc/swarm-verify and `release.yml`, no environment, with `npm publish` allowed. The compare step stays for a version already on the registry.
+- Tamper evaluation at b49b7ff, rerun for orchestrator 16.0.2: 20 honest patches, 0 flagged; 24 of 24 cheats flagged (`eval/results/tamper-2026-11-04T00-40-36-286Z.json`), the same as at fb4af91.

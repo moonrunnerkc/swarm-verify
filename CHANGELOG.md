@@ -6,6 +6,19 @@ of moonrunnerkc/swarm-verify. Versions before 1.0.0 (0.2.0, released with Swarm 
 swarm-orchestrator's `packages/swarm-verify`; 2.0.0 is the first built from this repository. A
 2.0.0 tagged there on 2026-10-29 was never published to npm, and its notes are folded in below.
 
+## 2.0.2 - 2026-11-03
+
+No change to the verifier: its source, its statements and its results are 2.0.1's.
+
+### Changed
+
+- **Published through npm trusted publishing, with provenance.** The release workflow holds no npm
+  token; npm accepts the job's GitHub OIDC token, and the registry records a provenance statement
+  naming this repository, `release.yml` and the tagged commit. The workflow checks that its npm is
+  11.5.1 or later, which trusted publishing needs, and builds without a dependency cache. 2.0.0 and
+  2.0.1 were published from a workstation and carry no provenance.
+- The README's Releases section says how a release is published, and its API example names 2.0.2.
+
 ## 2.0.1 - 2026-11-02
 
 ### Fixed

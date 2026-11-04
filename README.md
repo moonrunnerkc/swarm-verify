@@ -89,7 +89,7 @@ const result = await verify(
     policy: { execution: { mode: "host", network: "open", dependencies: "linked" } },
     artifacts: { directory: "/tmp/evidence" },
   },
-  { verifierVersion: "2.0.1" },
+  { verifierVersion: "2.0.2" },
 );
 ```
 
@@ -116,13 +116,15 @@ expectation where the change witnesses the new behavior, and records that it did
 
 ## Releases
 
-A full version tag (`v2.0.1`) on `main` runs the release workflow: the gates, a check that the tag
-matches `package.json`, then `npm publish` with provenance. Where the version is already on the
-registry, published from a workstation with npm's browser approval (2.0.1 was, and carries no
-provenance), it packs the tag instead and fails unless the pack's integrity equals the registry's. `v2` is the Action alias: it is moved
-to each 2.x release so `moonrunnerkc/swarm-verify@v2` follows the major version, and it is not a
-release tag; pushing it publishes nothing. Pin a full tag or a commit where you need the exact
-verifier.
+A full version tag (`v2.0.2`) on `main` runs the release workflow: the gates, a check that the tag
+matches `package.json`, then `npm publish` through npm trusted publishing. The workflow holds no
+npm token; npm accepts the job's GitHub OIDC token and records a provenance statement naming this
+repository, the workflow and the commit. Where the version is already on the registry, it packs
+the tag instead and fails unless the pack's integrity equals the registry's. 2.0.1 was published
+from a workstation and carries no provenance; 2.0.2 is the first release published by the
+workflow. `v2` is the Action alias: it is moved to each 2.x release so
+`moonrunnerkc/swarm-verify@v2` follows the major version, and it is not a release tag; pushing it
+publishes nothing. Pin a full tag or a commit where you need the exact verifier.
 
 ## Ownership
 
