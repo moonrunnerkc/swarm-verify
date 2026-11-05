@@ -172,7 +172,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
     } else if (checks.length === 0) {
       blocked.push("no checks are declared in swarm.toml or the project's manifests");
     } else if (prepared.failure !== null) {
-      blocked.push(baseSetupFailed(options.policy.mode));
+      blocked.push(baseSetupFailed(options.policy.mode, prepared.failure.notRun));
       failures.push(`setup failed:\n${prepared.failure.outputTail}`);
     } else if (candidateSetup !== null) {
       reasons.push("installing the candidate's dependencies from its lockfile failed");

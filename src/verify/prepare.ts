@@ -106,8 +106,17 @@ export async function prepareDependencies(
   return { mode: linked ? "linked" : "none", failure: null, localPackages: [], refused: null };
 }
 
-/** Why a run whose base did not install is blocked, and what to do, by where it ran. */
-export function baseSetupFailed(mode: "isolated" | "host"): string {
+/**
+ * Why a run whose base did not install is blocked, and what to do, by where it ran. A setup that
+ * never ran is not a dependency's failure: orchestrator 17.0.0-rc.13's release smoke, its scratch
+ * under macOS's temporary directory, which colima does not share with its VM, was told to fix "the
+ * dependency the setup output names" when docker could not mount the checkout at all.
+ */
+export function baseSetupFailed(mode: "isolated" | "host", notRun: string | null = null): string {
+  if (notRun !== null)
+    return mode === "isolated"
+      ? `the base's dependencies were not installed: the setup ${notRun}; make the container runtime able to run it on this checkout (a running daemon, a VM that shares the checkout's directory), then verify again`
+      : `the base's dependencies were not installed: the setup ${notRun}; verify again`;
   return mode === "isolated"
     ? "the base's dependencies did not install from its lockfile in a clean container: fix the dependency the setup output names, or verify on the host with the workspace's installed dependencies, reported as not isolated and not reproducible"
     : "the base's dependencies did not install from its lockfile: fix the dependency the setup output names, or use the workspace's installed dependencies (dependencies: linked), reported as not reproducible";
