@@ -43,6 +43,8 @@ describe("a held-out check, before it is sealed", () => {
     expect(notes).toEqual([
       "held-out check held-out fails at the base and passes on the reference patch",
     ]);
+    // The patch ran in place, so the editable .venv imports the patched source; then it went.
+    expect(execFileSync("git", ["status", "--short"], { cwd: repo, encoding: "utf8" })).toBe("");
   });
 
   // ironroot (2026-11-04): the held-out pytest ran under the project's --cov-fail-under=68, which

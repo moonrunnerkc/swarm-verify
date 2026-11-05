@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { cp, mkdtemp } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DeclaredCheck } from "../config/swarm-toml.ts";
@@ -60,7 +60,7 @@ const git = (cwd: string, args: readonly string[]) =>
  * Before anything is sealed: each held-out test check, with the held-out files in place, fails at
  * the base because a test fails, not because of a gate around the tests (a coverage threshold
  * fails any run of one file with every test passing); and, given the change known to be right,
- * passes on it. A check that fails for a reason no change removes would fail every candidate.
+ * passes with it applied to the workspace, which is put back after. A check that fails for a reason no change removes would fail every candidate.
  */
 export async function validateHeldOut(input: {
   readonly workspace: string;
@@ -79,22 +79,27 @@ export async function validateHeldOut(input: {
       );
     }
     if (input.reference === null) continue;
-    const copy = await mkdtemp(join(tmpdir(), "swarm-verify-reference-"));
+    // In place, not in a copy: a copy's .venv still imports the original tree's source through
+    // its editable install, so a copied, patched tree would run the base's code.
+    await git(input.workspace, ["apply", "--whitespace=nowarn", input.reference]);
+    let after: Awaited<ReturnType<typeof measure>>;
     try {
-      await cp(input.workspace, copy, { recursive: true, verbatimSymlinks: true });
-      await git(copy, ["apply", "--whitespace=nowarn", input.reference]);
-      const after = await measure(check, copy, "validate-reference");
-      if (after.exitCode !== 0) {
-        throw new HeldOutRefused(
-          `held-out check ${check.name} fails on the reference patch (exit ${after.exitCode}${after.failing === null ? "" : `, ${after.failing} failing test(s)`}), so no correct change could pass it: ${after.tail}`,
-        );
-      }
-      notes.push(
-        `held-out check ${check.name} fails at the base and passes on the reference patch`,
-      );
+      after = await measure(check, input.workspace, "validate-reference");
     } finally {
-      await removeTree(copy);
+      await git(input.workspace, ["apply", "-R", "--whitespace=nowarn", input.reference]).catch(
+        () => {
+          throw new HeldOutRefused(
+            `the reference patch could not be taken back out of ${input.workspace} after its run; restore the workspace with git before sealing again`,
+          );
+        },
+      );
     }
+    if (after.exitCode !== 0) {
+      throw new HeldOutRefused(
+        `held-out check ${check.name} fails on the reference patch (exit ${after.exitCode}${after.failing === null ? "" : `, ${after.failing} failing test(s)`}), so no correct change could pass it: ${after.tail}`,
+      );
+    }
+    notes.push(`held-out check ${check.name} fails at the base and passes on the reference patch`);
   }
   return notes;
 }
