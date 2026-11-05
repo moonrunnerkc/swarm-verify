@@ -8,6 +8,7 @@ const sandbox: Sandbox = {
   hidden: ["/s/run/tree/.git"],
   cache: "/home/u/.swarm/cache",
   user: "501:20",
+  files: [{ src: "/s/run/account/passwd", dst: "/etc/passwd" }],
   clock: { lastEnded: 0 },
 };
 const args = (stage: "prepare" | "check", network?: "open" | "closed") =>
@@ -28,6 +29,7 @@ describe("the container a command runs in", () => {
     ]);
     expect(run).toContain("type=bind,src=/s/run/judge,dst=/s/run/judge,readonly");
     expect(run).toContain("type=tmpfs,dst=/s/run/tree/.git");
+    expect(run).toContain("type=bind,src=/s/run/account/passwd,dst=/etc/passwd,readonly");
     expect(run.join(" ")).not.toContain("/swarm-cache");
     expect(run.slice(-4)).toEqual([defaultImages.node, "/bin/sh", "-c", `${pnpmShim}npm test`]);
   });
@@ -48,7 +50,12 @@ describe("the container a command runs in", () => {
     const sources = args("prepare")
       .filter((arg) => arg.startsWith("type=bind"))
       .map((arg) => /src=([^,]+)/.exec(arg)?.[1]);
-    expect(sources).toEqual(["/s/run", "/s/run/judge", "/home/u/.swarm/cache"]);
+    expect(sources).toEqual([
+      "/s/run",
+      "/s/run/judge",
+      "/s/run/account/passwd",
+      "/home/u/.swarm/cache",
+    ]);
     expect(args("check").join(" ")).not.toMatch(/docker\.sock|\/Users\/|\.ssh|\.aws/);
   });
 

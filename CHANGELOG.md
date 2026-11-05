@@ -6,6 +6,17 @@ of moonrunnerkc/swarm-verify. Versions before 1.0.0 (0.2.0, released with Swarm 
 swarm-orchestrator's `packages/swarm-verify`; 2.0.0 is the first built from this repository. A
 2.0.0 tagged there on 2026-10-29 was never published to npm, and its notes are folded in below.
 
+## Unreleased
+
+### Fixed
+
+- **Checks in a container run as a user the image lists.** Isolated checks run as the host's uid
+  and gid, which a pinned image's /etc/passwd and /etc/group do not list, so any tool that looks
+  its user up failed: ssh-keygen, Node's os.userInfo, `id -un`. In tracemantle, 47 ssh-keygen tests
+  failed at the base and with every candidate and read as inherited, so a regression among them
+  would not have been seen. The image's own account files, with an entry for that uid and gid
+  added where they have none, are now bound read-only over the image's for every container run.
+
 ## 2.0.3 - 2026-11-04
 
 ### Fixed

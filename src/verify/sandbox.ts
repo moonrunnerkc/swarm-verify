@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { access } from "node:fs/promises";
 import { join } from "node:path";
 import { type ProcessRunResult, runProcessGroup } from "../exec/run-process.ts";
+import type { BoundFile } from "./container-user.ts";
 
 /**
  * The one isolated backend: docker. Every check runs in a fresh container from a pinned image
@@ -24,6 +25,8 @@ export interface Sandbox {
   /** A dependency cache under the verifier's home, mounted only while dependencies are prepared. */
   readonly cache: string;
   readonly user: string;
+  /** Files bound read-only over the image's own, such as account files listing `user`. */
+  readonly files: readonly BoundFile[];
   /** When the last container run ended, to space runs out where the host's files reach the VM late. */
   readonly clock: { lastEnded: number };
 }
@@ -63,7 +66,7 @@ export class SandboxUnavailableError extends Error {
   }
 }
 
-const docker = (args: readonly string[], timeout = 600_000) =>
+export const docker = (args: readonly string[], timeout = 600_000) =>
   new Promise<{ readonly code: number; readonly stdout: string; readonly stderr: string }>(
     (settle) => {
       execFile(
@@ -168,6 +171,10 @@ export function containerRun(
     ["--mount", `type=bind,src=${sandbox.scratch},dst=${sandbox.scratch}`],
     ...sandbox.readOnly.map((path) => ["--mount", `type=bind,src=${path},dst=${path},readonly`]),
     ...sandbox.hidden.map((path) => ["--mount", `type=tmpfs,dst=${path}`]),
+    ...sandbox.files.map((file) => [
+      "--mount",
+      `type=bind,src=${file.src},dst=${file.dst},readonly`,
+    ]),
     ...(input.stage === "prepare"
       ? [["--mount", `type=bind,src=${sandbox.cache},dst=/swarm-cache`]]
       : []),

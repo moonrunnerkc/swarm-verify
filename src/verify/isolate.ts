@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { ExecutionPolicy } from "../api/request.ts";
+import { accountFiles } from "./container-user.ts";
 import { imageFor, readyImage, type Sandbox, SandboxUnavailableError } from "./sandbox.ts";
 
 export type Isolated =
@@ -31,7 +32,9 @@ export async function isolate(
     const cache = join(home, "cache");
     await mkdir(judge, { recursive: true, mode: 0o700 });
     await mkdir(cache, { recursive: true, mode: 0o700 });
-    const user = `${process.getuid?.() ?? 0}:${process.getgid?.() ?? 0}`;
+    const uid = process.getuid?.() ?? 0;
+    const gid = process.getgid?.() ?? 0;
+    const files = await accountFiles(image, join(scratch, "account"), uid, gid);
     return {
       imageId,
       sandbox: {
@@ -40,7 +43,8 @@ export async function isolate(
         readOnly: [judge],
         hidden: [join(dir, ".git")],
         cache,
-        user,
+        user: `${uid}:${gid}`,
+        files,
         clock: { lastEnded: 0 },
       },
     };
