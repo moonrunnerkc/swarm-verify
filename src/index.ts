@@ -45,5 +45,7 @@ export {
 export { buildVersion as verifierVersion } from "./build-version.ts";
 export { predicateType } from "./verify/predicate.ts";
 export { exitCodeOf, renderMarkdown, renderText } from "./verify/report.ts";
+/** A structure claim read against a tree, the way the verifier reads it: for a producer's checks. */
+export { structureEvidence } from "./verify/requirement-evidence.ts";
 export type { SealedFile, SealedSet } from "./verify/sealed-store.ts";
 export { readSealed, SealError, sealedDirectory, sealFiles } from "./verify/sealed-store.ts";
