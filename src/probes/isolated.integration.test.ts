@@ -91,6 +91,23 @@ describe("verifying in a container", () => {
     expect(result.baseline.status === "measured" && result.baseline.checks[0]?.exitCode).toBe(1);
     expect(result.checks[0]?.result).toBe("unresolved");
   });
+
+  // tracemantle's 47 ssh-keygen tests failed in every isolated run, base and candidate alike, and
+  // read as inherited: the checks ran as the host's uid, which the image's passwd did not list,
+  // and ssh-keygen (like os.userInfo) refuses a user it cannot look up.
+  it("runs the checks as a user the image's passwd and group list", async () => {
+    const lookup =
+      "node -e \"const os=require('node:os');process.stdout.write(os.userInfo().username)\" && id -gn";
+    const probe = await probeFixture({ "package.json": manifest }, lookup, parent);
+    await probe.put("note.txt", "x\n");
+    const result = await probe.verify([], {
+      mode: "isolated",
+      dependencies: "none",
+      network: "closed",
+    });
+    expect(result.baseline.status === "measured" && result.baseline.checks[0]?.exitCode).toBe(0);
+    expect(result.checks[0]?.result).toBe("pass");
+  });
 });
 
 describe("a lockfile that installs a package from beside the repository", () => {
