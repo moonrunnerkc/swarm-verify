@@ -6,6 +6,7 @@
  * reference patch first), then verify every patch with the built CLI and compare.
  *
  *   node scripts/corpus.mjs [--only id,id] [--source github|local] [--work dir] [--out file]
+ *                           [--cli path/to/swarm-verify.js]
  *
  * An expected status of null is a status the record does not establish: it is reported as
  * observed, never counted as a pass. A private repository runs only with --source local.
@@ -19,7 +20,6 @@ import { parseArgs } from "node:util";
 
 const root = join(import.meta.dirname, "..");
 const corpus = join(root, "corpus");
-const cli = join(root, "dist", "swarm-verify.js");
 
 const { values } = parseArgs({
   options: {
@@ -27,8 +27,11 @@ const { values } = parseArgs({
     source: { type: "string", default: "github" },
     work: { type: "string" },
     out: { type: "string" },
+    // An installed verifier's CLI, for a release's packed install; this tree's build otherwise.
+    cli: { type: "string" },
   },
 });
+const cli = resolve(values.cli ?? join(root, "dist", "swarm-verify.js"));
 const work = resolve(values.work ?? join(root, ".corpus-work"));
 const only = values.only?.split(",").filter(Boolean) ?? null;
 const ids = JSON.parse(readFileSync(join(corpus, "manifest.json"), "utf8")).filter(

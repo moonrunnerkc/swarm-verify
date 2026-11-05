@@ -66,6 +66,23 @@ jobs:
           fi
           echo "$NAME@$PKG on the registry is this commit's pack ($PACKED)"
           echo "published=true" >> "$GITHUB_OUTPUT"
+      # A real sealed task through the packed install before anything reaches the registry: pubprep's
+      # --reviewers feature, its held-out cases sealed and checked on the reference patch, and
+      # every patch judged on it read as the corpus expects. A version that cannot judge it right
+      # is not published.
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.11.13"
+          enable-cache: false
+      - name: Judge a sealed task through the packed install
+        if: steps.registry.outputs.published == 'false'
+        run: |
+          npm pack --silent --pack-destination "$RUNNER_TEMP/packs"
+          mkdir -p "$RUNNER_TEMP/prefix" && cd "$RUNNER_TEMP/prefix"
+          echo '{ "name": "smoke", "private": true }' > package.json
+          npm install --no-audit --no-fund "$RUNNER_TEMP"/packs/swarm-verify-*.tgz
+          cd "$GITHUB_WORKSPACE"
+          node scripts/corpus.mjs --only cmp-feature-pubprep --source github --cli "$RUNNER_TEMP/prefix/node_modules/swarm-verify/dist/swarm-verify.js"
       - name: Publish
         if: steps.registry.outputs.published == 'false'
         run: npm publish --provenance --access public
