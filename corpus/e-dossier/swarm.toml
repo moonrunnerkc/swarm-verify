@@ -1,0 +1,5 @@
+# The declared checks the recorded verification ran, from its result.json.
+[checks]
+test = "npm run test"
+lint = "npm run lint"
+build = "npm run build"

@@ -1,0 +1,54 @@
+{
+ "id": "fix-depose-09b01c1",
+ "repository": "Aftermath-Technologies-Ltd/depose",
+ "base": "3429b76176a8516d421738b29c1bc4c87545b08a",
+ "setup": "pnpm install --frozen-lockfile",
+ "isolation": "host",
+ "hostReason": "depose's typecheck and build need Go (make build-local), which the verifier's node image lacks; in the container they fail at the base and with every patch and read unresolved (2026-10-31/README.md, f-fix-isolated/README.md)",
+ "heldOut": {
+  "glob": "packages/core/test/events.ids.test.ts",
+  "command": "pnpm exec vitest run packages/core/test/events.ids.test.ts"
+ },
+ "source": [
+  "docs/acceptance/2026-10-31/f-fix-isolated/README.md",
+  "docs/acceptance/2026-10-31/README.md"
+ ],
+ "patches": [
+  {
+   "name": "human",
+   "file": "patches/human.patch",
+   "sha256": "6e0cbd46ab1e37561458be235dec3b577d05f95c5505bbddfbb140d99f4405bf",
+   "origin": "depose 09b01c1 less packages/core/test/events.ids.test.ts, the held-out test",
+   "expected": null,
+   "why": "the human fix was never judged (depose was not probed: its build needs Go); no state, requirement or held-out result is recorded"
+  },
+  {
+   "name": "swarm-16.0.1",
+   "file": "patches/swarm-16.0.1.patch",
+   "sha256": "d0ca3d293893e7f91a4192a62311c4a10b2ec39df666e46194ba734ff92ab00c",
+   "origin": "swarm patch/16.0.1 (gemma4:31b, escalated), session 20261103T012746-36fbbf",
+   "expected": {
+    "state": null,
+    "requirements": {
+     "R1": null
+    },
+    "heldOut": "pass"
+   },
+   "why": "held-out/witness.txt (container) and held-out/host-after.out (host, 12 of 12): held-out pass. State recorded only isolated (incomplete: typecheck and build unresolved for lack of Go); no host verdict is recorded. R1 rests on its own tests: unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it"
+  },
+  {
+   "name": "swarm-16.0.2-1",
+   "file": "patches/swarm-16.0.2-1.patch",
+   "sha256": "5d4c41b1e80cb2fb77fde2e9bae9df5b18257f0abb5de97dda441ad2c214b267",
+   "origin": "swarm 16.0.2 candidate (gemma4:31b, escalated), session 20261103T221128-fcb79f; this entry's requirement record",
+   "expected": {
+    "state": null,
+    "requirements": {
+     "R1": null
+    },
+    "heldOut": "pass"
+   },
+   "why": "rerun-16.0.2-attempt-1/held-out/witness.txt (container): held-out pass. State recorded only isolated (incomplete, unresolved typecheck and build); no host verdict. R1 rests on its own tests: unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it"
+  }
+ ]
+}

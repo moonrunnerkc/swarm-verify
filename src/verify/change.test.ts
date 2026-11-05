@@ -44,3 +44,20 @@ describe("snapshotting a working tree", () => {
     expect(patch).not.toContain(".swarm");
   });
 });
+
+describe("removing a scratch tree", () => {
+  it("removes the read-only directories a toolchain leaves in it", async () => {
+    const { mkdir, mkdtemp, writeFile, chmod, access } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { removeTree } = await import("./change.ts");
+    const root = await mkdtemp(join(tmpdir(), "scratch-"));
+    const cache = join(root, "home", "go", "pkg", "mod", "uuid@v1.6.0");
+    await mkdir(cache, { recursive: true });
+    await writeFile(join(cache, "CHANGELOG.md"), "x");
+    await chmod(join(cache, "CHANGELOG.md"), 0o444);
+    await chmod(cache, 0o555);
+    await removeTree(root);
+    await expect(access(root)).rejects.toThrow(/ENOENT/);
+  });
+});

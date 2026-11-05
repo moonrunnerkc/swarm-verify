@@ -1,0 +1,78 @@
+[
+ {
+  "id": "R1",
+  "text": "Make --max-budget-usd also accept --max-budget-usd=<n>. Reject an empty value (--max-budget-usd=). When the next token is another flag (--max-budget-usd --dry-run), report that it requires a numeric value instead of 'got: --dry-run'. 0 stays valid.",
+  "source": "user",
+  "kind": "feature",
+  "required": true,
+  "assumptions": [],
+  "versions": [],
+  "evidence": {
+   "tests": [
+    {
+     "name": "parseArgs > parses --max-budget-usd=<n>"
+    }
+   ],
+   "checks": [],
+   "structure": [],
+   "packages": []
+  }
+ },
+ {
+  "id": "R2",
+  "text": "Reject empty value --max-budget-usd= with a non-negative-number error",
+  "source": "inferred",
+  "kind": "fix",
+  "required": true,
+  "assumptions": [],
+  "versions": [],
+  "evidence": {
+   "tests": [
+    {
+     "name": "parseArgs > rejects --max-budget-usd= with an empty value"
+    }
+   ],
+   "checks": [],
+   "structure": [],
+   "packages": []
+  }
+ },
+ {
+  "id": "R3",
+  "text": "When next token is another flag, report 'requires a numeric value' instead of 'got: <flag>'",
+  "source": "inferred",
+  "kind": "fix",
+  "required": true,
+  "assumptions": [],
+  "versions": [],
+  "evidence": {
+   "tests": [
+    {
+     "name": "parseArgs > rejects --max-budget-usd followed by another flag"
+    }
+   ],
+   "checks": [],
+   "structure": [],
+   "packages": []
+  }
+ },
+ {
+  "id": "R4",
+  "text": "0 stays valid for --max-budget-usd",
+  "source": "inferred",
+  "kind": "other",
+  "required": true,
+  "assumptions": [],
+  "versions": [],
+  "evidence": {
+   "tests": [
+    {
+     "name": "parseArgs > parses --max-budget-usd <n>"
+    }
+   ],
+   "checks": [],
+   "structure": [],
+   "packages": []
+  }
+ }
+]

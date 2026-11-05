@@ -24,3 +24,4 @@ scratchpad/
 # Stub evaluation runs check the harness and measure nothing
 eval/results/*-stub/
 __pycache__/
+/.corpus-work/

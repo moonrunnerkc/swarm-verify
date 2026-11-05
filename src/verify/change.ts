@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -64,7 +64,29 @@ export async function scratchDirectory(
 }> {
   await mkdir(parent, { recursive: true, mode: 0o700 });
   const path = await mkdtemp(join(parent, prefix));
-  return { path, remove: () => rm(path, { recursive: true, force: true }) };
+  return { path, remove: () => removeTree(path) };
+}
+
+/**
+ * Removes a scratch tree, the read-only directories a toolchain leaves in it included: Go's
+ * module cache under a check's private HOME is read-only, and removing a file needs its
+ * directory writable (depose, 2026-11-05: EACCES, and the run was lost).
+ */
+export async function removeTree(path: string): Promise<void> {
+  try {
+    await rm(path, { recursive: true, force: true });
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== "EACCES" && code !== "EPERM") throw error;
+    await writable(path);
+    await rm(path, { recursive: true, force: true });
+  }
+}
+
+async function writable(dir: string): Promise<void> {
+  await chmod(dir, 0o700).catch(() => undefined);
+  const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) if (entry.isDirectory()) await writable(join(dir, entry.name));
 }
 
 /** Where the change comes from. Each resolves to a base commit and the exact patch bytes. */

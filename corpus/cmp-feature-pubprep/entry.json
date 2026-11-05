@@ -1,0 +1,73 @@
+{
+ "id": "cmp-feature-pubprep",
+ "repository": "moonrunnerkc/pubprep",
+ "base": "99d8d054753b4e8979431eb58792895c754fbdc9",
+ "setup": "npm ci --no-audit --no-fund",
+ "isolation": "isolated",
+ "heldOut": {
+  "glob": "test/**/*.held-out.test.ts",
+  "command": "npx vitest run test/reviewers.held-out.test.ts"
+ },
+ "source": [
+  "docs/acceptance/2026-11-04-comparison/README.md",
+  "docs/acceptance/2026-11-04-comparison/feature-pubprep/criteria.md"
+ ],
+ "patches": [
+  {
+   "name": "reference",
+   "file": "patches/reference.patch",
+   "sha256": "a4a391f7fda3d76a03fb5de5bcf25dae7f1aeaa153f4a7d9567d8fb6ae1bece0",
+   "origin": "reference patch, no tests (screening)",
+   "expected": {
+    "state": null,
+    "requirements": {
+     "R1": null
+    },
+    "heldOut": "pass"
+   },
+   "why": "screening/feature-pubprep/result.txt (2.0.3): incomplete, R1 unverified (no mapped test fails before and passes after), held-out pass. Unreleased swarm-verify judges sealed tests by identity and R1's selector test:: also selects the sealed test/reviewers.held-out.test.ts, so the recorded state and R1 need not hold; not recorded under it"
+  },
+  {
+   "name": "reference-2",
+   "file": "patches/reference-2.patch",
+   "sha256": "48dc690cfcf9bcbc9920b05bd42b0cabf15a12b2245a3bb6689493629dc960d7",
+   "origin": "reference patch with tests (screening)",
+   "expected": {
+    "state": "complete",
+    "requirements": {
+     "R1": "satisfied"
+    },
+    "heldOut": "pass"
+   },
+   "why": "screening/feature-pubprep-2/result.txt (2.0.3): complete, R1 satisfied, held-out pass"
+  },
+  {
+   "name": "claude",
+   "file": "patches/claude.patch",
+   "sha256": "c63846f4e6f066be155f4eb69501bee3e35697f0de3924f0327349c83235d6c1",
+   "origin": "Claude Code, 2026-11-04 comparison",
+   "expected": {
+    "state": "complete",
+    "requirements": {
+     "R1": "satisfied"
+    },
+    "heldOut": "pass"
+   },
+   "why": "claude/judged/result.txt (2.0.3): complete, R1 satisfied, held-out pass (all ten sealed cases)"
+  },
+  {
+   "name": "swarm",
+   "file": "patches/swarm.patch",
+   "sha256": "c0c3b1e8047d4d423a1ed0ae5c325cdc2948b947555cbb45cf71bf8fce625b27",
+   "origin": "swarm run 16.0.4 (gemma4:31b, escalated to qwen3.6:35b-a3b), 2026-11-04 comparison",
+   "expected": {
+    "state": "incomplete",
+    "requirements": {
+     "R1": null
+    },
+    "heldOut": "fail"
+   },
+   "why": "swarm/judged/result.txt (2.0.3): incomplete, held-out fail (one sealed case: reviewer order, swarm/held-out-host.out), R1 satisfied. R1 is null: under unreleased swarm-verify the failing sealed test is selected by R1's test:: and may read R1 failed; not recorded"
+  }
+ ]
+}

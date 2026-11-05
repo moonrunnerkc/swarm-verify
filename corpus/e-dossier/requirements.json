@@ -1,0 +1,21 @@
+[
+ {
+  "id": "R1",
+  "text": "walkRepo in src/adversarial/fs-walk.ts should skip a .venv directory the way it skips node_modules; add it with a test.",
+  "source": "user",
+  "kind": "feature",
+  "required": true,
+  "assumptions": [],
+  "versions": [],
+  "evidence": {
+   "tests": [
+    {
+     "name": "should skip .venv directory"
+    }
+   ],
+   "checks": [],
+   "structure": [],
+   "packages": []
+  }
+ }
+]

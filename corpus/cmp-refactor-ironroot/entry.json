@@ -1,0 +1,59 @@
+{
+ "id": "cmp-refactor-ironroot",
+ "repository": "Aftermath-Technologies-Ltd/ironroot",
+ "base": "1d325c297757e83f048be593b59cfda7681a5448",
+ "setup": "uv venv -q -p 3.12 .venv && uv pip install -q -e .[dev]",
+ "isolation": "isolated",
+ "heldOut": {
+  "glob": "tests/**/*held_out*",
+  "command": "python3 -m pytest -q --no-cov -p no:cacheprovider tests/integrity/test_builtin_claims_held_out.py"
+ },
+ "source": [
+  "docs/acceptance/2026-11-04-comparison/README.md",
+  "docs/acceptance/2026-11-04-comparison/refactor-ironroot/criteria.md"
+ ],
+ "patches": [
+  {
+   "name": "reference",
+   "file": "patches/reference.patch",
+   "sha256": "9b7e4c89b9d17c6bd42d3696e9a357d695d0f7e959d7d896c513121c3efb6608",
+   "origin": "reference patch (screening)",
+   "expected": {
+    "state": "complete",
+    "requirements": {
+     "R1": "satisfied"
+    },
+    "heldOut": "pass"
+   },
+   "why": "screening/refactor-ironroot/result.txt (2.0.3): complete, R1 satisfied, held-out pass"
+  },
+  {
+   "name": "claude",
+   "file": "patches/claude.patch",
+   "sha256": "ec6d78bb30b90709c173028946b04e2e8a5a7e5361666eab00ddbaf2b3625788",
+   "origin": "Claude Code, 2026-11-04 comparison",
+   "expected": {
+    "state": "complete",
+    "requirements": {
+     "R1": "satisfied"
+    },
+    "heldOut": "pass"
+   },
+   "why": "claude/judged/result.txt (2.0.3): complete, R1 satisfied, held-out pass"
+  },
+  {
+   "name": "swarm",
+   "file": "patches/swarm.patch",
+   "sha256": "6b42d28b5be6428020a7b09acd7bbcc2aad4d68b5ac9cd51c3177fdc3f1ee715",
+   "origin": "swarm run 16.0.4 (gemma4:31b, escalated to qwen3.6:35b-a3b), 2026-11-04 comparison",
+   "expected": {
+    "state": "incomplete",
+    "requirements": {
+     "R1": "satisfied"
+    },
+    "heldOut": "fail"
+   },
+   "why": "swarm/judged/result.txt (2.0.3): incomplete, R1 satisfied (the record's contains-claims hold on the copy), held-out fail (falsification.py still defines the falsifiers)"
+  }
+ ]
+}

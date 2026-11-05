@@ -1,8 +1,9 @@
 import { execFile } from "node:child_process";
-import { cp, mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DeclaredCheck } from "../config/swarm-toml.ts";
+import { removeTree } from "./change.ts";
 import { privateHome } from "./checks.ts";
 import { reportPlans, runMeasured } from "./per-test.ts";
 
@@ -36,7 +37,7 @@ async function measure(check: DeclaredCheck, dir: string, label: string) {
       tail: run.run.outputTail.slice(-600),
     };
   } finally {
-    await rm(scratch, { recursive: true, force: true });
+    await removeTree(scratch);
   }
 }
 
@@ -86,7 +87,7 @@ export async function validateHeldOut(input: {
         `held-out check ${check.name} fails at the base and passes on the reference patch`,
       );
     } finally {
-      await rm(copy, { recursive: true, force: true });
+      await removeTree(copy);
     }
   }
   return notes;

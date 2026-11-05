@@ -1,0 +1,47 @@
+{
+ "id": "fix-tracemantle-c4dc276c4",
+ "repository": "moonrunnerkc/tracemantle",
+ "base": "07e36940ff90bd9e6b6ed4bed959da93d4859941",
+ "setup": "uv venv -q -p 3.12 .venv && uv pip install -q -e .[dev]",
+ "isolation": "isolated",
+ "heldOut": {
+  "glob": "tests/test_config_loader.py",
+  "command": "python3 -m pytest -q --no-cov tests/test_config_loader.py"
+ },
+ "source": [
+  "docs/acceptance/2026-10-31/README.md",
+  "docs/acceptance/2026-10-31/f-fix-isolated/tracemantle-c4dc276c4/attempt-1/held-out-2/",
+  "docs/acceptance/2026-10-31/f-fix-isolated/probes-16.0.3/tracemantle-c4dc276c4.verify.out",
+  "docs/plans/2026-11-04-16.0.4-report.md"
+ ],
+ "patches": [
+  {
+   "name": "human",
+   "file": "patches/human.patch",
+   "sha256": "7dff9eb940dc5f7abc5495abec8e277d3866b8c945a03a3e26b1102b2f0cc1d2",
+   "origin": "tracemantle c4dc276c4 less its added tests and fixtures (the held-out set)",
+   "expected": {
+    "state": null,
+    "requirements": {
+     "R1": null
+    },
+    "heldOut": "pass"
+   },
+   "why": "probes-16.0.3/tracemantle-c4dc276c4.verify.out (2.0.2, the whole fix commit by --range, no requirements): complete, the fix's own test passing in the container. Not judged in split form or under this record, whose tests name the model's own test"
+  },
+  {
+   "name": "swarm-attempt-1",
+   "file": "patches/swarm-attempt-1.patch",
+   "sha256": "9835c36695d7e8e8fff68e57b4fb3e18a1a5375ad78a0ba81a364704919e448f",
+   "origin": "swarm 16.0.2 build (gemma4:31b), session 20261104T051054-41553d; this entry's requirement record",
+   "expected": {
+    "state": null,
+    "requirements": {
+     "R1": null
+    },
+    "heldOut": "pass"
+   },
+   "why": "attempt-1/held-out-2/witness.txt and verify.out: complete, held-out pass (fails at the base), 131 to 135 tiktoken tests inherited. Its requirements name only tests the patch adds: unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it"
+  }
+ ]
+}

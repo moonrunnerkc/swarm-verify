@@ -1,0 +1,42 @@
+{
+ "id": "h2-ironroot",
+ "repository": "Aftermath-Technologies-Ltd/ironroot",
+ "base": "1d325c297757e83f048be593b59cfda7681a5448",
+ "setup": "uv venv -q -p 3.12 .venv && uv pip install -q -e .[dev]",
+ "isolation": "isolated",
+ "heldOut": null,
+ "source": [
+  "docs/acceptance/2026-10-31/README.md",
+  "docs/acceptance/2026-10-31/comparison/h2/"
+ ],
+ "patches": [
+  {
+   "name": "claude",
+   "file": "patches/claude.patch",
+   "sha256": "7b783c16ce16b713e8fe345062578d4e27fac6352cc978da3f415b5e67c8c155",
+   "origin": "Claude Code, 2026-11-01 comparison",
+   "expected": {
+    "state": null,
+    "requirements": {
+     "R1": null
+    },
+    "heldOut": null
+   },
+   "why": "comparison/h2/verify-2.0.0.out: complete, R1 satisfied. R1's one test is added by this patch: unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it"
+  },
+  {
+   "name": "swarm-closing-1",
+   "file": "patches/swarm-closing-1.patch",
+   "sha256": "f4d2eababd636ae9482129c56794f90b580e5bc709c99c6be9fcd46e4302e1e1",
+   "origin": "swarm run (qwen3.8:27b), session 20261101T203914-4e0ccd",
+   "expected": {
+    "state": "incomplete",
+    "requirements": {
+     "R1": null
+    },
+    "heldOut": null
+   },
+   "why": "closing-attempt-1/result.json (2.0.0): incomplete, R1 unverified under its own record; the patch is the one-line source fix with no test, so the test this record names is absent. R1 not judged under this record"
+  }
+ ]
+}

@@ -1,0 +1,31 @@
+{
+ "id": "t1-pubprep",
+ "repository": "moonrunnerkc/pubprep",
+ "base": "99d8d054753b4e8979431eb58792895c754fbdc9",
+ "setup": "npm ci --no-audit --no-fund",
+ "isolation": "isolated",
+ "heldOut": null,
+ "source": [
+  "docs/acceptance/2026-10-31/README.md",
+  "docs/acceptance/2026-10-31/t1-pubprep/final/"
+ ],
+ "patches": [
+  {
+   "name": "swarm-final",
+   "file": "patches/swarm-final.patch",
+   "sha256": "39cc68d382de9284f1a4b924442956d74c99453c30b256f477b88a5627949161",
+   "origin": "swarm run 15.0.0 (qwen3.8:27b), session 20261101T140245-7b55bf",
+   "expected": {
+    "state": null,
+    "requirements": {
+     "R1": null,
+     "R2": null,
+     "R3": null,
+     "R4": "satisfied"
+    },
+    "heldOut": null
+   },
+   "why": "final/result.json (2.0.0): complete, R1-R4 satisfied. R1-R3 are witnessed only by tests the patch adds: unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it. R4 rests on a pre-existing preserved test"
+  }
+ ]
+}

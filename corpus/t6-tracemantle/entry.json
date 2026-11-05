@@ -1,0 +1,123 @@
+{
+ "id": "t6-tracemantle",
+ "repository": "moonrunnerkc/tracemantle",
+ "base": "47203d2903394cbb8904637cad71b7b525b9ada7",
+ "setup": "uv venv -q -p 3.12 .venv && uv pip install -q -e .[dev]",
+ "isolation": "isolated",
+ "heldOut": null,
+ "source": [
+  "docs/acceptance/2026-10-31/README.md",
+  "docs/acceptance/2026-10-31/t6-comparison/README.md",
+  "docs/acceptance/2026-10-31/comparison/t6/",
+  "docs/plans/2026-11-02-patch-release-report.md",
+  "docs/plans/2026-11-04-16.0.4-report.md"
+ ],
+ "patches": [
+  {
+   "name": "claude",
+   "file": "patches/claude.patch",
+   "sha256": "cb26d9f61ef44969748534a1eed976fdd36156746ecfb5321fb2732bf3884e3f",
+   "origin": "Claude Code, 2026-11-01 comparison",
+   "expected": {
+    "state": "complete",
+    "requirements": {
+     "R1": "satisfied"
+    },
+    "heldOut": null
+   },
+   "why": "comparison/t6/verify-4e53b13.out (swarm-verify patch/2.0.1 4e53b13): complete, R1 satisfied, 3 inherited; 2.0.0's incomplete (verify-2.0.0.out) was the edited-move verifier defect fixed in 2.0.1"
+  },
+  {
+   "name": "gemma-closing-2",
+   "file": "patches/gemma-closing-2.patch",
+   "sha256": "8ca00d1835d9a11044627f0ca40e01e5e3f52ce8e9668acfad30f5fd60b32949",
+   "origin": "swarm run (gemma4-31b-greedy-128k), session 20261101T221712-67545b, same bytes as t6-comparison/attempt-full-scope",
+   "expected": {
+    "state": "incomplete",
+    "requirements": {
+     "R1": "failed"
+    },
+    "heldOut": null
+   },
+   "why": "t6-comparison/attempt-full-scope/judged-with-requirements.txt (2.0.0) and comparison/t6/model-attempt-verify-4e53b13.out (4e53b13): incomplete, R1 failed, 7 new failures in tests.test_history_io"
+  },
+  {
+   "name": "gemma-closing-3",
+   "file": "patches/gemma-closing-3.patch",
+   "sha256": "05b667dd1fc98457e4463147cface5ffe2540382ea6e8589e19ee6a6c10d5f13",
+   "origin": "swarm run 16.0.1 (gemma4-31b-greedy-128k) against 2.0.1, session 20261103T175257-900062",
+   "expected": {
+    "state": "incomplete",
+    "requirements": {
+     "R1": null
+    },
+    "heldOut": null
+   },
+   "why": "closing-attempt-3/result.json (2.0.1): incomplete, regression found (the same 7 fixture tests) under its own requirement record; a regression makes it incomplete under any record. R1 is null: not judged under this entry's record"
+  },
+  {
+   "name": "first-round-final",
+   "file": "patches/first-round-final.patch",
+   "sha256": "328fb27fb24f806c18e6fbd46d5b2f4b13747900ddfe6e903f83ea66c19a4dce",
+   "origin": "swarm run 15.0.0 (swarm-redesign-qwen36-32k), session 20261101T150922-f837ff",
+   "expected": null,
+   "why": "final/result.json: incomplete with 30 new failures, but judged only by 2.0.0, which misread moved and edited test files (fixed in 2.0.1, 2026-11-02 report); never rejudged, so the state is not established"
+  },
+  {
+   "name": "gemma4-16.0.2-1",
+   "file": "patches/gemma4-16.0.2-1.patch",
+   "sha256": "5cd313cc61f6b485973d89760d5aee96cd378d11bd8349ce388ead3ef93c2848",
+   "origin": "swarm run 16.0.2 candidate (gemma4:31b, escalated), session 20261103T213819-76ab1e",
+   "expected": {
+    "state": "incomplete",
+    "requirements": {
+     "R1": null
+    },
+    "heldOut": null
+   },
+   "why": "rerun-16.0.2-attempt-1/result.json (2.0.1): incomplete, regression found (558 new failures) under its own requirement record; a regression makes it incomplete under any record. R1 is null: not judged under this entry's record"
+  },
+  {
+   "name": "gemma4-16.0.2-2",
+   "file": "patches/gemma4-16.0.2-2.patch",
+   "sha256": "2a15f057bb871c519a3f2b83f398ef01088949cad582f2d0108ead14b5b44e7f",
+   "origin": "swarm run 16.0.2 candidate (gemma4:31b, escalated), session 20261103T231418-6662f6",
+   "expected": {
+    "state": "incomplete",
+    "requirements": {
+     "R1": null
+    },
+    "heldOut": null
+   },
+   "why": "rerun-16.0.2-attempt-2/result.json (2.0.1): incomplete, regression found (collection ImportError, import-error.txt) under its own requirement record; a regression makes it incomplete under any record. R1 is null: not judged under this entry's record"
+  },
+  {
+   "name": "qwen36",
+   "file": "patches/qwen36.patch",
+   "sha256": "d7cafde2430b341038c1ef9723fc3be18a9b62e7729d2fc7b67f21e882aae5cb",
+   "origin": "swarm run 16.0.2 build (qwen3.6:35b-a3b), session 20261104T060822-ad6089",
+   "expected": {
+    "state": "incomplete",
+    "requirements": {
+     "R1": null
+    },
+    "heldOut": null
+   },
+   "why": "judged-2.0.3/verify.out: incomplete, R1 unverified under its own record (no structure); 2.0.2's complete was withdrawn. The patch adds only history/__init__.py and history/history_io.py, so this record's tests/history/ structure claims cannot hold; R1 not judged under this record"
+  },
+  {
+   "name": "mistral",
+   "file": "patches/mistral.patch",
+   "sha256": "2c4b23b81c38ea7eb317308deb097a8b9fb48ff0fc6a2624294bf11fdfbe1166",
+   "origin": "swarm run 16.0.2 build (mistral-small3.2:24b), session 20261104T064024-016839",
+   "expected": {
+    "state": "incomplete",
+    "requirements": {
+     "R1": null
+    },
+    "heldOut": null
+   },
+   "why": "rerun-mistral-small32-24b/result.json (2.0.2): incomplete, regression found (7 new failures) under its own requirement record; a regression makes it incomplete under any record. R1 is null: not judged under this entry's record"
+  }
+ ]
+}

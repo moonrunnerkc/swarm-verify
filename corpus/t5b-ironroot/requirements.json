@@ -1,0 +1,21 @@
+[
+ {
+  "id": "R1",
+  "text": "Move Severity, Finding and PromotionReport from src/ironroot/cli/promote.py into cli/promote_report.py and re-export them from promote.py.",
+  "source": "user",
+  "kind": "refactor",
+  "required": true,
+  "assumptions": [
+   "The classes Severity, Finding, and PromotionReport are defined in src/ironroot/cli/promote.py",
+   "Other modules import these from ironroot.cli.promote",
+   "After the move, imports from ironroot.cli.promote should still work via re-exports"
+  ],
+  "versions": [],
+  "evidence": {
+   "tests": [],
+   "checks": [],
+   "structure": [],
+   "packages": []
+  }
+ }
+]

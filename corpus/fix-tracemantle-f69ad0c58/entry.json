@@ -1,0 +1,47 @@
+{
+ "id": "fix-tracemantle-f69ad0c58",
+ "repository": "moonrunnerkc/tracemantle",
+ "base": "c37c9d6164e7eff2c57e4d6c819475235b99b1cc",
+ "setup": "uv venv -q -p 3.12 .venv && uv pip install -q -e .[dev]",
+ "isolation": "isolated",
+ "heldOut": {
+  "glob": "tests/**/*templat*",
+  "command": "python3 -m pytest -q --no-cov tests/test_template_detection.py"
+ },
+ "source": [
+  "docs/acceptance/2026-10-31/README.md",
+  "docs/acceptance/2026-10-31/f-fix-isolated/tracemantle-f69ad0c58/attempt-1/held-out-2/",
+  "docs/acceptance/2026-10-31/f-fix-isolated/probes-16.0.3/tracemantle-f69ad0c58.verify.out",
+  "docs/plans/2026-11-04-16.0.4-report.md"
+ ],
+ "patches": [
+  {
+   "name": "human",
+   "file": "patches/human.patch",
+   "sha256": "93e4ed588b1a0fc3e35fb7f09291a0338b59e1e1da79bda034f7ad1492c98d4f",
+   "origin": "tracemantle f69ad0c58 less its added tests and fixtures (the held-out set)",
+   "expected": {
+    "state": null,
+    "requirements": {
+     "R1": null
+    },
+    "heldOut": "pass"
+   },
+   "why": "probes-16.0.3/tracemantle-f69ad0c58.verify.out (2.0.2, the whole fix commit by --range, no requirements): complete, the fix's own test passing in the container. Not judged in split form or under this record, whose tests name the model's own test"
+  },
+  {
+   "name": "swarm-attempt-1",
+   "file": "patches/swarm-attempt-1.patch",
+   "sha256": "6b912e0fa025baa04ee9c50af0c55c6ea950719e580f97a0ae1d13edca376df0",
+   "origin": "swarm 16.0.2 build (gemma4:31b), session 20261104T043531-a99a49; this entry's requirement record",
+   "expected": {
+    "state": null,
+    "requirements": {
+     "R1": null
+    },
+    "heldOut": "pass"
+   },
+   "why": "attempt-1/held-out-2/witness.txt and verify.out: complete, held-out pass (fails at the base), 131 to 135 tiktoken tests inherited. Its requirements name only tests the patch adds: unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it"
+  }
+ ]
+}

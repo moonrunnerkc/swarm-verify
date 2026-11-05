@@ -1,0 +1,6 @@
+# The declared checks the recorded verification ran, from its result.json.
+[checks]
+test = "pnpm run test"
+lint = "pnpm run lint"
+typecheck = "pnpm run typecheck"
+build = "pnpm run build"

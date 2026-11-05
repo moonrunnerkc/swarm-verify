@@ -1,0 +1,154 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 37d39c5..a3f0888 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
+ 
+ ### Fixed
+ 
++- `skillcheck.toml` handling improved: config type errors now name the offending value; the Python 3.10 fallback parser no longer truncates a value at a `#` inside quotes; `find_config` stops ascending at a `.git` repository root or the user's home instead of walking to the filesystem root; and the CLI prints which config file it loaded (to stderr) when one is found.
+ - History ledger writes are more durable: `save_ledger` now flushes and `fsync`s the temp file before the atomic `os.replace`, and `load_ledger` sweeps stale `.skillcheck-tmp-*` files left behind by an interrupted write. The module documents its single-writer assumption (no file locking).
+ - `frontmatter.yaml-anchors` no longer false-positives on `&` or `*` inside quoted string values. A description like `"Reviews R&D notes and *only* flags risky items"` used to match the anchor/alias regexes; detection now walks the YAML event stream, so only real anchors and aliases are reported.
+ - `--format github` no longer over-escapes diagnostic message text. Message data now escapes only `%`, CR, and LF (per the GitHub Actions toolkit), so a colon or comma in a message renders literally instead of as `%3A`/`%2C`. Property values (`file`, `title`) still escape `:` and `,` as required, which also fixes the previously unescaped colon in the annotation title.
+diff --git a/README.md b/README.md
+index f7533e8..8296ff1 100644
+--- a/README.md
++++ b/README.md
+@@ -14,7 +14,7 @@
+ 
+ Static analyzer for `SKILL.md` files. Validates frontmatter, body sizing, file references, and cross-agent compatibility against the [agentskills.io specification](https://agentskills.io/specification). No network calls. No LLM API calls. No file mutations.
+ 
+-817 tests cover all rule modules.
++829 tests cover all rule modules.
+ 
+ ## Install
+ 
+diff --git a/REMEDIATION-EVIDENCE.md b/REMEDIATION-EVIDENCE.md
+index eeebcc9..a67f8a9 100644
+--- a/REMEDIATION-EVIDENCE.md
++++ b/REMEDIATION-EVIDENCE.md
+@@ -669,3 +669,30 @@ ledger still loads: True
+ ```
+ 
+ Tests added: `test_load_sweeps_stale_tmp_files`.
++
++### 4.4 config_loader improvements
++
++Finding: four issues in `config_loader.py`.
++
++FIX (files touched):
++- `src/skillcheck/config_loader.py`:
++  1. The int/bool/str type-error messages now include `(got {value!r})`.
++  2. The 3.10 fallback parser strips inline comments with `_strip_inline_comment`, which ignores `#` inside a
++     double-quoted value (`format = "a#b"  # c` -> `a#b`).
++  3. `find_config` stops ascending at a directory containing `.git` or the user's home, so it cannot pick up an
++     unrelated config above the repo.
++- `src/skillcheck/cli.py`: `_apply_config` prints `Loaded config from {path}` to stderr when a config is found.
++- `tests/test_config_loader.py` (new module).
++
++VERIFY:
++```
++1. Config key 'max-lines' must be an integer (got 'notint').
++2. _strip_inline_comment('format = "a#b"  # real comment') -> 'format = "a#b"  '   ; parse -> {'format': 'a#b'}
++3. find_config(nested SKILL.md) with a config above a .git root -> None
++4. $ skillcheck /tmp/cfg2/SKILL.md ...  (stderr) Loaded config from /tmp/cfg2/skillcheck.toml
++```
++
++Tests added: `test_int_type_error_includes_offending_value`, `test_bool_type_error_includes_offending_value`,
++`test_str_type_error_includes_offending_value`, `test_strip_inline_comment_respects_quotes`,
++`test_fallback_parser_keeps_hash_inside_quotes`, `test_find_config_stops_at_git_root`,
++`test_find_config_finds_config_at_git_root`, `test_cli_reports_loaded_config_path`.
+diff --git a/src/skillcheck/cli.py b/src/skillcheck/cli.py
+index f074dc4..a8d502f 100644
+--- a/src/skillcheck/cli.py
++++ b/src/skillcheck/cli.py
+@@ -303,6 +303,8 @@ def _apply_config(args: argparse.Namespace, parser: argparse.ArgumentParser) ->
+         loaded_config = load_config(config_path)
+     except ConfigError as exc:
+         parser.error(str(exc))
++    if config_path is not None:
++        print(f"Loaded config from {config_path}", file=sys.stderr)
+ 
+     runtime_config.set_extension_fields(loaded_config.extension_fields)
+     if loaded_config.reserved_words is not None:
+diff --git a/src/skillcheck/config_loader.py b/src/skillcheck/config_loader.py
+index 173029f..64022c4 100644
+--- a/src/skillcheck/config_loader.py
++++ b/src/skillcheck/config_loader.py
+@@ -82,20 +82,48 @@ _STR_FIELDS = {"format", "target_agent", "critique_agent", "graph_agent"}
+ def find_config(start: Path) -> Path | None:
+     """Find skillcheck.toml from a path or one of its parents.
+ 
++    The upward walk stops at a repository root (a directory containing ``.git``)
++    or the user's home directory, whichever is reached first. This keeps the
++    search from escaping the project into a parent or a system directory and
++    picking up an unrelated config.
++
+     Args:
+         start: File or directory path used as the search anchor.
+ 
+     Returns:
+         Path to skillcheck.toml, or None when not found.
+     """
++    try:
++        home = Path.home()
++    except RuntimeError:
++        home = None
+     current = start if start.is_dir() else start.parent
+     for directory in (current, *current.parents):
+         candidate = directory / "skillcheck.toml"
+         if candidate.exists():
+             return candidate
++        # Do not ascend past a repo root or the user's home directory.
++        if (directory / ".git").exists() or directory == home:
++            break
+     return None
+ 
+ 
++def _strip_inline_comment(line: str) -> str:
++    """Drop a ``#`` comment from a TOML line, ignoring ``#`` inside a quoted value.
++
++    The fallback parser only handles double-quoted basic strings, so tracking a
++    single quote state is enough: a ``#`` outside quotes starts a comment; one
++    inside quotes (e.g. ``format = "a#b"``) is part of the value.
++    """
++    in_quotes = False
++    for index, char in enumerate(line):
++        if char == '"':
++            in_quotes = not in_quotes
++        elif char == "#" and not in_quotes:
++            return line[:index]
++    return line
++
++
+ def _parse_without_tomllib(raw: str) -> dict[str, Any]:
+     """Parse a minimal TOML subset for Python 3.10 fallback.
+ 
+@@ -106,7 +134,7 @@ def _parse_without_tomllib(raw: str) -> dict[str, Any]:
+     parsed: dict[str, Any] = {}
+     current = parsed
+     for line_no, raw_line in enumerate(raw.splitlines(), start=1):
+-        line = raw_line.split("#", 1)[0].strip()
++        line = _strip_inline_comment(raw_line).strip()
+         if not line:
+             continue
+         if line.startswith("["):
+@@ -199,15 +227,15 @@ def load_config(path: Path | None) -> SkillcheckConfig:
+             raise ConfigError(f"Unknown config key '{raw_key}' in {path}; remove it or use a supported skillcheck option.")
+         if field in _INT_FIELDS:
+             if not isinstance(value, int) or isinstance(value, bool):
+-                raise ConfigError(f"Config key '{raw_key}' must be an integer.")
++                raise ConfigError(f"Config key '{raw_key}' must be an integer (got {value!r}).")
+             values[field] = value
+         elif field in _BOOL_FIELDS:
+             if not isinstance(value, bool):
+-                raise ConfigError(f"Config key '{raw_key}' must be true or false.")
++                raise ConfigError(f"Config key '{raw_key}' must be true or false (got {value!r}).")
+             values[field] = value
+         elif field in _STR_FIELDS:
+             if not isinstance(value, str):
+-                raise ConfigError(f"Config key '{raw_key}' must be a string.")
++                raise ConfigError(f"Config key '{raw_key}' must be a string (got {value!r}).")
+             values[field] = value
+         elif field == "ignore":
+             if not isinstance(value, list) or not all(isinstance(item, str) for item in value):

@@ -43,6 +43,9 @@ swarm-orchestrator's `packages/swarm-verify`; 2.0.0 is the first built from this
   a failing test; one that exits nonzero with every test passing (a coverage threshold around a
   single-file run) is refused, since it would fail every candidate. With `--reference <patch>` it
   must also pass on that patch, applied to a copy of the workspace.
+- **A scratch tree with read-only directories is removed.** Go marks its module cache read-only;
+  removing a host check's private HOME after a Go build failed with EACCES and the verification
+  was lost. Removal now makes the tree's directories writable when it meets that.
 - **A pytest test lives in its module's file.** A junit classname's dotted parts up to the test
   module (`tests.unit.test_promote.TestScan`) now give `tests/unit/test_promote.py` as the test's
   file, where they gave a path no file has. Test ids are unchanged.

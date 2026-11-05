@@ -1,0 +1,48 @@
+diff --git a/src/adapters/vitest-run.ts b/src/adapters/vitest-run.ts
+index e564dc8..5b8c55e 100644
+--- a/src/adapters/vitest-run.ts
++++ b/src/adapters/vitest-run.ts
+@@ -23,6 +23,14 @@ export interface VitestResult {
+   readonly passed: boolean;
+   /** True when vitest found no test files to run. */
+   readonly noTests: boolean;
++  /**
++   * True when the runner exited non-zero and produced no test outcomes, and it
++   * was not a clean "no test files" result: the suite failed to load or
++   * collect (a missing dependency, a transform error, a config error). This is
++   * distinct from a test failing; it means the run never happened, so the
++   * caller must not read the empty outcome set as a pass.
++   */
++  readonly failedToRun: boolean;
+   readonly outcomes: readonly TestOutcome[];
+   readonly exitCode: number;
+   readonly stderr: string;
+@@ -143,10 +151,16 @@ export async function runVitest(
+       );
+     const passed =
+       result.code === 0 && !outcomes.some((o) => o.status === "fail");
++    // A non-zero exit with no outcomes that is not a clean "no test files"
++    // result means the suite could not load or collect. Surfacing this stops a
++    // load error from masquerading as a pass via an empty outcome set.
++    const failedToRun =
++      result.code !== 0 && outcomes.length === 0 && !noTests;
+ 
+     return {
+       passed,
+       noTests,
++      failedToRun,
+       outcomes,
+       exitCode: result.code,
+       stderr: result.stderr,
+diff --git a/src/core/pipeline.ts b/src/core/pipeline.ts
+index 3726816..e8c672e 100644
+--- a/src/core/pipeline.ts
++++ b/src/core/pipeline.ts
+@@ -180,6 +180,7 @@ export async function runPipeline(
+     const headTestsPass =
+       activeTestFiles.length > 0 &&
+       !coverage.run.noTests &&
++      !coverage.run.failedToRun &&
+       !trustedOutcomes.some((o) => o.status === "fail");
+     const coveredChangedLines = intersectChangedLines(
+       changedRanges,

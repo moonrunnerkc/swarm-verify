@@ -1,0 +1,28 @@
+{
+ "id": "t7a-claimcheck",
+ "repository": "moonrunnerkc/claimcheck",
+ "base": "d93aea51ed2e13148f93ea63ce410c4feabe9a5a",
+ "setup": "npm ci --no-audit --no-fund",
+ "isolation": "isolated",
+ "heldOut": null,
+ "source": [
+  "docs/acceptance/2026-10-31/README.md",
+  "docs/acceptance/2026-10-31/t7a-claimcheck/closing-attempt-3/"
+ ],
+ "patches": [
+  {
+   "name": "swarm-closing-3",
+   "file": "patches/swarm-closing-3.patch",
+   "sha256": "4b6e6fd4701ec87309e26aa4a7db770ff05084cfe7f75f1d0fb3179bb562b874",
+   "origin": "swarm run (gemma4:31b), session 20261101T235811-1133bb",
+   "expected": {
+    "state": "complete",
+    "requirements": {
+     "R1": "satisfied"
+    },
+    "heldOut": null
+   },
+   "why": "closing-attempt-3/result.json (2.0.0): complete, R1 satisfied on the wording's constraints (vitest 4.1.10, Stryker the latest 9.x) and the resolved packages. The latest 9.x is read from the registry at judging time (9.6.1 on 2026-11-02); a later 9.x release would change the outcome"
+  }
+ ]
+}

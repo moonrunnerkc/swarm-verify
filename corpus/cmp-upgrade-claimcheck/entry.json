@@ -1,0 +1,59 @@
+{
+ "id": "cmp-upgrade-claimcheck",
+ "repository": "moonrunnerkc/claimcheck",
+ "base": "d93aea51ed2e13148f93ea63ce410c4feabe9a5a",
+ "setup": "npm ci --no-audit --no-fund",
+ "isolation": "isolated",
+ "heldOut": {
+  "glob": "src/**/*.held-out.test.ts",
+  "command": "npx vitest run src/adapters/stryker-overlay.held-out.test.ts"
+ },
+ "source": [
+  "docs/acceptance/2026-11-04-comparison/README.md",
+  "docs/acceptance/2026-11-04-comparison/upgrade-claimcheck/criteria.md"
+ ],
+ "patches": [
+  {
+   "name": "reference",
+   "file": "patches/reference.patch",
+   "sha256": "94950cb30e3ee2d1d9e175882c1e51a17ff88d905641b5d3b1d55978e30f6719",
+   "origin": "reference patch (screening)",
+   "expected": {
+    "state": "complete",
+    "requirements": {
+     "R1": "satisfied"
+    },
+    "heldOut": "pass"
+   },
+   "why": "screening/upgrade-claimcheck/result.txt (2.0.3): complete, R1 satisfied, held-out pass"
+  },
+  {
+   "name": "claude",
+   "file": "patches/claude.patch",
+   "sha256": "467e5debaac31d60dbd56e02be8607fa81d329b6434230a37709e1ef53d229db",
+   "origin": "Claude Code, 2026-11-04 comparison",
+   "expected": {
+    "state": "complete",
+    "requirements": {
+     "R1": "satisfied"
+    },
+    "heldOut": "pass"
+   },
+   "why": "claude/judged/result.txt (2.0.3): complete, R1 satisfied, held-out pass"
+  },
+  {
+   "name": "swarm",
+   "file": "patches/swarm.patch",
+   "sha256": "b5d069d9102686b45f704295f17bf361544988a2e9fdf873b1d91a287abb19ea",
+   "origin": "swarm run 16.0.4 (gemma4:31b, escalated to qwen3.6:35b-a3b), 2026-11-04 comparison",
+   "expected": {
+    "state": "complete",
+    "requirements": {
+     "R1": "satisfied"
+    },
+    "heldOut": "pass"
+   },
+   "why": "swarm/judged/result.txt (2.0.3): complete, R1 satisfied, held-out pass"
+  }
+ ]
+}

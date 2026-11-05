@@ -1,0 +1,3 @@
+# The declared checks the recorded verification ran, from its result.json.
+[checks]
+test = "python3 -m pytest -q"

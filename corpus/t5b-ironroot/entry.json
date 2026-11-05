@@ -1,0 +1,29 @@
+{
+ "id": "t5b-ironroot",
+ "repository": "Aftermath-Technologies-Ltd/ironroot",
+ "base": "1d325c297757e83f048be593b59cfda7681a5448",
+ "setup": "uv venv -q -p 3.12 .venv && uv pip install -q -e .[dev]",
+ "isolation": "isolated",
+ "heldOut": null,
+ "source": [
+  "docs/acceptance/2026-10-31/README.md",
+  "docs/acceptance/2026-10-31/t5b-ironroot/judged-2.0.3/",
+  "docs/plans/2026-11-04-16.0.4-report.md"
+ ],
+ "patches": [
+  {
+   "name": "swarm-final",
+   "file": "patches/swarm-final.patch",
+   "sha256": "2b70f1fea86e9c2ebbd53e250886529063530c3a8e3bbba18db1fc016dea4d07",
+   "origin": "swarm run 15.0.0 (swarm-redesign-qwen36-32k), session 20261101T054940-b71a2a",
+   "expected": {
+    "state": "incomplete",
+    "requirements": {
+     "R1": "unverified"
+    },
+    "heldOut": null
+   },
+   "why": "judged-2.0.3/verify.out: incomplete, R1 unverified (no structure claim shows what the refactor leaves); the 2.0.0 complete was withdrawn by 2.0.3 (16.0.4 report)"
+  }
+ ]
+}

@@ -1,0 +1,98 @@
+{
+ "id": "e-dossier",
+ "repository": "Aftermath-Technologies-Ltd/dossier",
+ "local": true,
+ "base": "1baa9c63d512f1afd3c4c77a3895a46da38544c3",
+ "setup": "(cd ../ironroot/packages/core-ts && npm ci --no-audit --no-fund && npm run build) && npm ci --no-audit --no-fund",
+ "isolation": "isolated",
+ "heldOut": null,
+ "sibling": {
+  "repository": "Aftermath-Technologies-Ltd/ironroot",
+  "path": "../ironroot",
+  "commit": "1d325c297757e83f048be593b59cfda7681a5448",
+  "why": "package.json depends on file:../ironroot/packages/core-ts; the closing driver (smoke-dossier) cloned ironroot's default branch beside dossier, whose head has been 1d325c2 (2026-05-12) throughout; the commit itself is not recorded in the docs"
+ },
+ "source": [
+  "docs/acceptance/2026-10-31/README.md",
+  "docs/plans/2026-11-04-16.0.4-report.md",
+  "docs/plans/2026-11-02-patch-release-report.md"
+ ],
+ "patches": [
+  {
+   "name": "installed-16.0.4",
+   "file": "patches/installed-16.0.4.patch",
+   "sha256": "aa46c00fbe786e95e7412d0b10fe691658da9c2bec2bc82629481bc6d205678e",
+   "origin": "installed swarm 16.0.4 (gemma4:31b), session 20261104T182902-d9321b; this entry's requirement record",
+   "expected": null,
+   "why": "result.json (2.0.3): complete, R1 satisfied; the record (and every dossier run's) names only tests the patch adds, and no held-out check exists: unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it"
+  },
+  {
+   "name": "16.0.4-candidate-1",
+   "file": "patches/16.0.4-candidate-1.patch",
+   "sha256": "13cca4a0089f4bc804d22f90c4ad6be365381a08d8805d8761c7958b8835866e",
+   "origin": "16.0.4 candidate (gemma4:31b), session 20261104T143145-759a26",
+   "expected": null,
+   "why": "result.json (2.0.3): complete under its own record; the record (and every dossier run's) names only tests the patch adds, and no held-out check exists: unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it"
+  },
+  {
+   "name": "16.0.4-candidate-2",
+   "file": "patches/16.0.4-candidate-2.patch",
+   "sha256": "a49ff8a1da3680bc75b83a1d94e9d407e131c00cee4d7ef5a205addaf2274a50",
+   "origin": "16.0.4 candidate (qwen3.6:35b-a3b), session 20261104T144429-e52419",
+   "expected": {
+    "state": "incomplete",
+    "requirements": {
+     "R1": null
+    },
+    "heldOut": null
+   },
+   "why": "result.json (2.0.3): incomplete, R1 unverified under its own record (kind other, no evidence); a feature with no independent witness stays incomplete. R1 not judged under this record"
+  },
+  {
+   "name": "16.0.4-candidate-3",
+   "file": "patches/16.0.4-candidate-3.patch",
+   "sha256": "2ffd14f9236f9f9b730e3add294cfeef6c87bfd7dbb4395b08e71277f5681d8f",
+   "origin": "16.0.4 candidate (qwen3.6:35b-a3b), session 20261104T145327-847f57",
+   "expected": null,
+   "why": "result.json (2.0.3): complete under its own record; the record (and every dossier run's) names only tests the patch adds, and no held-out check exists: unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it"
+  },
+  {
+   "name": "16.0.2",
+   "file": "patches/16.0.2.patch",
+   "sha256": "0ac5617bc2365803a17e44b96c3bb6cc658c1287ca6f0b24b2173924885bd139",
+   "origin": "16.0.2 candidate (gemma4:31b), session 20261103T220620-05a97e",
+   "expected": null,
+   "why": "result.json (2.0.1): complete under its own record; the record (and every dossier run's) names only tests the patch adds, and no held-out check exists: unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it"
+  },
+  {
+   "name": "installed-16.0.2",
+   "file": "patches/installed-16.0.2.patch",
+   "sha256": "7256c9b257bae8e06c49ed7d7260872231d32643dea699c89abfc29a7c0e4509",
+   "origin": "installed swarm 16.0.2 (gemma4:31b), session 20261104T021549-359a1e",
+   "expected": null,
+   "why": "result.json (2.0.2): complete under its own record; the record (and every dossier run's) names only tests the patch adds, and no held-out check exists: unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it"
+  },
+  {
+   "name": "installed-16.0.1",
+   "file": "patches/installed-16.0.1.patch",
+   "sha256": "7efc1378022f500aac007cd1c0ee158e56080c26846fa9fd6abf340abbd12119",
+   "origin": "installed swarm 16.0.1 (swarm-redesign-qwen36-32k), session 20261103T205635-acc4bd",
+   "expected": {
+    "state": "incomplete",
+    "requirements": {
+     "R1": null
+    },
+    "heldOut": null
+   },
+   "why": "result.json (2.0.1): incomplete, R1 unverified under its own record (no mapped test fails before and passes after). R1 not judged under this record"
+  },
+  {
+   "name": "closing-2",
+   "file": "patches/closing-2.patch",
+   "sha256": "b51d3b44b994690bbb1aff83aa8e00a40f04446aca10bade1ed733f1484ef960",
+   "origin": "swarm (gemma4:31b, escalated), session 20261102T211404-06df43; same bytes as closing-attempt-1",
+   "expected": null,
+   "why": "result.json (2.0.0): complete under its own record; the record (and every dossier run's) names only tests the patch adds, and no held-out check exists: unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it. closing-attempt-1 delivered the same bytes and read blocked only because the sibling ironroot/packages/core-ts was missing from its clone"
+  }
+ ]
+}

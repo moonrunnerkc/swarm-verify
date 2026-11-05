@@ -1,0 +1,60 @@
+{
+ "id": "cmp-fix-claimcheck",
+ "repository": "moonrunnerkc/claimcheck",
+ "base": "d381bec7f8c860672e334ae91d54db842d1c4f7c",
+ "setup": "npm ci --no-audit --no-fund",
+ "isolation": "isolated",
+ "heldOut": {
+  "glob": "src/**/*.held-out.test.ts",
+  "command": "npx vitest run src/checks/test-removed.held-out.test.ts src/core/test-removed-decision.held-out.test.ts"
+ },
+ "source": [
+  "docs/acceptance/2026-11-04-comparison/README.md",
+  "docs/acceptance/2026-11-04-comparison/fix-claimcheck/criteria.md",
+  "docs/acceptance/2026-11-04-comparison/fix-claimcheck/CORRECTION.md"
+ ],
+ "patches": [
+  {
+   "name": "human",
+   "file": "patches/human.patch",
+   "sha256": "3ce4a771eebb80780fceafa0999ecb2f43fc79baae9f0059a3b1cc0e22306c63",
+   "origin": "claimcheck e050152, the human fix",
+   "expected": {
+    "state": "complete",
+    "requirements": {
+     "R1": "satisfied"
+    },
+    "heldOut": "pass"
+   },
+   "why": "screening/fix-claimcheck/result.txt (2.0.3): complete, R1 satisfied, held-out pass, under the original src:: mapping; the corrected record names the held-out tests that pass with it"
+  },
+  {
+   "name": "claude",
+   "file": "patches/claude.patch",
+   "sha256": "e4e278027a5fb8315783b7f30e6bb4e4104e1a3bdeef7d1a8bb227b131484e08",
+   "origin": "Claude Code, 2026-11-04 comparison",
+   "expected": {
+    "state": "complete",
+    "requirements": {
+     "R1": "satisfied"
+    },
+    "heldOut": "pass"
+   },
+   "why": "claude/judged/result.txt (2.0.3): complete, R1 satisfied, held-out pass"
+  },
+  {
+   "name": "swarm",
+   "file": "patches/swarm.patch",
+   "sha256": "8cc2f0ee46e38094f3130597e09488f17c66ac0e3b868458a1c68b7d76b56d99",
+   "origin": "swarm run 16.0.4 (gemma4:31b), 2026-11-04 comparison",
+   "expected": {
+    "state": "complete",
+    "requirements": {
+     "R1": "satisfied"
+    },
+    "heldOut": "pass"
+   },
+   "why": "swarm/judged/result.txt (2.0.3) read incomplete only because R1 was unverified under the original src:: mapping (its tests are in test/unit/); held-out pass, checks pass, no regression; the corrected record (CORRECTION.md) names the held-out tests by identity, so R1 is satisfied. No judgment under the corrected record is recorded"
+  }
+ ]
+}

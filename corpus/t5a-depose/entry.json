@@ -1,0 +1,29 @@
+{
+ "id": "t5a-depose",
+ "repository": "Aftermath-Technologies-Ltd/depose",
+ "base": "830f36638df85eb611912ff89a305d4a326af3c7",
+ "setup": "pnpm install --frozen-lockfile",
+ "isolation": "host",
+ "hostReason": "depose's typecheck and build need Go (make build-local), which the verifier's node image lacks; in the container they fail at the base and with every patch and read unresolved (2026-10-31/README.md, f-fix-isolated/README.md)",
+ "heldOut": null,
+ "source": [
+  "docs/acceptance/2026-10-31/README.md",
+  "docs/acceptance/2026-10-31/t5a-depose/final/"
+ ],
+ "patches": [
+  {
+   "name": "swarm-final",
+   "file": "patches/swarm-final.patch",
+   "sha256": "689bff7fc5ec54f5b1d5b178f1cdf7b0fc77ead09fc90b845674104d0e037501",
+   "origin": "swarm run 15.0.0 (qwen3.8:27b), session 20261101T155037-25f560",
+   "expected": {
+    "state": "incomplete",
+    "requirements": {
+     "R1": "unverified"
+    },
+    "heldOut": null
+   },
+   "why": "final/result.json (2.0.0, isolated): incomplete, R1 unverified (kind other, no evidence mapped). Judged isolated; no host judgment is recorded, but a requirement that maps no evidence is unverified however the checks run"
+  }
+ ]
+}
