@@ -75,8 +75,13 @@ describe("the judge in a process a signal ends", () => {
 describe("the judge in a worker thread", () => {
   it("counts a thread its runner terminated as unchecked, not as a change", async () => {
     const { child, report } = await judged(
-      "console.log('ready'); const w = new (require('node:worker_threads').Worker)(require('node:path').resolve('worker.cjs')); w.once('online', () => setTimeout(() => w.terminate().then(() => process.exit(0)), 100));",
-      { "worker.cjs": "setInterval(() => {}, 1000);\n" },
+      // Ended once its own script runs, which is after the judge loaded into it: a fixed delay
+      // after 'online' raced the judge's start on a loaded machine.
+      "console.log('ready'); const w = new (require('node:worker_threads').Worker)(require('node:path').resolve('worker.cjs')); w.once('message', () => w.terminate().then(() => process.exit(0)));",
+      {
+        "worker.cjs":
+          "require('node:worker_threads').parentPort.postMessage('up');\nsetInterval(() => {}, 1000);\n",
+      },
     );
     expect(await ended(child)).toEqual({ code: 0, signal: null });
     expect(await readJudge(report)).toMatchObject({
