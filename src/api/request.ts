@@ -118,6 +118,13 @@ export const requirementSchema = z.strictObject({
    * passes after it, beside its independent witness.
    */
   testsAsked: z.boolean().default(false),
+  /**
+   * An upgrade whose wording also asks for code to change with the versions (a version it
+   * installs, a call it adapts), as the producer reads it: it then needs a test witnessing that
+   * change beside its version constraints, and that test, not the versions, is its decisive
+   * witness.
+   */
+  behaviorAsked: z.boolean().default(false),
 });
 export type Requirement = z.output<typeof requirementSchema>;
 

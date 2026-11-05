@@ -120,6 +120,7 @@ export const requirement = (
   kind,
   required: true,
   testsAsked: false,
+  behaviorAsked: false,
   assumptions: [],
   evidence: { tests: tests.map((name) => ({ name })), checks: [], structure: [], packages: [] },
   versions: [],

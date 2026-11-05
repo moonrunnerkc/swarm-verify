@@ -186,6 +186,15 @@ function judged(
           "name the upgraded package with the version it resolves to; where no package version changes, the requirement is not an upgrade: record it as kind other, with the structure and checks that show it",
       };
     }
+    if (requirement.behaviorAsked && !evidence.some((one) => witnessing.has(one.outcome))) {
+      return {
+        status: "unverified",
+        limitation:
+          "the task asks for code to change with the versions, and no test fails before the change and passes after it",
+        nextAction:
+          "a test of the code change the task asks for must fail against the base and pass with the change",
+      };
+    }
     if (!inputs.freshDependencies) {
       return {
         status: "unverified",
@@ -256,6 +265,7 @@ export async function assessRequirements(
       expected: requirement.evidence,
       versions: requirement.versions,
       testsAsked: requirement.testsAsked,
+      behaviorAsked: requirement.behaviorAsked,
       evidence,
       ...attested(requirement, evidence, judged(requirement, evidence, inputs)),
     });

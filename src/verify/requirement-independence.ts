@@ -15,7 +15,10 @@ export function decisive(
     case "refactor":
       return holds.filter((one) => one.kind === "structure" || witnessing.has(one.outcome));
     case "upgrade":
-      return holds.filter((one) => one.kind === "package");
+      // Where the wording asks for a code change too, what shows it met is a test of that change.
+      return requirement.behaviorAsked
+        ? holds.filter((one) => witnessing.has(one.outcome))
+        : holds.filter((one) => one.kind === "package");
     default:
       return holds;
   }

@@ -42,6 +42,8 @@ export const requirementOutcomeSchema = z.strictObject({
   versions: z.array(versionConstraintSchema).default([]),
   /** Whether the wording asked for tests, so a replay judges it the same way. */
   testsAsked: z.boolean().default(false),
+  /** Whether an upgrade's wording asked for a code change beside its versions, likewise. */
+  behaviorAsked: z.boolean().default(false),
   status: z.enum(requirementStatuses),
   /**
    * Who stands behind the evidence that shows it met: independent where a decisive witness is one
