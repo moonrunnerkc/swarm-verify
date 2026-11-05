@@ -110,7 +110,7 @@ function judged(
       status: "unverified",
       limitation: "no structure claim shows what the refactor leaves",
       nextAction:
-        'name what the refactor leaves in "structure": each file it creates or moves to, with a text it holds ({"path": "file", "contains": "text"}), and each path it removes ({"path": "file", "absent": true})',
+        'name what the refactor leaves in "structure": each file it creates or moves to, with a text it holds ({"path": "file", "contains": "text"}), each text it takes out of a file ({"path": "file", "contains": "text", "absent": true}), and each path it removes ({"path": "file", "absent": true})',
     };
   }
   if (evidence.length === 0) {
