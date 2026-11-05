@@ -45,12 +45,29 @@ const claimAuthority = z.enum([
  * A structural fact about the candidate tree, for refactors: a file exists, holds a text, no longer
  * holds it (`contains` with `absent`), or is gone.
  */
-const structureClaimSchema = z.strictObject({
-  path: z.string().min(1),
-  contains: z.string().min(1).optional(),
-  absent: z.boolean().optional(),
-  authority: claimAuthority.optional(),
-});
+const structureClaimSchema = z
+  .strictObject({
+    path: z.string().min(1),
+    contains: z.string().min(1).optional(),
+    /** A name the module defines, read by its language's parser; with `absent`, it no longer does. */
+    symbol: z
+      .string()
+      .regex(/^[A-Za-z_$][\w$]*$/)
+      .optional(),
+    /** With `symbol`: an importer of the module gets the name, defined there or not. */
+    provides: z.boolean().optional(),
+    absent: z.boolean().optional(),
+    authority: claimAuthority.optional(),
+  })
+  .refine((claim) => claim.symbol === undefined || claim.contains === undefined, {
+    message: "a claim names a symbol or a text, not both",
+  })
+  .refine(
+    (claim) => claim.provides !== true || (claim.symbol !== undefined && claim.absent !== true),
+    {
+      message: "provides names a symbol a module still gives an importer",
+    },
+  );
 
 /** A dependency an upgrade must resolve to, read from the candidate's lockfile. */
 const packageClaimSchema = z.strictObject({

@@ -88,10 +88,24 @@ export function parseJunit(xml: string, root: string | null = null): TestReport 
       put(report, `${file}::${title}`, { status, file });
       continue;
     }
-    const file = attributes.file ?? (classname || name).replaceAll(".", "/");
+    const file = attributes.file ?? pytestModule(classname || name);
     put(report, classname === "" ? name : `${classname}::${name}`, { status, file });
   }
   return report;
+}
+
+/**
+ * The file a pytest classname names: its dotted parts up to the last test module
+ * (`tests.unit.test_promote.TestScan` is `tests/unit/test_promote.py`), so a test is known by the
+ * file it lives in, not by a path no file has. A classname with no test module keeps its parts.
+ */
+function pytestModule(classname: string): string {
+  const parts = classname.split(".");
+  let last = -1;
+  parts.forEach((part, at) => {
+    if (/^test_\w*$|^\w+_test$/.test(part)) last = at;
+  });
+  return last < 0 ? parts.join("/") : `${parts.slice(0, last + 1).join("/")}.py`;
 }
 
 const fromRoot = (root: string, path: string) =>

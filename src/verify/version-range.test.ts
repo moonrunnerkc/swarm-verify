@@ -42,10 +42,15 @@ describe("version ranges", () => {
     expect(within("1.2.3.4", "~1.2")).toBe(true);
   });
 
-  it("refuses wording it cannot read as a range", () => {
+  it("reads every range npm reads, and refuses wording that is no range", () => {
+    expect(within("10.4.0", ">=9 <11")).toBe(true);
+    expect(within("11.0.0", ">=9 <11")).toBe(false);
+    expect(within("1.3.9", "1.2.3 - 1.4")).toBe(true);
+    expect(within("1.5.0", "1.2.3 - 1.4")).toBe(false);
+    expect(within("2.4.0", "^1 || ^2")).toBe(true);
     expect(parseVersionRange("latest")).toBeNull();
-    expect(parseVersionRange(">=9 <11")).toBeNull();
-    expect(parseVersionRange("9.x.1")).toBeNull();
+    expect(parseVersionRange("nine")).toBeNull();
+    expect(parseVersionRange("")).toBeNull();
   });
 
   it("finds the highest release a range admits, by number and not by text", () => {

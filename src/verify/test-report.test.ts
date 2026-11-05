@@ -27,7 +27,7 @@ describe("reading recorded reports", () => {
       "tests.test_calc.TestCalc::test_red": "fail",
       "tests.test_calc.TestCalc::test_gone": "pass",
     });
-    expect(report?.["tests.test_calc.TestCalc::test_red"]?.file).toBe("tests/test_calc/TestCalc");
+    expect(report?.["tests.test_calc.TestCalc::test_red"]?.file).toBe("tests/test_calc.py");
   });
 
   it("reads jest's and vitest's JSON with paths from the checkout root and suites as in junit", () => {
@@ -134,7 +134,7 @@ describe("reading a test name", () => {
 
 describe("placing a test in a file", () => {
   it("matches each runner's notion of where a test lives", () => {
-    expect(livesIn("tests/test_calc/TestCalc", "tests/test_calc.py")).toBe(true);
+    expect(livesIn("tests/test_calc.py", "tests/test_calc.py")).toBe(true);
     expect(livesIn("tests/test_calc", "tests/test_calc.py")).toBe(true);
     expect(livesIn("tests/test_calculus/TestCalc", "tests/test_calc.py")).toBe(false);
     expect(livesIn("test/calc.test.js", "test/calc.test.js")).toBe(true);

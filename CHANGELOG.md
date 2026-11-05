@@ -29,6 +29,23 @@ swarm-orchestrator's `packages/swarm-verify`; 2.0.0 is the first built from this
   needs a test the change itself adds that fails before and passes after, mapped or not, beside its
   independent witness. Without it, a patch whose behavior passed the independent check but carried
   none of the tests the user asked for read as complete.
+- **Structure claims can name a symbol, read by the language's parser.** `{"path", "symbol"}` says
+  the module defines the name, with `"absent": true` that it no longer does, and with
+  `"provides": true` that an importer still gets it (defined, imported, re-exported, through
+  `export *` or Python's `import *` with its `__all__` and underscore rule, or behind a module
+  `__getattr__`, which is named as unresolved). TypeScript and JavaScript are read by the
+  TypeScript 6 compiler API, Python by its `ast` module in an isolated interpreter; nothing is
+  imported or run. The text forms (`contains`) still read as before.
+- **Version ranges are read by npm's own parser.** semver replaces the hand-written reader: hyphen
+  ranges, comparator sets and `||` now read; PyPI releases of more than three numbers compare by
+  their first three. A prerelease still never satisfies a range.
+- **`init --seal` checks each held-out check before sealing it.** At the base it must fail through
+  a failing test; one that exits nonzero with every test passing (a coverage threshold around a
+  single-file run) is refused, since it would fail every candidate. With `--reference <patch>` it
+  must also pass on that patch, applied to a copy of the workspace.
+- **A pytest test lives in its module's file.** A junit classname's dotted parts up to the test
+  module (`tests.unit.test_promote.TestScan`) now give `tests/unit/test_promote.py` as the test's
+  file, where they gave a path no file has. Test ids are unchanged.
 - **Structure and package claims carry who chose them.** An optional `authority` on each claim;
   absent, a claim is the caller's (`user-acceptance`). They used to be labeled `pre-existing`,
   which they never were.

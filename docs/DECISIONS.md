@@ -182,3 +182,12 @@ Open choices made while building Swarm Verify, dated, with the reason. Append on
 - Package claims and version constraints used `authority` to tell themselves apart; they now differ by shape (`isConstraint`), since both can be the caller's.
 - The three pending branches (`fix/container-user-entry`, `fix/version-claim-ranges`, `fix/structure-text-absent`) were merged into `release/2.1.0` first; their changelog entries stand as written.
 - Gates on this commit: 50 files, 271 tests.
+
+## 2026-11-05: 2.1.0, a claim language that holds on real repositories
+
+- semver (^7.8.6) is a runtime dependency: npm's own range grammar, where every hand-written addition (caret, tilde, x) had been a defect found on a real repository first.
+- The TypeScript 6.0.3 compiler, as `typescript-compiler` (an npm alias, since the TypeScript 7 development dependency owns the name), is a runtime dependency for symbol claims. TypeScript 7 exposes no stable compiler API; 6.0.3 is the last release with the JavaScript one, pinned exactly so its API cannot move. It is read-only parsing (`createSourceFile`), no type checking. Python is read by its own `ast` in `python3 -I`, a child of the verifier with an environment built from scratch, and never imported.
+- `__getattr__` makes any name importable at run time; a parser cannot say which, so a `provides` claim against such a module holds with that said in its detail. The behavior itself is witnessed by the tests that import the name (ironroot's tests import `_BUILTIN_CLAIMS` from the old path).
+- Directory selectors (`src::`, `test::`) still read: sealed criteria in the record use them, and feature-pubprep's names the only root that repository has. The verifier itself maps nothing by path prefix; the fix-claimcheck criteria that did (`src::`) were corrected to test identity in the orchestrator's acceptance record.
+- Held-out validation runs on the host in the workspace being sealed (and a copy of it for the reference patch), since that is where `init --seal` runs and the files still are.
+- One run of the gates on this commit saw `judge.test.ts` "counts a thread its runner terminated as unchecked" fail while ten replays ran beside it; alone it passed three of three. The release gates run on a quiet machine.

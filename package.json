@@ -1,6 +1,6 @@
 {
   "name": "swarm-verify",
-  "version": "2.1.0-rc.3",
+  "version": "2.1.0-rc.4",
   "description": "Measure a candidate change against a project's own checks and declared requirements in a clean checkout, test by test against the base, and sign the result as an in-toto Statement in a DSSE envelope that verify.mjs or cosign can check offline.",
   "keywords": [
     "verification",
@@ -61,12 +61,15 @@
     "caps": "node scripts/check-caps.mjs"
   },
   "dependencies": {
+    "semver": "^7.8.6",
     "smol-toml": "^1.8.0",
+    "typescript-compiler": "npm:typescript@6.0.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.8",
     "@types/node": "^24.13.3",
+    "@types/semver": "^7.8.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   },

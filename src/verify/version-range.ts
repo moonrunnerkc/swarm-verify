@@ -1,78 +1,50 @@
+import semver from "semver";
+
 /**
- * The version ranges a task's wording names: three numbers for that version alone, a major or
- * major.minor with or without x, a caret, a tilde. Anything else is not read as a range, so a
- * constraint the verifier cannot judge is refused when the request is parsed, not guessed at.
+ * A version range as npm reads one, by npm's own parser (semver): an exact version, `9`, `9.x`,
+ * `^9.6.1`, `~9.6`, `>=1.2 <2`, `1.2.3 - 1.4`, `^1 || ^2`. A range semver cannot read is refused
+ * when the request is parsed, not guessed at.
  */
 export interface VersionRange {
   readonly text: string;
-  /** Exactly this release, or from `low` (inclusive) to `high` (exclusive). */
-  readonly exact: readonly number[] | null;
-  readonly low: readonly number[];
-  readonly high: readonly number[];
-}
-
-const numbers = (text: string) => text.split(".").map(Number);
-
-/** The release numbers of a version, or null for a prerelease or anything not numeric. */
-function releaseOf(version: string): number[] | null {
-  const bare = version.replace(/^v/, "");
-  return /^\d+(?:\.\d+)*$/.test(bare) ? numbers(bare) : null;
-}
-
-function compare(a: readonly number[], b: readonly number[]): number {
-  for (let at = 0; at < Math.max(a.length, b.length); at += 1) {
-    const difference = (a[at] ?? 0) - (b[at] ?? 0);
-    if (difference !== 0) return Math.sign(difference);
-  }
-  return 0;
+  readonly range: semver.Range;
 }
 
 export function parseVersionRange(text: string): VersionRange | null {
   const trimmed = text.trim();
-  const exact = /^[v=]?(\d+\.\d+\.\d+)$/.exec(trimmed);
-  if (exact?.[1] !== undefined) {
-    const release = numbers(exact[1]);
-    return { text: trimmed, exact: release, low: release, high: release };
-  }
-  const shaped = /^([\^~]?)v?(\d+)(?:\.(\d+|[xX*]))?(?:\.(\d+|[xX*]))?$/.exec(trimmed);
-  if (shaped === null) return null;
-  const [, operator = "", majorText = "", minorText, patchText] = shaped;
-  const wild = (part: string | undefined) => part === undefined || /^[xX*]$/.test(part);
-  // A number after a wildcard (9.x.1) says nothing a reader could rely on.
-  if (wild(minorText) && !wild(patchText)) return null;
-  const major = Number(majorText);
-  const minor = wild(minorText) ? null : Number(minorText);
-  const patch = wild(patchText) ? null : Number(patchText);
-  const nextMajor = [major + 1, 0, 0];
-  const nextMinor = [major, (minor ?? 0) + 1, 0];
-  // A caret allows what npm calls compatible: below the first nonzero number's next value.
-  const high =
-    operator !== "^"
-      ? minor === null
-        ? nextMajor
-        : nextMinor
-      : major > 0 || minor === null
-        ? nextMajor
-        : minor > 0 || patch === null
-          ? nextMinor
-          : [0, 0, patch + 1];
-  return { text: trimmed, exact: null, low: [major, minor ?? 0, patch ?? 0], high };
+  if (trimmed.length === 0 || semver.validRange(trimmed) === null) return null;
+  return { text: trimmed, range: new semver.Range(trimmed) };
+}
+
+/**
+ * A resolved version as semver reads it: npm's own, or a plain numeric release (`2024.1`,
+ * PyPI's form) padded to three numbers. A prerelease, or anything else, is never a release a
+ * range admits.
+ */
+function releaseOf(version: string): semver.SemVer | null {
+  const bare = version.trim().replace(/^v/, "");
+  const parsed = semver.parse(bare);
+  if (parsed !== null) return parsed.prerelease.length === 0 ? parsed : null;
+  // PyPI's releases may have more than three numbers; a range speaks of the first three.
+  const numeric = /^(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:\.\d+)*$/.exec(bare);
+  if (numeric === null) return null;
+  return semver.parse(
+    `${Number(numeric[1])}.${Number(numeric[2] ?? 0)}.${Number(numeric[3] ?? 0)}`,
+  );
 }
 
 export function satisfies(version: string, range: VersionRange): boolean {
   const release = releaseOf(version);
-  if (release === null) return false;
-  if (range.exact !== null) return compare(release, range.exact) === 0;
-  return compare(release, range.low) >= 0 && compare(release, range.high) < 0;
+  return release !== null && range.range.test(release);
 }
 
 /** The highest release among `versions` the range admits, or null when it admits none. */
 export function highestWithin(versions: readonly string[], range: VersionRange): string | null {
-  let best: { readonly version: string; readonly release: number[] } | null = null;
+  let best: { readonly version: string; readonly release: semver.SemVer } | null = null;
   for (const version of versions) {
     const release = releaseOf(version);
-    if (release === null || !satisfies(version, range)) continue;
-    if (best === null || compare(release, best.release) > 0) best = { version, release };
+    if (release === null || !range.range.test(release)) continue;
+    if (best === null || semver.gt(release, best.release)) best = { version, release };
   }
   return best?.version ?? null;
 }
