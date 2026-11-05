@@ -148,6 +148,16 @@ export function stateOf(input: {
     : "incomplete";
 }
 
+/** One reason per required requirement whose only decisive witnesses are the implementation's own. */
+export function independenceReasons(requirements: readonly RequirementOutcome[]): string[] {
+  return requirements
+    .filter((one) => one.required && one.witness === "self-attested")
+    .map(
+      (one) =>
+        `independent evidence missing: ${one.id} is self-attested (every witness is the implementation's own)`,
+    );
+}
+
 /** Every part of the run that measured nothing, each with why. */
 export function unmeasuredOf(input: {
   readonly checks: readonly CheckResult[];
@@ -177,4 +187,24 @@ export function unmeasuredOf(input: {
       value.status === "unmeasured" ? [`${name}: ${value.reason}`] : [],
     ),
   ];
+}
+
+/** What a run has measured before any check ran: nothing, each part with why. */
+export function notYetMeasured(sealed: boolean): {
+  baseline: Baseline;
+  heldOut: HeldOut;
+  coverage: Coverage;
+  mutation: Mutation;
+} {
+  const skipped = (reason: string) => ({ status: "unmeasured" as const, reason });
+  return {
+    baseline: skipped("no checks are declared"),
+    heldOut: skipped(
+      sealed
+        ? "the sealed held-out checks did not run"
+        : "no held-out checks are sealed for this workspace",
+    ),
+    coverage: skipped("the checks did not run"),
+    mutation: skipped("the checks did not run"),
+  };
 }

@@ -12,6 +12,7 @@ import type { CheckResult, Coverage, HeldOut, Mutation, RerunSnapshot } from "./
 import type { ReportPlan } from "./report-plan.ts";
 import { type RerunInput, type Reruns, rerunSnapshot, suspectsOn } from "./reruns.ts";
 import { measureCandidate } from "./runs.ts";
+import { sealedOutcomes } from "./sealed-evidence.ts";
 
 export interface CandidateInput {
   readonly checkout: BaseCheckout;
@@ -23,6 +24,8 @@ export interface CandidateInput {
   readonly home: string;
   readonly workspace: string;
   readonly baseRuns: readonly MeasuredRun[];
+  /** The sealed checks at the base, in the order the sealed set lists them. */
+  readonly sealedBase: readonly MeasuredRun[];
   readonly testFiles: TestFileChanges;
   readonly changed: readonly ChangedFile[];
   readonly artifacts: readonly ChangedArtifact[];
@@ -42,6 +45,8 @@ export interface CandidateInput {
 export interface CandidateJudgment {
   readonly runs: CheckResult[];
   readonly outcomes: TestOutcome[];
+  /** Each sealed test against the base, with the set's authority. */
+  readonly sealedTests: TestOutcome[];
   readonly coverage: Coverage;
   readonly mutation: Mutation;
   readonly heldOut: HeldOut;
@@ -256,6 +261,10 @@ export async function judgeCandidate(input: CandidateInput): Promise<CandidateJu
   return {
     runs,
     outcomes: judged.flatMap((one) => [...one.outcomes]),
+    sealedTests:
+      hidden === null || input.sealed === null
+        ? []
+        : sealedOutcomes(input.sealed, input.sealedBase, hidden.measured),
     coverage,
     mutation,
     heldOut,

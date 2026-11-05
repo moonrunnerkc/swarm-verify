@@ -148,3 +148,11 @@ export async function resolveChange(
     await scratch.remove();
   }
 }
+
+/** A reader of the base commit's files by path, null for a path the base does not hold. */
+export function baseReader(dir: string, commit: string): (path: string) => Promise<string | null> {
+  return async (path) => {
+    const shown = await runGit(dir, ["show", `${commit}:${path}`]);
+    return shown.code === 0 ? shown.stdout.toString("utf8") : null;
+  };
+}

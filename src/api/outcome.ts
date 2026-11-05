@@ -41,6 +41,11 @@ export const requirementOutcomeSchema = z.strictObject({
   /** The version constraints read from the user's wording, so a replay judges them the same way. */
   versions: z.array(versionConstraintSchema).default([]),
   status: z.enum(requirementStatuses),
+  /**
+   * Who stands behind the evidence that shows it met: independent where a decisive witness is one
+   * the implementation's author did not write; self-attested where every one is its own.
+   */
+  witness: z.enum(["independent", "self-attested", "none"]).default("none"),
   evidence: z.array(evidenceRefSchema),
   limitation: z.string().nullable(),
   nextAction: z.string().nullable(),

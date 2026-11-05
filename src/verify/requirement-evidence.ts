@@ -50,7 +50,7 @@ export async function structureEvidence(dir: string, claim: StructureClaim): Pro
       claim.contains === undefined
         ? claim.path
         : `${claim.path} ${lacks ? "lacks" : "contains"} ${JSON.stringify(claim.contains)}`,
-    authority: "pre-existing",
+    authority: claim.authority ?? "user-acceptance",
     outcome: holds ? "observed" : "not observed",
     detail: holds ? `expected ${what}` : why,
   };
@@ -99,7 +99,7 @@ export async function packageEvidence(
     return {
       kind: "package",
       ref: `${claim.ecosystem}:${claim.name}`,
-      authority: "pre-existing",
+      authority: claim.authority ?? "user-acceptance",
       outcome: "fail",
       detail: `${detail}, outside ${claim.version}`,
     };
@@ -107,7 +107,7 @@ export async function packageEvidence(
   return {
     kind: "package",
     ref: `${claim.ecosystem}:${claim.name}`,
-    authority: "pre-existing",
+    authority: claim.authority ?? "user-acceptance",
     outcome: matches && moved ? "observed" : "not observed",
     detail,
   };
@@ -167,6 +167,10 @@ function within(version: string, claim: string): boolean {
   return range !== null && satisfies(version, range);
 }
 
+/** Whether a package ref is a version constraint read from the task's wording, not a claim. */
+export const isConstraint = (ref: EvidenceRef) =>
+  ref.kind === "package" && ref.ref.includes(" within ");
+
 /** Outcomes that show behavior: a test or check failing before and passing after. */
 export const witnessing = new Set(["fixed", "witness", "superseded"]);
 export const holding = new Set([
@@ -181,7 +185,9 @@ export const failing = new Set(["failing", "fail"]);
 
 /** A test outcome as evidence: what it shows, from its classification and its witness run. */
 export function testRef(outcome: TestOutcome): EvidenceRef {
-  const authority = outcome.origin === "pre-existing" ? "pre-existing" : "implementation-authored";
+  const authority =
+    outcome.authority ??
+    (outcome.origin === "pre-existing" ? "pre-existing" : "implementation-authored");
   const ref = outcome.id;
   switch (outcome.classification) {
     case "fixed":

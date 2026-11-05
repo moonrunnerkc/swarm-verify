@@ -172,3 +172,13 @@ Open choices made while building Swarm Verify, dated, with the reason. Append on
 
 - main fast-forwarded to 8686e53 (CI 41842287447). Tag v2.0.3; release run 41842544440 published 2.0.3 through OIDC with provenance (sigstore log index 3690364923). `npm view swarm-verify@2.0.3 dist.integrity` is `sha512-yq4rCNtHp5umyKyPztuqL48Ywm3ZoE7mlO7AID28KBXc1bD7QqtLgwfyhBY/lIPtLiqDBBMy3b8l25PJqV7Axg==`, a pack of a fresh clone of 8686e53; `gitHead` 8686e53; `latest` 2.0.3.
 - `v2` moved from 6defb81 to 8686e53; action-smoke resolved `@v2` to 8686e53 and passed (run 41843310876). `fix/refactor-needs-structure` is deleted from origin.
+
+## 2026-11-05: 2.1.0, independent evidence
+
+- The rule is on decisive evidence, not on any evidence: a pre-existing `npm test` passing shows nothing regressed, not that a feature exists, so a passing declared check is never the independent witness of a fix or feature. Decisive by kind: fix and feature, a witnessing test; refactor, structure or a witnessing sealed test; upgrade, a package or a version constraint; other, anything that holds.
+- `self-attested` is carried in a new `witness` field beside an `unverified` status, not as a fifth status, so statements stay readable by every 2.x consumer's status enum; the overall state stays `incomplete` with the reason `independent evidence missing: <id> is self-attested`.
+- Producer-written checks are a sealed set in the existing store, not a second mechanism: the same overlay, judge and base run as a person's held-out set, told apart by the set's `authority`.
+- Claims default to `user-acceptance` because a caller who writes a requirements file is the person accepting the work; a producer passing on its model's claims must say so, and the orchestrator does.
+- Package claims and version constraints used `authority` to tell themselves apart; they now differ by shape (`isConstraint`), since both can be the caller's.
+- The three pending branches (`fix/container-user-entry`, `fix/version-claim-ranges`, `fix/structure-text-absent`) were merged into `release/2.1.0` first; their changelog entries stand as written.
+- Gates on this commit: 50 files, 271 tests.

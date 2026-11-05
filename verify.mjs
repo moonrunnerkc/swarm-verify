@@ -213,11 +213,11 @@ if (statement !== null) {
 /**
  * The state the recorded evidence supports, by the rule the verifier applies (src/verify/
  * requirements.ts and assess.ts): complete only when the change applied, every required
- * requirement is satisfied by evidence that holds (a fix or feature by a test failing before and
- * passing after, a refactor and an upgrade with nothing regressed, an upgrade by a resolved
- * package on a fresh install), nothing regressed or stayed unresolved, no check failed or
- * recorded a flaky test, the held-out checks passed and the execution policy was met. A recorded
- * `blocked` stands: it can only withhold acceptance, never grant it.
+ * requirement is satisfied by evidence that holds with at least one decisive witness its
+ * implementation's author did not choose (a fix or feature: a test failing before and passing
+ * after; a refactor: structure, nothing regressed; an upgrade: a resolved package on a fresh
+ * install, nothing regressed), nothing regressed or stayed unresolved, no check failed or was
+ * flaky, the held-out checks passed and the execution policy was met. `blocked` stands.
  */
 const witnessing = new Set(["fixed", "witness", "superseded"]);
 const holding = new Set([
@@ -234,8 +234,15 @@ function satisfied(one, predicate) {
   if (one.status !== "satisfied" || evidence.length === 0) return false;
   if (!evidence.every((ref) => holding.has(ref.outcome))) return false;
   const quiet = predicate.regression?.status === "none";
-  if (one.kind === "fix" || one.kind === "feature")
-    return evidence.some((ref) => witnessing.has(ref.outcome));
+  const witnesses = (ref) => witnessing.has(ref.outcome);
+  const decisive = {
+    fix: witnesses,
+    feature: witnesses,
+    refactor: (ref) => ref.kind === "structure" || witnesses(ref),
+    upgrade: (ref) => ref.kind === "package",
+  }[one.kind];
+  const shown = evidence.filter(decisive ?? (() => true));
+  if (!shown.some((ref) => ref.authority !== "implementation-authored")) return false;
   if (one.kind === "refactor") return quiet;
   if (one.kind === "upgrade") {
     const fresh = predicate.execution?.dependencies?.mode === "prepared";

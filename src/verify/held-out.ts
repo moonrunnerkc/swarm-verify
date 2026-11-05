@@ -1,10 +1,6 @@
 import { createHash } from "node:crypto";
-import { chmod, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { z } from "zod";
+import { dirname } from "node:path";
 import type { DeclaredCheck } from "../config/swarm-toml.ts";
-import { gitText } from "./change.ts";
 import {
   type BaseCheckout,
   removeWrittenSince,
@@ -12,153 +8,29 @@ import {
   restoreFromBase,
   untrackedPaths,
 } from "./checkout.ts";
-import { baseCache, type CheckContext, type CheckRun, runCheck } from "./checks.ts";
+import { baseCache, type CheckContext, type CheckRun } from "./checks.ts";
 import { baselineKey, codeSha256 } from "./code-digest.ts";
-import { prepareJudge, readJudge } from "./judge.ts";
-import { type MeasuredRun, runMeasured } from "./per-test.ts";
+import { type MeasuredRun, reportPlans, runMeasured } from "./per-test.ts";
 import type { Baseline, Predicate } from "./predicate.ts";
 import type { ReportPlan } from "./report-plan.ts";
+import { overlaySealed, type SealedSet } from "./sealed-store.ts";
 
-const sealedSchema = z.object({
-  glob: z.string().min(1),
-  checks: z
-    .array(z.object({ name: z.string(), command: z.string(), kind: z.enum(["test", "other"]) }))
-    .min(1),
-  files: z.array(z.object({ path: z.string().min(1), sha256: z.string() })).min(1),
-});
-export type SealedSet = z.infer<typeof sealedSchema>;
-
-export class SealError extends Error {
-  constructor(detail: string) {
-    super(`nothing was sealed: ${detail}`);
-    this.name = "SealError";
-  }
-}
-
-/**
- * Where sealed sets live: outside the workspace, under SWARM_HOME or ~/.swarm, owner-only. Made
- * absolute here, because a container's mounts are read from wherever docker runs.
- */
-export function swarmHome(env: Readonly<Record<string, string | undefined>> = process.env): string {
-  return resolve(env.SWARM_HOME ?? join(homedir(), ".swarm"));
-}
-
-export async function sealedDirectory(
-  workspace: string,
-  home: string = swarmHome(),
-): Promise<string> {
-  const top = await gitText(workspace, ["rev-parse", "--show-toplevel"]);
-  const key = createHash("sha256")
-    .update(await realpath(top))
-    .digest("hex")
-    .slice(0, 32);
-  return join(home, "sealed", key);
-}
-
-/** `**` crosses directories, `*` and `?` stay inside one. */
-export function globPattern(glob: string): RegExp {
-  let pattern = "";
-  for (let at = 0; at < glob.length; at += 1) {
-    const character = glob[at] ?? "";
-    if (glob.startsWith("**/", at)) {
-      pattern += "(?:.*/)?";
-      at += 2;
-    } else if (glob.startsWith("**", at)) {
-      pattern += ".*";
-      at += 1;
-    } else if (character === "*") pattern += "[^/]*";
-    else if (character === "?") pattern += "[^/]";
-    else pattern += character.replace(/[.+^${}()|[\]\\]/g, "\\$&");
-  }
-  return new RegExp(`^${pattern}$`);
-}
-
-/**
- * Moves the files matching the glob out of the workspace into the sealed store, with the test
- * checks that will run them. Nothing under the store is ever given to `swarm run`.
- */
-export async function seal(
-  workspace: string,
-  glob: string,
-  checks: readonly DeclaredCheck[],
-  home: string = swarmHome(),
-): Promise<{ readonly directory: string; readonly sealed: SealedSet }> {
-  const tests = checks.filter((check) => check.kind === "test");
-  if (tests.length === 0) throw new SealError("declare a test check in swarm.toml first");
-  const listed = await gitText(workspace, ["ls-files", "-co", "--exclude-standard"]);
-  const matcher = globPattern(glob);
-  const paths = listed.split("\n").filter((path) => path.length > 0 && matcher.test(path));
-  if (paths.length === 0) throw new SealError(`no file in the workspace matches ${glob}`);
-  const directory = await sealedDirectory(workspace, home);
-  await rm(directory, { recursive: true, force: true });
-  await mkdir(join(directory, "files"), { recursive: true, mode: 0o700 });
-  await chmod(home, 0o700);
-  const files = [];
-  for (const path of paths) {
-    const content = await readFile(join(workspace, path));
-    const target = join(directory, "files", path);
-    await mkdir(dirname(target), { recursive: true, mode: 0o700 });
-    await writeFile(target, content, { mode: 0o600 });
-    files.push({ path, sha256: createHash("sha256").update(content).digest("hex") });
-  }
-  const sealed: SealedSet = { glob, checks: [...tests], files };
-  await writeFile(join(directory, "sealed.json"), `${JSON.stringify(sealed, null, 2)}\n`, {
-    mode: 0o600,
-  });
-  for (const path of paths) await rm(join(workspace, path), { force: true });
-  return { directory, sealed };
-}
-
-export async function readSealed(
-  workspace: string,
-  home: string = swarmHome(),
-): Promise<SealedSet | null> {
-  const directory = await sealedDirectory(workspace, home);
-  let text: string;
-  try {
-    text = await readFile(join(directory, "sealed.json"), "utf8");
-  } catch {
-    return null;
-  }
-  return sealedSchema.parse(JSON.parse(text));
-}
-
-/** The sealed files whose bytes no longer match what was sealed, by path. */
-export async function alteredSealed(
-  workspace: string,
-  sealed: SealedSet,
-  home: string = swarmHome(),
-): Promise<string[]> {
-  const directory = await sealedDirectory(workspace, home);
-  const altered: string[] = [];
-  for (const file of sealed.files) {
-    const content = await readFile(join(directory, "files", file.path)).catch(() => null);
-    const digest = content === null ? null : createHash("sha256").update(content).digest("hex");
-    if (digest !== file.sha256) altered.push(file.path);
-  }
-  return altered;
-}
-
-/** Copies the sealed files into a checkout, refusing any whose bytes changed in the store. */
-export async function overlaySealed(
-  workspace: string,
-  sealed: SealedSet,
-  dir: string,
-  home: string = swarmHome(),
-): Promise<void> {
-  const directory = await sealedDirectory(workspace, home);
-  for (const file of sealed.files) {
-    const content = await readFile(join(directory, "files", file.path));
-    if (createHash("sha256").update(content).digest("hex") !== file.sha256) {
-      throw new SealError(`the sealed copy of ${file.path} changed after it was sealed`);
-    }
-    await mkdir(dirname(join(dir, file.path)), { recursive: true });
-    await writeFile(join(dir, file.path), content);
-  }
-}
+export {
+  alteredSealed,
+  globPattern,
+  overlaySealed,
+  readSealed,
+  SealError,
+  type SealedSet,
+  seal,
+  sealedDirectory,
+  swarmHome,
+} from "./sealed-store.ts";
 
 export interface SealedRun {
   readonly runs: readonly CheckRun[];
+  /** Each sealed check's run with its runner's report, in the order of `sealed.checks`. */
+  readonly measured: readonly MeasuredRun[];
   readonly processes: number;
   readonly assertionCalls: number;
   /** What the judge found, one line per check it failed. */
@@ -168,38 +40,45 @@ export interface SealedRun {
 }
 
 /**
- * Runs the sealed checks with the judge loaded into their Node and Python processes. A check
- * whose assertions the code under test changed fails, whatever its exit code says.
+ * Runs the sealed checks with the judge loaded into their Node and Python processes and their
+ * runner's reporter attached, so each test in them is known by its identity. A check whose
+ * assertions the code under test changed fails, whatever its exit code says.
  */
 export async function runSealed(
   sealed: SealedSet,
   context: CheckContext,
   scratch: string,
+  side: "base" | "candidate" = "candidate",
 ): Promise<SealedRun> {
-  const runs: CheckRun[] = [];
+  const measured: MeasuredRun[] = [];
   const problems: string[] = [];
   const unchecked: string[] = [];
   let processes = 0;
   let assertionCalls = 0;
-  for (const check of sealed.checks) {
-    const judge = await prepareJudge(scratch, check.name, context.dir);
-    const run = await runCheck(check, context, judge.env);
-    const reading = await readJudge(judge.report);
-    processes += reading.processes;
-    assertionCalls += reading.assertionCalls;
-    if (reading.uncheckedThreads > 0) {
+  const plans = await reportPlans(context.dir, sealed.checks);
+  for (const [at, check] of sealed.checks.entries()) {
+    const plan = plans[at] ?? null;
+    const label = `${side}-held-out`;
+    const declared = { ...check, authority: sealed.authority };
+    const one = await runMeasured({ check: declared, plan, context, scratch, label, judge: true });
+    const reading = one.reading ?? null;
+    processes += reading?.processes ?? 0;
+    assertionCalls += reading?.assertionCalls ?? 0;
+    if ((reading?.uncheckedThreads ?? 0) > 0) {
       unchecked.push(
-        `held-out check ${check.name}: ${reading.uncheckedThreads} worker thread(s) its runner terminated were not checked by the judge`,
+        `held-out check ${check.name}: ${reading?.uncheckedThreads} worker thread(s) its runner terminated were not checked by the judge`,
       );
     }
-    if (reading.problem === null) {
-      runs.push(run);
+    if (reading?.problem === null || reading === null) {
+      measured.push(one);
       continue;
     }
     problems.push(`held-out check ${check.name}: ${reading.problem}`);
-    runs.push({ ...run, result: { ...run.result, result: "fail" } });
+    const failed = { ...one.run, result: { ...one.run.result, result: "fail" as const } };
+    measured.push({ ...one, run: failed });
   }
-  return { runs, processes, assertionCalls, problems, unchecked };
+  const runs = measured.map((one) => one.run);
+  return { runs, measured, processes, assertionCalls, problems, unchecked };
 }
 
 /** A digest of the sealed set, so a base run is reused only for the same held-out checks. */
@@ -224,7 +103,12 @@ export async function measureBase(input: {
   readonly workspace: string;
   /** Run the base even where a cached run exists; the fresh run is still written to the cache. */
   readonly fresh: boolean;
-}): Promise<{ readonly baseline: Baseline; readonly runs: readonly MeasuredRun[] }> {
+}): Promise<{
+  readonly baseline: Baseline;
+  readonly runs: readonly MeasuredRun[];
+  /** The sealed checks at the base, with their runners' reports. */
+  readonly sealedRuns: readonly MeasuredRun[];
+}> {
   // The judge is part of the verifier's code, so its digest is in codeSha256.
   const key = baselineKey({
     baseCommit: input.checkout.baseCommit,
@@ -239,14 +123,16 @@ export async function measureBase(input: {
   const reuse = input.environment.reproducible;
   const cached = reuse && !input.fresh ? await baseCache.read(file) : null;
   if (cached !== null) {
-    const { checks, heldOut, tests } = cached;
-    const runs = checks.map((result, at) => ({
-      run: { result, output: "", outputTail: "", notRun: null },
-      evidence: tests[at] ?? { runner: null, report: null, unreadable: null, judge: null },
-    }));
+    const { checks, heldOut, tests, heldOutTests } = cached;
+    const replayed = (results: readonly CheckRun["result"][], reports: typeof tests) =>
+      results.map((result, at) => ({
+        run: { result, output: "", outputTail: "", notRun: null },
+        evidence: reports[at] ?? { runner: null, report: null, unreadable: null, judge: null },
+      }));
     return {
       baseline: { status: "measured", cached: true, environmentSha256, checks, heldOut },
-      runs,
+      runs: replayed(checks, tests),
+      sealedRuns: replayed(heldOut, heldOutTests),
     };
   }
   const scratch = dirname(input.checkout.dir);
@@ -259,10 +145,10 @@ export async function measureBase(input: {
   }
   const checks = runs.map((one) => one.run.result);
   const tests = runs.map((one) => one.evidence);
-  let heldOut: CheckRun["result"][] = [];
+  let sealedRuns: readonly MeasuredRun[] = [];
   if (input.sealed !== null) {
     await overlaySealed(input.workspace, input.sealed, input.checkout.dir, input.home);
-    heldOut = (await runSealed(input.sealed, input.context, scratch)).runs.map((run) => run.result);
+    sealedRuns = (await runSealed(input.sealed, input.context, scratch, "base")).measured;
     await restoreFromBase(
       input.checkout,
       input.sealed.files.map((entry) => entry.path),
@@ -270,9 +156,12 @@ export async function measureBase(input: {
   }
   await resetTracked(input.checkout);
   await removeWrittenSince(input.checkout, before);
-  if (reuse) await baseCache.write(file, { checks, tests, heldOut });
+  const heldOut = sealedRuns.map((one) => one.run.result);
+  const heldOutTests = sealedRuns.map((one) => one.evidence);
+  if (reuse) await baseCache.write(file, { checks, tests, heldOut, heldOutTests });
   return {
     baseline: { status: "measured", cached: false, environmentSha256, checks, heldOut },
     runs,
+    sealedRuns,
   };
 }

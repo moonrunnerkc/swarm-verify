@@ -31,6 +31,9 @@ const added: TestOutcome = {
   movedTo: null,
 };
 
+/** The same test, sealed by a process that never saw the change. */
+const sealedAdded: TestOutcome = { ...added, authority: "independently-generated" };
+
 const inputs: RequirementInputs = {
   checks: [check("test"), check("lint"), check("build")],
   outcomes: [added],
@@ -149,7 +152,7 @@ describe("a requirement whose evidence names nothing that ran", () => {
           evidence: { tests: [{ name: "skips extra directories" }], checks: ["test"] },
         }),
       ],
-      { ...inputs, checks: [inheritedOnly, check("lint")] },
+      { ...inputs, outcomes: [sealedAdded], checks: [inheritedOnly, check("lint")] },
     );
     expect(outcome?.evidence.find((one) => one.kind === "check")).toMatchObject({
       outcome: "passes but for inherited failures",
@@ -175,7 +178,7 @@ describe("a requirement whose evidence names nothing that ran", () => {
             evidence: { tests: [{ name }] },
           }),
         ],
-        inputs,
+        { ...inputs, outcomes: [sealedAdded] },
       );
       expect(outcome?.evidence.map((one) => one.outcome)).toEqual(["witness"]);
       expect(outcome?.status).toBe("satisfied");

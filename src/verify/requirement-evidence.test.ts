@@ -41,7 +41,7 @@ describe("a requirement's package claim", () => {
     expect(await claimed("9.x", "10.1.1")).toEqual({
       kind: "package",
       ref: "npm:@stryker-mutator/core",
-      authority: "pre-existing",
+      authority: "user-acceptance",
       outcome: "fail",
       detail: "resolved 9.6.1 at the base and 10.1.1 in the candidate, outside 9.x",
     });

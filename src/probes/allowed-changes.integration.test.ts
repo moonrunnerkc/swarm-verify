@@ -1,26 +1,9 @@
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { Requirement } from "../api/request.ts";
-import type { VerifyResult } from "../api/result.ts";
-import { halfTest, probeFixture, requirement } from "./fixture.ts";
-
-const checker = join(import.meta.dirname, "..", "..", "verify.mjs");
-
-/** The dependency-free checker re-derives the same complete state from the signed evidence. */
-function checksOffline(result: VerifyResult): void {
-  const { bundle, publicKey, patch } = result.evidence;
-  const ran = spawnSync(
-    process.execPath,
-    [checker, bundle ?? "", "--key", publicKey ?? "", "--patch", patch ?? ""],
-    {
-      encoding: "utf8",
-    },
-  );
-  expect(ran.stdout).toContain("ok     state     complete, supported by the recorded evidence");
-  expect(ran.status).toBe(0);
-}
+import { checksOffline, halfTest, probeFixture, requirement } from "./fixture.ts";
 
 /**
  * Legitimate engineering the verifier must accept for a stated reason, so it cannot look safe by
@@ -28,31 +11,6 @@ function checksOffline(result: VerifyResult): void {
  * that changes the manifest and the lockfile.
  */
 describe("changes the verifier accepts for a valid reason", () => {
-  it("accepts a feature with new tests, witnessed failing before and passing after", async () => {
-    const probe = await probeFixture({
-      "half.mjs": "export const half = n => n / 2;\n",
-      "test/half.test.mjs": halfTest,
-    });
-    await probe.put(
-      "half.mjs",
-      "export const half = n => n / 2;\nexport const double = n => n * 2;\n",
-    );
-    await probe.put(
-      "test/double.test.mjs",
-      "import {test} from 'node:test';\nimport assert from 'node:assert/strict';\nimport {double} from '../half.mjs';\ntest('doubles',()=>assert.equal(double(4),8));\n",
-    );
-    const result = await probe.verify([
-      requirement("R1", "export double(n) returning n * 2", "feature", ["doubles"]),
-    ]);
-    expect(result.state).toBe("complete");
-    expect(result.requirements[0]).toMatchObject({ status: "satisfied" });
-    expect(result.requirements[0]?.evidence[0]).toMatchObject({
-      outcome: "witness",
-      authority: "implementation-authored",
-    });
-    checksOffline(result);
-  });
-
   it("accepts a refactor that moves source and tests, matching tests by identity", async () => {
     const probe = await probeFixture({
       "half.mjs": "export const half = n => n / 2;\n",
@@ -177,7 +135,8 @@ describe("naming evidence by suite", () => {
       "witness",
       "witness",
     ]);
-    expect(result.requirements[0]?.status).toBe("satisfied");
+    // Mapped, and still the implementation's own tests: no independent witness.
+    expect(result.requirements[0]?.witness).toBe("self-attested");
   });
 
   it("maps a requirement named by a suite and test path as a runner prints it", async () => {
@@ -197,7 +156,7 @@ describe("naming evidence by suite", () => {
       requirement("R1", "export double(n)", "feature", ["double > doubles"]),
     ]);
     expect(result.requirements[0]?.evidence.map((ref) => ref.outcome)).toEqual(["witness"]);
-    expect(result.requirements[0]?.status).toBe("satisfied");
+    expect(result.requirements[0]?.witness).toBe("self-attested");
   });
 });
 

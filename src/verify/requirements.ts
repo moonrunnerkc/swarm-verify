@@ -21,6 +21,8 @@ export interface RequirementInputs {
   readonly checks: readonly CheckResult[];
   /** Every test of every check, classified against the base. */
   readonly outcomes: readonly TestOutcome[];
+  /** Every sealed test, against the base, with the authority of the set it was sealed in. */
+  readonly sealedTests?: readonly TestOutcome[];
   /** The candidate tree, and a reader of the base's files, for structural and dependency claims. */
   readonly dir: string;
   readonly readBase: (path: string) => Promise<string | null>;
@@ -40,7 +42,7 @@ function testRefs(
   // in the file it names, if it names one. The id the verifier itself prints selects its test
   // whatever the runner made of the file: pytest's dotted classname is no path.
   const named = splitTestName(selector.name);
-  const found = inputs.outcomes.filter(
+  const found = [...inputs.outcomes, ...(inputs.sealedTests ?? [])].filter(
     (one) =>
       (selector.file === undefined || livesIn(one.file, selector.file)) &&
       (one.id === selector.name ||
@@ -186,6 +188,48 @@ function judged(
   return { status: "satisfied", limitation: null, nextAction: null };
 }
 
+/** The evidence that shows a requirement met, by its kind, as opposed to evidence that it broke nothing. */
+function decisive(requirement: Requirement, evidence: readonly EvidenceRef[]): EvidenceRef[] {
+  const holds = evidence.filter((one) => holding.has(one.outcome));
+  switch (requirement.kind) {
+    case "fix":
+    case "feature":
+      return holds.filter((one) => witnessing.has(one.outcome));
+    case "refactor":
+      return holds.filter((one) => one.kind === "structure" || witnessing.has(one.outcome));
+    case "upgrade":
+      return holds.filter((one) => one.kind === "package");
+    default:
+      return holds;
+  }
+}
+
+type Judged = Pick<RequirementOutcome, "status" | "limitation" | "nextAction">;
+
+/**
+ * Satisfied only on independent evidence: at least one decisive witness the change's own author
+ * did not choose. Where every one is the implementation's own (its tests, or claims it proposed),
+ * the requirement is self-attested, which is not satisfied.
+ */
+function attested(
+  requirement: Requirement,
+  evidence: readonly EvidenceRef[],
+  judgedAs: Judged,
+): Judged & Pick<RequirementOutcome, "witness"> {
+  const shown = decisive(requirement, evidence);
+  const independent = shown.filter((one) => one.authority !== "implementation-authored");
+  const witness =
+    independent.length > 0 ? "independent" : shown.length > 0 ? "self-attested" : "none";
+  if (judgedAs.status !== "satisfied" || witness === "independent") return { ...judgedAs, witness };
+  return {
+    status: "unverified",
+    witness,
+    limitation: `self-attested: every witness is the implementation's own (${shown.map((one) => one.ref).join(", ")})`,
+    nextAction:
+      "independent evidence is missing: a check the implementation's author did not write (sealed, user-supplied or pre-existing) must witness this requirement",
+  };
+}
+
 /**
  * Each requirement's status from executed and observed evidence only. A fix or feature needs a
  * test that fails before and passes after; a refactor needs preserved behavior and structural
@@ -199,8 +243,13 @@ export async function assessRequirements(
   const outcomes: RequirementOutcome[] = [];
   for (const requirement of requirements) {
     const { tests, checks, structure, packages } = requirement.evidence;
+    const bound = (inputs.sealedTests ?? []).filter((one) =>
+      (one.requirements ?? []).includes(requirement.id),
+    );
+    const selected = tests.flatMap((selector) => testRefs(selector, inputs));
     const evidence: EvidenceRef[] = [
-      ...tests.flatMap((selector) => testRefs(selector, inputs)),
+      ...selected,
+      ...bound.map(testRef).filter((one) => !selected.some((other) => other.ref === one.ref)),
       ...checks.map((name) => checkRef(name, inputs)),
       ...(await Promise.all(structure.map((claim) => structureEvidence(inputs.dir, claim)))),
       ...(await Promise.all(
@@ -222,7 +271,7 @@ export async function assessRequirements(
       expected: requirement.evidence,
       versions: requirement.versions,
       evidence,
-      ...judged(requirement, evidence, inputs),
+      ...attested(requirement, evidence, judged(requirement, evidence, inputs)),
     });
   }
   return outcomes;

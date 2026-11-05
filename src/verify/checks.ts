@@ -166,8 +166,11 @@ const storedBaseSchema = z.object({
   /** Each declared check's runner report at base, in the same order as `checks`. */
   tests: z.array(testEvidenceSchema),
   heldOut: z.array(checkResultSchema),
+  /** Each sealed check's runner report at base, in the same order as `heldOut`. */
+  heldOutTests: z.array(testEvidenceSchema).default([]),
 });
-export type StoredBase = z.infer<typeof storedBaseSchema>;
+export type StoredBase = z.input<typeof storedBaseSchema>;
+type ReadBase = z.output<typeof storedBaseSchema>;
 
 /**
  * Base results kept under SWARM_HOME, owner-only, one file per key. A file that does not parse
@@ -175,7 +178,7 @@ export type StoredBase = z.infer<typeof storedBaseSchema>;
  */
 export const baseCache = {
   file: (home: string, key: string) => join(home, "baselines", `${key}.json`),
-  async read(file: string): Promise<StoredBase | null> {
+  async read(file: string): Promise<ReadBase | null> {
     const text = await readFile(file, "utf8").catch(() => null);
     if (text === null) return null;
     try {

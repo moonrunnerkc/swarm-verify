@@ -105,3 +105,10 @@ export async function prepareDependencies(
   }
   return { mode: linked ? "linked" : "none", failure: null, localPackages: [], refused: null };
 }
+
+/** Why a run whose base did not install is blocked, and what to do, by where it ran. */
+export function baseSetupFailed(mode: "isolated" | "host"): string {
+  return mode === "isolated"
+    ? "the base's dependencies did not install from its lockfile in a clean container: fix the dependency the setup output names, or verify on the host with the workspace's installed dependencies, reported as not isolated and not reproducible"
+    : "the base's dependencies did not install from its lockfile: fix the dependency the setup output names, or use the workspace's installed dependencies (dependencies: linked), reported as not reproducible";
+}

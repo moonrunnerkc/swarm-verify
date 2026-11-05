@@ -31,6 +31,17 @@ const testSelectorSchema = z.strictObject({
 });
 
 /**
+ * Who chose a claim. A claim the caller writes is the caller's acceptance; a producer passing on
+ * claims its coding model proposed marks them implementation-authored, and they then witness
+ * nothing on their own.
+ */
+const claimAuthority = z.enum([
+  "user-acceptance",
+  "independently-generated",
+  "implementation-authored",
+]);
+
+/**
  * A structural fact about the candidate tree, for refactors: a file exists, holds a text, no longer
  * holds it (`contains` with `absent`), or is gone.
  */
@@ -38,6 +49,7 @@ const structureClaimSchema = z.strictObject({
   path: z.string().min(1),
   contains: z.string().min(1).optional(),
   absent: z.boolean().optional(),
+  authority: claimAuthority.optional(),
 });
 
 /** A dependency an upgrade must resolve to, read from the candidate's lockfile. */
@@ -45,6 +57,7 @@ const packageClaimSchema = z.strictObject({
   name: z.string().min(1),
   ecosystem: z.enum(["npm", "pypi"]),
   version: z.string().min(1).optional(),
+  authority: claimAuthority.optional(),
 });
 
 /**

@@ -1,8 +1,9 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { generateKeyPairSync } from "node:crypto";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { expect } from "vitest";
 import type { Requirement } from "../api/request.ts";
 import { requestVersion, type VerifyRequestInput } from "../api/request.ts";
 import type { VerifyResult } from "../api/result.ts";
@@ -122,3 +123,19 @@ export const requirement = (
   evidence: { tests: tests.map((name) => ({ name })), checks: [], structure: [], packages: [] },
   versions: [],
 });
+
+const checker = join(import.meta.dirname, "..", "..", "verify.mjs");
+
+/** The dependency-free checker re-derives the same complete state from the signed evidence. */
+export function checksOffline(result: VerifyResult): void {
+  const { bundle, publicKey, patch } = result.evidence;
+  const ran = spawnSync(
+    process.execPath,
+    [checker, bundle ?? "", "--key", publicKey ?? "", "--patch", patch ?? ""],
+    {
+      encoding: "utf8",
+    },
+  );
+  expect(ran.stdout).toContain("ok     state     complete, supported by the recorded evidence");
+  expect(ran.status).toBe(0);
+}

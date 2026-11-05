@@ -62,6 +62,10 @@ export interface TestOutcome {
   readonly movedTo: string | null;
   /** Every run of the test where its failing first run was rerun. */
   readonly rerun?: TestRuns;
+  /** A sealed test's authority: who stands behind it, since the candidate never held it. */
+  readonly authority?: "user-acceptance" | "independently-generated";
+  /** The requirements its sealed check was written to witness. */
+  readonly requirements?: readonly string[];
 }
 
 export const titleOf = (id: string) => {

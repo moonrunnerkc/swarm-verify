@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { requirementSchema, type VersionConstraint } from "../api/request.ts";
 import { type LatestTarget, targetKey } from "./latest-version.ts";
 import type { CheckResult } from "./predicate.ts";
+import { isConstraint } from "./requirement-evidence.ts";
 import { assessRequirements, type RequirementInputs } from "./requirements.ts";
 
 // claimcheck's task: "Bump vitest from 4.1.8 to 4.1.10 (or both Stryker packages to the latest
@@ -130,7 +131,7 @@ describe("a version the task's wording constrains", () => {
       new Map([[targetKey(stryker), { version: "9.6.1", source: "s", detail: "read" }]]),
       "9.6.1",
     );
-    const constraints = outcome.evidence.filter((one) => one.authority === "user-acceptance");
+    const constraints = outcome.evidence.filter(isConstraint);
     expect(constraints.map((one) => one.outcome)).toEqual(["observed", "observed"]);
   });
 

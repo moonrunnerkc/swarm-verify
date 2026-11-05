@@ -3,13 +3,15 @@ import { join } from "node:path";
 import type { DeclaredCheck } from "../config/swarm-toml.ts";
 import type { CheckContext, CheckRun } from "./checks.ts";
 import { runCheck } from "./checks.ts";
-import { prepareJudge, readJudge } from "./judge.ts";
+import { type JudgeReading, prepareJudge, readJudge } from "./judge.ts";
 import { type ReportPlan, reportPlan } from "./report-plan.ts";
 import { parseReport, type TestEvidence } from "./test-report.ts";
 
 export interface MeasuredRun {
   readonly run: CheckRun;
   readonly evidence: TestEvidence;
+  /** The judge's whole reading, where it was loaded; its problem is also in `evidence`. */
+  readonly reading?: JudgeReading;
 }
 
 export type Wrap = (check: DeclaredCheck) => {
@@ -76,9 +78,15 @@ export async function runMeasured(input: {
   const env = mergeEnv(judge?.env ?? {}, plan?.env(file) ?? {}, wrapped.env);
   const ran = await runCheck(wrapped.check, context, env);
   const run = { ...ran, result: { ...ran.result, command: check.command } };
-  const judged = judge === null ? null : (await readJudge(judge.report)).problem;
+  const reading = judge === null ? null : await readJudge(judge.report);
+  const judged = reading?.problem ?? null;
+  const read = reading === null ? {} : { reading };
   if (plan === null) {
-    return { run, evidence: { runner: null, report: null, unreadable: null, judge: judged } };
+    return {
+      run,
+      evidence: { runner: null, report: null, unreadable: null, judge: judged },
+      ...read,
+    };
   }
   const text = run.notRun === null ? await readFile(file, "utf8").catch(() => null) : null;
   const report =
@@ -95,6 +103,7 @@ export async function runMeasured(input: {
   return {
     run: { ...run, result: { ...run.result, collected } },
     evidence: { runner: plan.runner, report, unreadable, judge: judged },
+    ...read,
   };
 }
 

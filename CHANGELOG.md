@@ -8,6 +8,26 @@ swarm-orchestrator's `packages/swarm-verify`; 2.0.0 is the first built from this
 
 ## Unreleased
 
+### Changed
+
+- **A requirement is satisfied only on independent evidence.** Each requirement's decisive
+  evidence (for a fix or feature, a test failing before and passing after; for a refactor, its
+  structure; for an upgrade, its resolved packages) must include one witness its implementation's
+  author did not choose: a pre-existing test the change fixes, a sealed check, a claim the caller
+  wrote, or a constraint read from the task's wording. Where every decisive witness is the
+  implementation's own (tests the candidate added, claims a producer marks
+  `implementation-authored`), the requirement is `unverified`, its new `witness` field reads
+  `self-attested`, and the overall reasons say `independent evidence missing`. A 2.0.x statement
+  that read `complete` on a feature witnessed only by its own new tests reads `incomplete` here.
+- **Sealed checks are judged test by test and can name what they witness.** Held-out checks run
+  with their runner's reporter, so each sealed test is evidence by its identity, with its set's
+  authority (`user-acceptance` for `swarm-verify init --seal`, `independently-generated` for a set
+  a producer had written apart from the change, through the new `sealFiles` export). A sealed
+  check may list the requirement ids it witnesses, and its tests join those requirements' evidence.
+- **Structure and package claims carry who chose them.** An optional `authority` on each claim;
+  absent, a claim is the caller's (`user-acceptance`). They used to be labeled `pre-existing`,
+  which they never were.
+
 ### Fixed
 
 - **Checks in a container run as a user the image lists.** Isolated checks run as the host's uid

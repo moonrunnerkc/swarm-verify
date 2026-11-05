@@ -1,5 +1,5 @@
 import type { EvidenceRef } from "../api/outcome.ts";
-import { testRef, witnessing } from "./requirement-evidence.ts";
+import { isConstraint, testRef, witnessing } from "./requirement-evidence.ts";
 import type { RequirementInputs } from "./requirements.ts";
 
 export const noSuchTest = "no executed test has this name";
@@ -38,7 +38,7 @@ export function unobservedAction(
     .map((one) => `${one.ref}: ${one.detail}`)
     .join("; ");
   const packages = unobserved
-    .filter((one) => one.kind === "package" && one.authority !== "user-acceptance")
+    .filter((one) => one.kind === "package" && !isConstraint(one))
     .map((one) => `${one.ref}: ${one.detail}`)
     .join("; ");
   const steps = [

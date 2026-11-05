@@ -2,9 +2,16 @@ import { createHash } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { detectChecks } from "../config/detect.ts";
 import { readSwarmToml } from "../config/swarm-toml.ts";
-import { executionOf, regressionOf, stateOf, unmeasuredOf } from "./assess.ts";
+import {
+  executionOf,
+  independenceReasons,
+  notYetMeasured,
+  regressionOf,
+  stateOf,
+  unmeasuredOf,
+} from "./assess.ts";
 import { judgeCandidate } from "./candidate.ts";
-import { runGit } from "./change.ts";
+import { baseReader } from "./change.ts";
 import { applyChange, cloneBase } from "./checkout.ts";
 import { allChecks, environmentOf, privateHome } from "./checks.ts";
 import type { TestOutcome } from "./compare.ts";
@@ -15,9 +22,9 @@ import { isolate } from "./isolate.ts";
 import { latestTargets, publicRegistries } from "./latest-version.ts";
 import { artifactsOf } from "./paths.ts";
 import { type MeasuredRun, reportPlans } from "./per-test.ts";
-import type { Baseline, CheckResult, Coverage, HeldOut, Mutation, Predicate } from "./predicate.ts";
+import type { CheckResult, Predicate } from "./predicate.ts";
 import { buildStatement } from "./predicate.ts";
-import { prepareDependencies } from "./prepare.ts";
+import { baseSetupFailed, prepareDependencies } from "./prepare.ts";
 import { assessRequirements } from "./requirements.ts";
 import { defaultReruns } from "./reruns.ts";
 import { noTestFiles, testFileChanges, testFilesRecord } from "./test-files.ts";
@@ -83,14 +90,8 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
         : null;
     let runs: CheckResult[] = [];
     let outcomes: TestOutcome[] = [];
-    let baseline: Baseline = skipped("no checks are declared");
-    let heldOut: HeldOut = skipped(
-      sealed === null
-        ? "no held-out checks are sealed for this workspace"
-        : "the sealed held-out checks did not run",
-    );
-    let coverage: Coverage = skipped("the checks did not run");
-    let mutation: Mutation = skipped("the checks did not run");
+    let sealedTests: TestOutcome[] = [];
+    let { baseline, heldOut, coverage, mutation } = notYetMeasured(sealed !== null);
     const locks = await generatedLocks(checkout.dir, options.pinnedLocks);
     await locks.before("base");
     const prepared = await prepareDependencies(
@@ -114,6 +115,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
     );
     const plans = await reportPlans(checkout.dir, checks);
     let baseRuns: readonly MeasuredRun[] = [];
+    let sealedBase: readonly MeasuredRun[] = [];
     if (checks.length > 0 && prepared.failure === null && blocked.length === 0) {
       const environment = await environmentOf(checkout.dir, checks, dependencies, isolated);
       const workspace = options.workspace;
@@ -130,6 +132,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       });
       baseline = measured.baseline;
       baseRuns = measured.runs;
+      sealedBase = measured.sealedRuns;
     } else if (checks.length > 0) {
       baseline = skipped(
         `the base was not measured: ${blocked[0] ?? "its dependencies did not install"}`,
@@ -169,11 +172,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
     } else if (checks.length === 0) {
       blocked.push("no checks are declared in swarm.toml or the project's manifests");
     } else if (prepared.failure !== null) {
-      blocked.push(
-        options.policy.mode === "isolated"
-          ? "the base's dependencies did not install from its lockfile in a clean container: fix the dependency the setup output names, or verify on the host with the workspace's installed dependencies, reported as not isolated and not reproducible"
-          : "the base's dependencies did not install from its lockfile: fix the dependency the setup output names, or use the workspace's installed dependencies (dependencies: linked), reported as not reproducible",
-      );
+      blocked.push(baseSetupFailed(options.policy.mode));
       failures.push(`setup failed:\n${prepared.failure.outputTail}`);
     } else if (candidateSetup !== null) {
       reasons.push("installing the candidate's dependencies from its lockfile failed");
@@ -188,6 +187,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
         sealed,
         home,
         baseRuns,
+        sealedBase,
         testFiles,
         changed,
         artifacts,
@@ -206,7 +206,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       });
       tamperedTree.push(...judged.problems);
       logs.push(...judged.logs);
-      ({ runs, outcomes, coverage, mutation, heldOut } = judged);
+      ({ runs, outcomes, sealedTests, coverage, mutation, heldOut } = judged);
       reasons.push(...judged.reasons);
       failures.push(...judged.failures);
       inheritedText.push(...judged.inherited);
@@ -221,11 +221,9 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
     const requirements = await assessRequirements(options.requirements ?? [], {
       checks: runs,
       outcomes,
+      sealedTests,
       dir: checkout.dir,
-      readBase: async (path) => {
-        const shown = await runGit(checkout.dir, ["show", `${change.baseCommit}:${path}`]);
-        return shown.code === 0 ? shown.stdout.toString("utf8") : null;
-      },
+      readBase: baseReader(checkout.dir, change.baseCommit),
       changed: change.patch.length > 0,
       regression,
       freshDependencies: dependencies.mode === "prepared" && depsChanged && candidateSetup === null,
@@ -240,6 +238,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       tamperedTree,
     );
     reasons.unshift(...blocked);
+    reasons.push(...independenceReasons(requirements));
     const state = stateOf({ blocked, requirements, regression, execution, failed });
     const predicate: Predicate = {
       state,

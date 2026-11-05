@@ -45,3 +45,5 @@ export {
 export { buildVersion as verifierVersion } from "./build-version.ts";
 export { predicateType } from "./verify/predicate.ts";
 export { exitCodeOf, renderMarkdown, renderText } from "./verify/report.ts";
+export type { SealedFile, SealedSet } from "./verify/sealed-store.ts";
+export { readSealed, SealError, sealedDirectory, sealFiles } from "./verify/sealed-store.ts";
