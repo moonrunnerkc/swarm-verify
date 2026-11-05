@@ -29,6 +29,12 @@ swarm-orchestrator's `packages/swarm-verify`; 2.0.0 is the first built from this
   needs a test the change itself adds that fails before and passes after, mapped or not, beside its
   independent witness. Without it, a patch whose behavior passed the independent check but carried
   none of the tests the user asked for read as complete.
+- **An upgrade can say its wording asks for a code change too.** `behaviorAsked` (default false),
+  set by the producer where an upgrade's wording asks for code to change with the versions (a
+  version it installs, a call it adapts): the upgrade is then unverified until a test of that
+  change fails before and passes after, and that test, not the versions, is its decisive witness,
+  so one the implementation wrote alone is self-attested. Without it, an upgrade whose versions
+  resolved but whose stated code change was never made read as complete.
 - **Structure claims can name a symbol, read by the language's parser.** `{"path", "symbol"}` says
   the module defines the name, with `"absent": true` that it no longer does, and with
   `"provides": true` that an importer still gets it (defined, imported, re-exported, through
