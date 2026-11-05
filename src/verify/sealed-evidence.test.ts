@@ -59,4 +59,18 @@ describe("sealed tests as outcomes", () => {
       { id: "held-out authored-R1", classification: "new-failure", base: "fail", after: "fail" },
     ]);
   });
+
+  it("leaves out a case the check's name filter skipped at both commits", () => {
+    const base = run("fail", {
+      [`${file}::sorts`]: { status: "fail", file },
+      [`${file}::misuses toThrow`]: { status: "skip", file },
+    });
+    const after = run("pass", {
+      [`${file}::sorts`]: { status: "pass", file },
+      [`${file}::misuses toThrow`]: { status: "skip", file },
+    });
+    expect(sealedOutcomes(sealed, [base], [after]).map((one) => one.id)).toEqual([
+      `${file}::sorts`,
+    ]);
+  });
 });

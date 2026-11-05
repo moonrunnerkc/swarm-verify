@@ -60,6 +60,8 @@ export function sealedOutcomes(
       // A file that could not load at the base stands for its tests as one failing entry, which
       // the candidate's report replaces with the tests themselves: it is not a test removed.
       if (now === null && was !== "pass") continue;
+      // Left out by the check's own name filter at both commits: no evidence either way.
+      if (now === "skip" && (was === "skip" || was === null)) continue;
       outcomes.push({
         id,
         title: titleOf(id),
