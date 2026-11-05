@@ -6,6 +6,16 @@ of moonrunnerkc/swarm-verify. Versions before 1.0.0 (0.2.0, released with Swarm 
 swarm-orchestrator's `packages/swarm-verify`; 2.0.0 is the first built from this repository. A
 2.0.0 tagged there on 2026-10-29 was never published to npm, and its notes are folded in below.
 
+## Unreleased
+
+### Fixed
+
+- **A package claim reads a caret or tilde range.** A requirement's package claim took `5.x`, `9`
+  and an exact version, and read `^5` as a version nothing equals: a candidate resolving vitest
+  5.1.0 was "outside ^5" and failed, while the task's own `^5` constraint beside it held. An upgrade
+  run spent about 40 turns chasing that failure before it stopped. A claim's version is now read
+  as the version constraints are read; one that reads as no range still holds nothing.
+
 ## 2.0.3 - 2026-11-04
 
 ### Fixed
