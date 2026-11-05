@@ -27,6 +27,7 @@ import { buildStatement } from "./predicate.ts";
 import { baseSetupFailed, prepareDependencies } from "./prepare.ts";
 import { assessRequirements } from "./requirements.ts";
 import { defaultReruns } from "./reruns.ts";
+import { sealedLogs } from "./sealed-store.ts";
 import { noTestFiles, testFileChanges, testFilesRecord } from "./test-files.ts";
 import type { VerifyOptions, VerifyOutcome } from "./verify-options.ts";
 
@@ -230,6 +231,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       latest,
     });
     logs.push(...locks.kept());
+    if (sealed !== null) logs.push(...(await sealedLogs(options.workspace, sealed, home)));
     const generated = locks.kept().length > 0;
     const execution = executionOf(
       options.policy,

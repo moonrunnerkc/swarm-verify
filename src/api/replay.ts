@@ -1,10 +1,18 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { envelopeOf } from "../verify/dsse.ts";
 import { keptLockName, type PinnedLocks } from "../verify/generated-lock.ts";
 import { type Statement, statementSchema } from "../verify/predicate.ts";
 import { defaultReruns } from "../verify/reruns.ts";
+import {
+  placeSealed,
+  type SealedSet,
+  sealedFileLogName,
+  sealedLogName,
+  sealedSchema,
+  swarmHome,
+} from "../verify/sealed-store.ts";
 import { divergencesOf } from "./divergences.ts";
 import { type ExecutionPolicy, requestVersion, type VerifyRequestInput } from "./request.ts";
 import type { VerifyResult } from "./result.ts";
@@ -62,6 +70,26 @@ async function keptLocks(
     pinned[side] = bytes.toString("utf8");
   }
   return pinned;
+}
+
+/** The sealed set the recording judged with, read from the bundle and held to its signed digests. */
+async function recordedSealed(
+  directory: string,
+  recorded: Statement["predicate"],
+): Promise<{ readonly sealed: SealedSet; readonly contents: Map<string, string> } | null> {
+  const signed = (name: string) => recorded.logs.find((log) => log.name === name)?.sha256;
+  const read = async (name: string) => {
+    const bytes = await readFile(join(directory, name)).catch(() => null);
+    if (bytes === null || sha256(bytes) !== signed(name))
+      throw new UnreplayableBundleError(`${name} is not the sealed file the statement signed`);
+    return bytes.toString("utf8");
+  };
+  if (signed(sealedLogName) === undefined) return null;
+  const sealed = sealedSchema.parse(JSON.parse(await read(sealedLogName)));
+  const contents = new Map<string, string>();
+  for (const file of sealed.files)
+    contents.set(file.path, await read(sealedFileLogName(file.path)));
+  return { sealed, contents };
 }
 
 /** This machine as a host recording names it: `darwin-arm64`, `linux-x64`. */
@@ -175,11 +203,26 @@ export async function replay(
     patch: { path: patch, sha256: sha256(await readFile(patch)) },
     out: options.out,
   });
-  const replayed = await verify(request, {
-    verifierVersion: options.verifierVersion,
-    freshBase: true,
-    pinnedLocks: await keptLocks(bundle, recorded),
-    ...(options.swarmHome === undefined ? {} : { swarmHome: options.swarmHome }),
-  });
-  return { recorded, replayed, divergences: divergencesOf(recorded, replayed) };
+  // The recording's sealed set, placed for this checkout under a home of the replay's own: the
+  // sealed store is keyed by checkout, and the recording may have sealed for another one.
+  const sealed = await recordedSealed(bundle, recorded);
+  const home = resolve(options.swarmHome ?? swarmHome());
+  const own = sealed === null ? null : await mkdtemp(join(home, "replay-"));
+  try {
+    if (sealed !== null && own !== null)
+      await placeSealed(resolve(options.repository), own, sealed.sealed, sealed.contents);
+    const replayed = await verify(request, {
+      verifierVersion: options.verifierVersion,
+      freshBase: true,
+      pinnedLocks: await keptLocks(bundle, recorded),
+      ...(own !== null
+        ? { swarmHome: own }
+        : options.swarmHome === undefined
+          ? {}
+          : { swarmHome: options.swarmHome }),
+    });
+    return { recorded, replayed, divergences: divergencesOf(recorded, replayed) };
+  } finally {
+    if (own !== null) await rm(own, { recursive: true, force: true });
+  }
 }

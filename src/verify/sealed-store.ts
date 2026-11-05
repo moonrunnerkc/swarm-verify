@@ -12,7 +12,7 @@ import { gitText } from "./change.ts";
  * `independently-generated` is one a producer had written from the requirements alone, by a
  * process that never saw the change. A check names the requirements it witnesses, if any.
  */
-const sealedSchema = z.object({
+export const sealedSchema = z.object({
   glob: z.string().min(1),
   authority: z.enum(["user-acceptance", "independently-generated"]).default("user-acceptance"),
   checks: z
@@ -208,4 +208,49 @@ export async function sealFiles(input: {
     mode: 0o600,
   });
   return { directory, sealed };
+}
+
+/** The log names a sealed set travels under in a verification's evidence. */
+export const sealedLogName = "sealed/sealed.json";
+export const sealedFileLogName = (path: string) => `sealed/files/${path}`;
+
+/**
+ * The sealed set a verification judged with, as logs of its evidence, so a replay judges with the
+ * same checks wherever it runs: the orchestrator seals its authored checks for the clone it works
+ * in, and a replay against another checkout found none (2026-11-05, 17.0.0-rc.13, where every
+ * run whose authored test failed replayed R1 as unverified).
+ */
+export async function sealedLogs(
+  workspace: string,
+  sealed: SealedSet,
+  home: string = swarmHome(),
+): Promise<{ readonly name: string; readonly text: string }[]> {
+  const directory = await sealedDirectory(workspace, home);
+  const logs = [{ name: sealedLogName, text: `${JSON.stringify(sealed, null, 2)}\n` }];
+  for (const file of sealed.files)
+    logs.push({
+      name: sealedFileLogName(file.path),
+      text: await readFile(join(directory, "files", file.path), "utf8"),
+    });
+  return logs;
+}
+
+/** Places a sealed set for a workspace under a home, as sealing it there would have. */
+export async function placeSealed(
+  workspace: string,
+  home: string,
+  sealed: SealedSet,
+  contents: ReadonlyMap<string, string>,
+): Promise<void> {
+  const directory = await sealedDirectory(workspace, home);
+  await rm(directory, { recursive: true, force: true });
+  await mkdir(join(directory, "files"), { recursive: true, mode: 0o700 });
+  for (const file of sealed.files) {
+    const target = join(directory, "files", file.path);
+    await mkdir(dirname(target), { recursive: true, mode: 0o700 });
+    await writeFile(target, contents.get(file.path) ?? "", { mode: 0o600 });
+  }
+  await writeFile(join(directory, "sealed.json"), `${JSON.stringify(sealed, null, 2)}\n`, {
+    mode: 0o600,
+  });
 }
