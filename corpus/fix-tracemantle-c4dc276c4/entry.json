@@ -22,12 +22,10 @@
    "origin": "tracemantle c4dc276c4 less its added tests and fixtures (the held-out set)",
    "expected": {
     "state": null,
-    "requirements": {
-     "R1": null
-    },
+    "requirements": {},
     "heldOut": "pass"
    },
-   "why": "probes-16.0.3/tracemantle-c4dc276c4.verify.out (2.0.2, the whole fix commit by --range, no requirements): complete, the fix's own test passing in the container. Not judged in split form or under this record, whose tests name the model's own test"
+   "why": "probes-16.0.3/tracemantle-c4dc276c4.verify.out (2.0.2, the whole fix commit by --range, no requirements): complete, the fix's own test passing in the container. Not judged in split form or under this record, whose tests name the model's own test State left open: the entry is now judged regression-only by its held-out test, which no recorded verdict did; set from a reviewed run."
   },
   {
    "name": "swarm-attempt-1",
@@ -36,12 +34,11 @@
    "origin": "swarm 16.0.2 build (gemma4:31b), session 20261104T051054-41553d; this entry's requirement record",
    "expected": {
     "state": null,
-    "requirements": {
-     "R1": null
-    },
+    "requirements": {},
     "heldOut": "pass"
    },
-   "why": "attempt-1/held-out-2/witness.txt and verify.out: complete, held-out pass (fails at the base), 131 to 135 tiktoken tests inherited. Its requirements name only tests the patch adds: unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it"
+   "why": "attempt-1/held-out-2/witness.txt and verify.out: complete, held-out pass (fails at the base), 131 to 135 tiktoken tests inherited. Its requirements name only tests the patch adds: unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it State left open: the entry is now judged regression-only by its held-out test, which no recorded verdict did; set from a reviewed run."
   }
- ]
+ ],
+ "judgedBy": "held-out: the fix commit's own sealed test, with no requirement record (regression-only), as the record judged the pick; requirements.run-record.json is the recorded run's own record, kept for reference and never used to judge another patch"
 }

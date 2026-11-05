@@ -20,7 +20,7 @@
    "sha256": "6e0cbd46ab1e37561458be235dec3b577d05f95c5505bbddfbb140d99f4405bf",
    "origin": "depose 09b01c1 less packages/core/test/events.ids.test.ts, the held-out test",
    "expected": null,
-   "why": "the human fix was never judged (depose was not probed: its build needs Go); no state, requirement or held-out result is recorded"
+   "why": "the human fix was never judged (depose was not probed: its build needs Go); no state, requirement or held-out result is recorded State left open: the entry is now judged regression-only by its held-out test, which no recorded verdict did; set from a reviewed run."
   },
   {
    "name": "swarm-16.0.1",
@@ -29,12 +29,10 @@
    "origin": "swarm patch/16.0.1 (gemma4:31b, escalated), session 20261103T012746-36fbbf",
    "expected": {
     "state": null,
-    "requirements": {
-     "R1": null
-    },
+    "requirements": {},
     "heldOut": "pass"
    },
-   "why": "held-out/witness.txt (container) and held-out/host-after.out (host, 12 of 12): held-out pass. State recorded only isolated (incomplete: typecheck and build unresolved for lack of Go); no host verdict is recorded. R1 rests on its own tests: unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it"
+   "why": "held-out/witness.txt (container) and held-out/host-after.out (host, 12 of 12): held-out pass. State recorded only isolated (incomplete: typecheck and build unresolved for lack of Go); no host verdict is recorded. R1 rests on its own tests: unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it State left open: the entry is now judged regression-only by its held-out test, which no recorded verdict did; set from a reviewed run."
   },
   {
    "name": "swarm-16.0.2-1",
@@ -43,12 +41,11 @@
    "origin": "swarm 16.0.2 candidate (gemma4:31b, escalated), session 20261103T221128-fcb79f; this entry's requirement record",
    "expected": {
     "state": null,
-    "requirements": {
-     "R1": null
-    },
+    "requirements": {},
     "heldOut": "pass"
    },
-   "why": "rerun-16.0.2-attempt-1/held-out/witness.txt (container): held-out pass. State recorded only isolated (incomplete, unresolved typecheck and build); no host verdict. R1 rests on its own tests: unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it"
+   "why": "rerun-16.0.2-attempt-1/held-out/witness.txt (container): held-out pass. State recorded only isolated (incomplete, unresolved typecheck and build); no host verdict. R1 rests on its own tests: unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it State left open: the entry is now judged regression-only by its held-out test, which no recorded verdict did; set from a reviewed run."
   }
- ]
+ ],
+ "judgedBy": "held-out: the fix commit's own sealed test, with no requirement record (regression-only), as the record judged the pick; requirements.run-record.json is the recorded run's own record, kept for reference and never used to judge another patch"
 }

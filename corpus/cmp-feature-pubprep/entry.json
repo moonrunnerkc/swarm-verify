@@ -19,13 +19,13 @@
    "sha256": "a4a391f7fda3d76a03fb5de5bcf25dae7f1aeaa153f4a7d9567d8fb6ae1bece0",
    "origin": "reference patch, no tests (screening)",
    "expected": {
-    "state": null,
+    "state": "complete",
     "requirements": {
-     "R1": null
+     "R1": "satisfied"
     },
     "heldOut": "pass"
    },
-   "why": "screening/feature-pubprep/result.txt (2.0.3): incomplete, R1 unverified (no mapped test fails before and passes after), held-out pass. Unreleased swarm-verify judges sealed tests by identity and R1's selector test:: also selects the sealed test/reviewers.held-out.test.ts, so the recorded state and R1 need not hold; not recorded under it"
+   "why": "Observed by the corpus under 2.1.0 (CI run on ee4315f) and reviewed: the reference patch carries no tests of its own, and R1 test:: selects the sealed held-out cases, which fail at the base and pass with it, so R1 has an independent witness; 2.0.3 had read it unverified for want of a test the patch added."
   },
   {
    "name": "reference-2",

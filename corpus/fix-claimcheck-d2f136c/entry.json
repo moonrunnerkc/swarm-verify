@@ -19,13 +19,11 @@
    "sha256": "a9344ba562d272976efbca136481e02e431723f107b24bbc330542f290cb9e1e",
    "origin": "claimcheck d2f136c less src/adapters/vitest-run.test.ts, the held-out test",
    "expected": {
-    "state": "incomplete",
-    "requirements": {
-     "R1": null
-    },
+    "state": null,
+    "requirements": {},
     "heldOut": null
    },
-   "why": "not judged in split form; the base cannot typecheck or build anywhere (claimcheck/src/core/pipeline.ts imports ../coverage/collect.js, which the commit lacks), so typecheck and build are unresolved and the state incomplete (f-fix-isolated/README.md). Held-out and R1 not recorded"
+   "why": "not judged in split form; the base cannot typecheck or build anywhere (claimcheck/src/core/pipeline.ts imports ../coverage/collect.js, which the commit lacks), so typecheck and build are unresolved and the state incomplete (f-fix-isolated/README.md). Held-out and R1 not recorded State left open: the entry is now judged regression-only by its held-out test, which no recorded verdict did; set from a reviewed run."
   },
   {
    "name": "swarm-16.0.1",
@@ -33,13 +31,11 @@
    "sha256": "e88392dc5d08ea8504d2cdcda46d5a327915a565ff86e9bedb7f22ab801df2dd",
    "origin": "swarm patch/16.0.1 (gemma4:31b, escalated), session 20261103T015145-ff5ff2",
    "expected": {
-    "state": "incomplete",
-    "requirements": {
-     "R1": null
-    },
+    "state": null,
+    "requirements": {},
     "heldOut": "fail"
    },
-   "why": "held-out/verify.out (patch/2.0.1 5363149): incomplete, held-out fail, R1 satisfied under its own record by its own test; unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it"
+   "why": "held-out/verify.out (patch/2.0.1 5363149): incomplete, held-out fail, R1 satisfied under its own record by its own test; unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it State left open: the entry is now judged regression-only by its held-out test, which no recorded verdict did; set from a reviewed run."
   },
   {
    "name": "swarm-16.0.2-1",
@@ -47,13 +43,11 @@
    "sha256": "7fe0c8677f14e20d69b7ce6df841a46d8ba85570f5bbd87ca53843e63aeef855",
    "origin": "swarm 16.0.2 candidate (gemma4:31b), session 20261103T222355-8f8758",
    "expected": {
-    "state": "incomplete",
-    "requirements": {
-     "R1": null
-    },
+    "state": null,
+    "requirements": {},
     "heldOut": "fail"
    },
-   "why": "rerun-16.0.2-attempt-1/held-out/verify.out: incomplete, held-out fail, R1 satisfied under its own record by its own test; unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it"
+   "why": "rerun-16.0.2-attempt-1/held-out/verify.out: incomplete, held-out fail, R1 satisfied under its own record by its own test; unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it State left open: the entry is now judged regression-only by its held-out test, which no recorded verdict did; set from a reviewed run."
   },
   {
    "name": "swarm-16.0.2-2",
@@ -61,13 +55,12 @@
    "sha256": "adf650dd1a3437e9b20013e2dcbf4184c0e7eccd035d4c9117121c01321f96e1",
    "origin": "swarm 16.0.2 candidate (gemma4:31b, escalated), session 20261103T235146-3d4f21; this entry's requirement record",
    "expected": {
-    "state": "incomplete",
-    "requirements": {
-     "R1": null
-    },
+    "state": null,
+    "requirements": {},
     "heldOut": "pass"
    },
-   "why": "rerun-16.0.2-attempt-2/held-out/verify.out: incomplete (typecheck and build unresolved), held-out pass, R1 satisfied by its own test; unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it"
+   "why": "rerun-16.0.2-attempt-2/held-out/verify.out: incomplete (typecheck and build unresolved), held-out pass, R1 satisfied by its own test; unreleased swarm-verify (CHANGELOG, Unreleased) satisfies a fix or feature only on a witness its implementation's author did not choose; every test this requirement names is one the patch adds, so the recorded status need not hold and none is recorded under it State left open: the entry is now judged regression-only by its held-out test, which no recorded verdict did; set from a reviewed run."
   }
- ]
+ ],
+ "judgedBy": "held-out: the fix commit's own sealed test, with no requirement record (regression-only), as the record judged the pick; requirements.run-record.json is the recorded run's own record, kept for reference and never used to judge another patch"
 }
