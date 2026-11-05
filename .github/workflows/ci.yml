@@ -54,7 +54,9 @@ jobs:
         with:
           version: "0.11.13"
           enable-cache: false
-      - run: corepack enable
+      # A real pnpm, at the version depose pins: checks run under a private HOME with the network
+      # closed, where corepack has no cache to fetch its shim's pnpm from.
+      - run: npm install -g pnpm@9.15.0
       - run: npm ci
       - run: npm run build
       - run: node scripts/corpus.mjs --only ${{ matrix.id }} --source github --out corpus-${{ matrix.id }}.json

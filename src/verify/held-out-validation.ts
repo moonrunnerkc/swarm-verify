@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { cp, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -20,6 +21,10 @@ async function measure(check: DeclaredCheck, dir: string, label: string) {
   try {
     const plans = await reportPlans(dir, [check]);
     const context = { dir, home: await privateHome(scratch), timeoutMs: 20 * 60_000 };
+    // The checkout's virtual environment first, as a container run has it (containerPath).
+    const venv = join(dir, ".venv", "bin");
+    const path = existsSync(venv) ? `${venv}:${process.env.PATH ?? ""}` : (process.env.PATH ?? "");
+    const wrap = (one: DeclaredCheck) => ({ check: one, env: { PATH: path } });
     const run = await runMeasured({
       check,
       plan: plans[0] ?? null,
@@ -27,6 +32,7 @@ async function measure(check: DeclaredCheck, dir: string, label: string) {
       scratch,
       label,
       judge: false,
+      wrap,
     });
     const report = run.evidence.report;
     const statuses = report === null ? null : Object.values(report).map((one) => one.status);

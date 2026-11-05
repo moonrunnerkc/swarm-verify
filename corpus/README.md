@@ -1,7 +1,7 @@
 # Regression corpus: real repositories
 
 Real tasks from the acceptance runs and comparisons recorded in swarm-orchestrator's
-`docs/acceptance/` (2026-10-31 and 2026-11-04-comparison), each with the patches judged for it.
+the acceptance records of moonrunnerkc/swarm-orchestrator (its 2026-10-31 and 2026-11-04-comparison directories), each with the patches judged for it.
 Every expected status is copied from a recorded judgment; nothing here was run to make it.
 
 Each entry directory holds:
