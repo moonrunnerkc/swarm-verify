@@ -30,7 +30,10 @@ const testSelectorSchema = z.strictObject({
   file: z.string().min(1).optional(),
 });
 
-/** A structural fact about the candidate tree, for refactors: a file exists, or holds a text. */
+/**
+ * A structural fact about the candidate tree, for refactors: a file exists, holds a text, no longer
+ * holds it (`contains` with `absent`), or is gone.
+ */
 const structureClaimSchema = z.strictObject({
   path: z.string().min(1),
   contains: z.string().min(1).optional(),

@@ -77,3 +77,60 @@ describe("a refactor that names no structure", () => {
     expect(outcome?.status).toBe("satisfied");
   });
 });
+
+/**
+ * The comparison's ironroot refactor (session 20261105T081734-bfcef7): asked to move three
+ * falsifiers into a new module, it copied them and left falsification.py as it was. Its claims
+ * named only what the new file holds, and no claim could say a text had left the old one, so the
+ * copy read as the move and the run was called complete.
+ */
+describe("a move whose text stays behind in the old file", () => {
+  async function tree(oldText: string) {
+    const dir = await mkdtemp(join(tmpdir(), "refactor-text-absent-"));
+    await writeFile(join(dir, "builtin_claims.py"), "async def _falsify_chain(): ...\n");
+    await writeFile(join(dir, "falsification.py"), oldText);
+    return dir;
+  }
+  const moved = requirementSchema.parse({
+    id: "R1",
+    text: "Move _falsify_chain out of falsification.py into builtin_claims.py",
+    kind: "refactor",
+    source: "user",
+    evidence: {
+      structure: [
+        { path: "builtin_claims.py", contains: "async def _falsify_chain" },
+        { path: "falsification.py", contains: "async def _falsify_chain", absent: true },
+      ],
+    },
+  });
+
+  it("is unverified while the old file still holds the text", async () => {
+    const dir = await tree("class Registry: ...\nasync def _falsify_chain(): ...\n");
+    const [outcome] = await assessRequirements([moved], { ...inputs, dir });
+    expect(outcome?.status).toBe("unverified");
+    expect(outcome?.evidence[1]).toMatchObject({
+      ref: 'falsification.py lacks "async def _falsify_chain"',
+      outcome: "not observed",
+      detail: "the file still contains it",
+    });
+  });
+
+  it("is satisfied once the old file no longer holds it, or is gone", async () => {
+    const kept = await tree("class Registry: ...\n");
+    expect((await assessRequirements([moved], { ...inputs, dir: kept }))[0]?.status).toBe(
+      "satisfied",
+    );
+    const gone = await tree("");
+    const { rm } = await import("node:fs/promises");
+    await rm(join(gone, "falsification.py"));
+    expect((await assessRequirements([moved], { ...inputs, dir: gone }))[0]?.status).toBe(
+      "satisfied",
+    );
+  });
+
+  it("is told it can name a text that leaves a file", async () => {
+    const bare = requirementSchema.parse({ ...moved, evidence: {} });
+    const [outcome] = await assessRequirements([bare], inputs);
+    expect(outcome?.nextAction).toContain('"contains": "text", "absent": true');
+  });
+});

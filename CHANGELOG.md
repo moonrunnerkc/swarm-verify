@@ -6,6 +6,18 @@ of moonrunnerkc/swarm-verify. Versions before 1.0.0 (0.2.0, released with Swarm 
 swarm-orchestrator's `packages/swarm-verify`; 2.0.0 is the first built from this repository. A
 2.0.0 tagged there on 2026-10-29 was never published to npm, and its notes are folded in below.
 
+## Unreleased
+
+### Fixed
+
+- **A refactor can say what leaves a file.** A structure claim could say a file exists, holds a
+  text, or is gone, but not that a text has left a file, so a move could be shown only by what the
+  new file holds, and a copy read as the move. A comparison run asked to move three functions into
+  a new module copied them, left the old module as it was, and was called complete. A claim with
+  both `contains` and `absent` now holds when the file no longer holds that text, or is gone, and
+  the refactor's next action names it. A claim with `absent` alone still means the path is gone;
+  one that also named `contains` meant that too, and now means the text is gone.
+
 ## 2.0.3 - 2026-11-04
 
 ### Fixed

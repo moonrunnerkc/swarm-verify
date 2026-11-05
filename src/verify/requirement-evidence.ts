@@ -10,22 +10,34 @@ import { parseVersionRange, satisfies } from "./version-range.ts";
 type StructureClaim = Requirement["evidence"]["structure"][number];
 type PackageClaim = Requirement["evidence"]["packages"][number];
 
-/** A structural claim read from the candidate tree: a file exists, holds a text, or is gone. */
+/**
+ * A structural claim read from the candidate tree: a file exists, holds a text, or is gone. With
+ * both `contains` and `absent`, the file no longer holds the text, or is gone: what a move leaves
+ * in the file it moved from.
+ */
 export async function structureEvidence(dir: string, claim: StructureClaim): Promise<EvidenceRef> {
   const read = await readFile(join(dir, claim.path), "utf8").then(
     (text) => ({ text, problem: null }),
     (error: NodeJS.ErrnoException) => ({ text: null, problem: error.code ?? "unreadable" }),
   );
   const text = read.text;
-  const holds =
-    claim.absent === true
+  const lacks = claim.absent === true && claim.contains !== undefined;
+  const holds = lacks
+    ? text === null || !text.includes(claim.contains ?? "")
+    : claim.absent === true
       ? text === null
       : text !== null && (claim.contains === undefined || text.includes(claim.contains));
-  const what =
-    claim.absent === true ? "absent" : claim.contains === undefined ? "exists" : "contains";
+  const what = lacks
+    ? "the text gone"
+    : claim.absent === true
+      ? "absent"
+      : claim.contains === undefined
+        ? "exists"
+        : "contains";
   // Where it does not hold, why: what a producer needs to fix the claim or the change.
-  const why =
-    claim.absent === true
+  const why = lacks
+    ? "the file still contains it"
+    : claim.absent === true
       ? "the path is still there"
       : read.problem === "EISDIR"
         ? `${claim.path} is a directory, not a file`
@@ -37,7 +49,7 @@ export async function structureEvidence(dir: string, claim: StructureClaim): Pro
     ref:
       claim.contains === undefined
         ? claim.path
-        : `${claim.path} contains ${JSON.stringify(claim.contains)}`,
+        : `${claim.path} ${lacks ? "lacks" : "contains"} ${JSON.stringify(claim.contains)}`,
     authority: "pre-existing",
     outcome: holds ? "observed" : "not observed",
     detail: holds ? `expected ${what}` : why,
