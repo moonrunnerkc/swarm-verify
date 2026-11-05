@@ -27,6 +27,16 @@ describe("a requirement's package claim", () => {
     expect(await claimed("10.1.1", "10.1.1")).toMatchObject({ outcome: "observed" });
   });
 
+  // A comparison's upgrade run claimed "^5" and "^10", resolved 5.1.0 and 10.1.1, and read
+  // "outside ^5": the claim knew only x forms. It then spent about 40 turns chasing that failure.
+  it("holds a caret or tilde range, as the version constraints read it", async () => {
+    expect(await claimed("^10", "10.1.1")).toMatchObject({ outcome: "observed" });
+    expect(await claimed("^10.1.0", "10.1.1")).toMatchObject({ outcome: "observed" });
+    expect(await claimed("~10.1", "10.1.1")).toMatchObject({ outcome: "observed" });
+    expect(await claimed("^9", "10.1.1")).toMatchObject({ outcome: "fail" });
+    expect(await claimed("~10.0", "10.1.1")).toMatchObject({ outcome: "fail" });
+  });
+
   it("fails where the candidate resolves a version outside the claim", async () => {
     expect(await claimed("9.x", "10.1.1")).toEqual({
       kind: "package",

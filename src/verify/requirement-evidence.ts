@@ -146,13 +146,13 @@ export async function constraintEvidence(
       );
 }
 
-/** Whether `version` is the claimed one, or within a claim written with x (9.x, 9.6.x, or 9). */
+/**
+ * Whether `version` is within the claim, read as the version constraints are: the version itself,
+ * x forms (9.x, 9.6.x, 9), a caret or a tilde. A claim that reads as no range holds nothing.
+ */
 function within(version: string, claim: string): boolean {
-  const wanted = claim.split(".");
-  const wild = (part: string) => /^[xX*]$/.test(part);
-  if (wanted.length >= 3 && !wanted.some(wild)) return version === claim;
-  const parts = version.split(".");
-  return wanted.every((part, at) => wild(part) || part === parts[at]);
+  const range = parseVersionRange(claim);
+  return range !== null && satisfies(version, range);
 }
 
 /** Outcomes that show behavior: a test or check failing before and passing after. */

@@ -16,6 +16,11 @@ swarm-orchestrator's `packages/swarm-verify`; 2.0.0 is the first built from this
   failed at the base and with every candidate and read as inherited, so a regression among them
   would not have been seen. The image's own account files, with an entry for that uid and gid
   added where they have none, are now bound read-only over the image's for every container run.
+- **A package claim reads a caret or tilde range.** A requirement's package claim took `5.x`, `9`
+  and an exact version, and read `^5` as a version nothing equals: a candidate resolving vitest
+  5.1.0 was "outside ^5" and failed, while the task's own `^5` constraint beside it held. An upgrade
+  run spent about 40 turns chasing that failure before it stopped. A claim's version is now read
+  as the version constraints are read; one that reads as no range still holds nothing.
 
 ## 2.0.3 - 2026-11-04
 
