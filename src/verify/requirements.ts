@@ -13,6 +13,7 @@ import {
   testRef,
   witnessing,
 } from "./requirement-evidence.ts";
+import { attested } from "./requirement-independence.ts";
 import { splitTestName, titleSelects } from "./test-names.ts";
 import { livesIn } from "./test-report.ts";
 import { noSuchCheck, noSuchTest, unobservedAction, witnessTitles } from "./unobserved-action.ts";
@@ -154,6 +155,21 @@ function judged(
       };
     }
   }
+  if (
+    requirement.testsAsked &&
+    (requirement.kind === "fix" || requirement.kind === "feature") &&
+    !evidence.some(
+      (one) => one.authority === "implementation-authored" && witnessing.has(one.outcome),
+    )
+  ) {
+    return {
+      status: "unverified",
+      limitation:
+        "the task asks for tests, and the change adds none that fails before it and passes after it",
+      nextAction:
+        "add the tests the task asks for: each fails against the base and passes with the change",
+    };
+  }
   if (requirement.kind === "refactor" && inputs.regression.status !== "none") {
     return {
       status: "unverified",
@@ -188,48 +204,6 @@ function judged(
   return { status: "satisfied", limitation: null, nextAction: null };
 }
 
-/** The evidence that shows a requirement met, by its kind, as opposed to evidence that it broke nothing. */
-function decisive(requirement: Requirement, evidence: readonly EvidenceRef[]): EvidenceRef[] {
-  const holds = evidence.filter((one) => holding.has(one.outcome));
-  switch (requirement.kind) {
-    case "fix":
-    case "feature":
-      return holds.filter((one) => witnessing.has(one.outcome));
-    case "refactor":
-      return holds.filter((one) => one.kind === "structure" || witnessing.has(one.outcome));
-    case "upgrade":
-      return holds.filter((one) => one.kind === "package");
-    default:
-      return holds;
-  }
-}
-
-type Judged = Pick<RequirementOutcome, "status" | "limitation" | "nextAction">;
-
-/**
- * Satisfied only on independent evidence: at least one decisive witness the change's own author
- * did not choose. Where every one is the implementation's own (its tests, or claims it proposed),
- * the requirement is self-attested, which is not satisfied.
- */
-function attested(
-  requirement: Requirement,
-  evidence: readonly EvidenceRef[],
-  judgedAs: Judged,
-): Judged & Pick<RequirementOutcome, "witness"> {
-  const shown = decisive(requirement, evidence);
-  const independent = shown.filter((one) => one.authority !== "implementation-authored");
-  const witness =
-    independent.length > 0 ? "independent" : shown.length > 0 ? "self-attested" : "none";
-  if (judgedAs.status !== "satisfied" || witness === "independent") return { ...judgedAs, witness };
-  return {
-    status: "unverified",
-    witness,
-    limitation: `self-attested: every witness is the implementation's own (${shown.map((one) => one.ref).join(", ")})`,
-    nextAction:
-      "independent evidence is missing: a check the implementation's author did not write (sealed, user-supplied or pre-existing) must witness this requirement",
-  };
-}
-
 /**
  * Each requirement's status from executed and observed evidence only. A fix or feature needs a
  * test that fails before and passes after; a refactor needs preserved behavior and structural
@@ -247,9 +221,20 @@ export async function assessRequirements(
       (one.requirements ?? []).includes(requirement.id),
     );
     const selected = tests.flatMap((selector) => testRefs(selector, inputs));
+    // Asked-for tests are the change's own witnesses wherever they are, mapped or not.
+    const own = requirement.testsAsked
+      ? inputs.outcomes
+          .filter((one) => one.origin !== "pre-existing" && one.authority === undefined)
+          .map(testRef)
+          .filter((one) => witnessing.has(one.outcome))
+      : [];
     const evidence: EvidenceRef[] = [
       ...selected,
-      ...bound.map(testRef).filter((one) => !selected.some((other) => other.ref === one.ref)),
+      ...[...bound.map(testRef), ...own].filter(
+        (one, at, all) =>
+          !selected.some((other) => other.ref === one.ref) &&
+          all.findIndex((other) => other.ref === one.ref) === at,
+      ),
       ...checks.map((name) => checkRef(name, inputs)),
       ...(await Promise.all(structure.map((claim) => structureEvidence(inputs.dir, claim)))),
       ...(await Promise.all(
@@ -270,6 +255,7 @@ export async function assessRequirements(
       assumptions: [...requirement.assumptions],
       expected: requirement.evidence,
       versions: requirement.versions,
+      testsAsked: requirement.testsAsked,
       evidence,
       ...attested(requirement, evidence, judged(requirement, evidence, inputs)),
     });

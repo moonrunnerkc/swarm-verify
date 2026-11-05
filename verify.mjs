@@ -243,6 +243,8 @@ function satisfied(one, predicate) {
   }[one.kind];
   const shown = evidence.filter(decisive ?? (() => true));
   if (!shown.some((ref) => ref.authority !== "implementation-authored")) return false;
+  const own = (ref) => ref.authority === "implementation-authored" && witnesses(ref);
+  if (one.testsAsked === true && decisive === witnesses && !evidence.some(own)) return false;
   if (one.kind === "refactor") return quiet;
   if (one.kind === "upgrade") {
     const fresh = predicate.execution?.dependencies?.mode === "prepared";

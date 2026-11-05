@@ -24,6 +24,11 @@ swarm-orchestrator's `packages/swarm-verify`; 2.0.0 is the first built from this
   authority (`user-acceptance` for `swarm-verify init --seal`, `independently-generated` for a set
   a producer had written apart from the change, through the new `sealFiles` export). A sealed
   check may list the requirement ids it witnesses, and its tests join those requirements' evidence.
+- **A requirement can say its wording asks for tests.** `testsAsked` (default false), read by the
+  producer's code from the user's words ("with a test", "Add tests"): a fix or feature then also
+  needs a test the change itself adds that fails before and passes after, mapped or not, beside its
+  independent witness. Without it, a patch whose behavior passed the independent check but carried
+  none of the tests the user asked for read as complete.
 - **Structure and package claims carry who chose them.** An optional `authority` on each claim;
   absent, a claim is the caller's (`user-acceptance`). They used to be labeled `pre-existing`,
   which they never were.

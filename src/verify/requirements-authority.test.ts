@@ -146,4 +146,24 @@ describe("independent evidence", () => {
     const [outcome] = await assessRequirements([feature([])], inputs({ outcomes: [] }));
     expect(outcome?.witness).toBe("none");
   });
+
+  it("asks for the change's own witnessing test too where the wording asks for tests", async () => {
+    const asked = { ...feature([]), testsAsked: true };
+    const sealedOnly = inputs({ outcomes: [], sealedTests: [sealedTest("fixed", "pass")] });
+    const [without] = await assessRequirements([asked], sealedOnly);
+    expect(without).toMatchObject({ status: "unverified", witness: "independent" });
+    expect(without?.limitation).toBe(
+      "the task asks for tests, and the change adds none that fails before it and passes after it",
+    );
+    // Its own test counts wherever it is, mapped or not, beside the independent witness.
+    const both = inputs({ sealedTests: [sealedTest("fixed", "pass")] });
+    const [with_] = await assessRequirements([asked], both);
+    expect(with_).toMatchObject({ status: "satisfied", witness: "independent", testsAsked: true });
+    // The sealed witness, the change's own test, and the declared check it maps.
+    expect(with_?.evidence.map((one) => one.authority)).toEqual([
+      "independently-generated",
+      "implementation-authored",
+      "pre-existing",
+    ]);
+  });
 });

@@ -125,6 +125,7 @@ export function replayRequest(
       assumptions: one.assumptions,
       evidence: one.expected,
       versions: one.versions,
+      testsAsked: one.testsAsked,
     })),
     checks: recorded.checks
       .filter(

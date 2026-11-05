@@ -95,6 +95,12 @@ export const requirementSchema = z.strictObject({
     })
     .default({ tests: [], checks: [], structure: [], packages: [] }),
   versions: z.array(versionConstraintSchema).default([]),
+  /**
+   * The user's wording asks for tests ("with a test", "Add tests"), as the producer's code reads
+   * it: a fix or feature then also needs a test the change itself adds that fails before it and
+   * passes after it, beside its independent witness.
+   */
+  testsAsked: z.boolean().default(false),
 });
 export type Requirement = z.output<typeof requirementSchema>;
 
