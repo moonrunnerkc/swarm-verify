@@ -6,7 +6,7 @@ of moonrunnerkc/swarm-verify. Versions before 1.0.0 (0.2.0, released with Swarm 
 swarm-orchestrator's `packages/swarm-verify`; 2.0.0 is the first built from this repository. A
 2.0.0 tagged there on 2026-10-29 was never published to npm, and its notes are folded in below.
 
-## Unreleased
+## 2.1.0 - 2026-11-05
 
 ### Changed
 
