@@ -77,6 +77,8 @@ jobs:
       - name: Judge a sealed task through the packed install
         if: steps.registry.outputs.published == 'false'
         run: |
+          # npm pack writes only into a directory that exists.
+          mkdir -p "$RUNNER_TEMP/packs"
           npm pack --silent --pack-destination "$RUNNER_TEMP/packs"
           mkdir -p "$RUNNER_TEMP/prefix" && cd "$RUNNER_TEMP/prefix"
           echo '{ "name": "smoke", "private": true }' > package.json
