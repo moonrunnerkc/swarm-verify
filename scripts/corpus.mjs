@@ -5,8 +5,11 @@
  * base, install as its user did, seal the held-out files (checked at the base and on the
  * reference patch first), then verify every patch with the built CLI and compare.
  *
- *   node scripts/corpus.mjs [--only id,id] [--source github|local] [--work dir] [--out file]
- *                           [--cli path/to/swarm-verify.js]
+ *   node scripts/corpus.mjs [--only id,id] [--patches name,name] [--source github|local]
+ *                           [--work dir] [--out file] [--cli path/to/swarm-verify.js]
+ *
+ * --patches verifies only the named patches of each entry; CI runs one job a patch, since t6's
+ * eight in one job outlasted its five hours.
  *
  * An expected status of null is a status the record does not establish: it is reported as
  * observed, never counted as a pass. A private repository runs only with --source local.
@@ -24,6 +27,7 @@ const corpus = join(root, "corpus");
 const { values } = parseArgs({
   options: {
     only: { type: "string" },
+    patches: { type: "string" },
     source: { type: "string", default: "github" },
     work: { type: "string" },
     out: { type: "string" },
@@ -34,6 +38,7 @@ const { values } = parseArgs({
 const cli = resolve(values.cli ?? join(root, "dist", "swarm-verify.js"));
 const work = resolve(values.work ?? join(root, ".corpus-work"));
 const only = values.only?.split(",").filter(Boolean) ?? null;
+const chosen = values.patches?.split(",").filter(Boolean) ?? null;
 const ids = JSON.parse(readFileSync(join(corpus, "manifest.json"), "utf8")).filter(
   (id) => only === null || only.includes(id),
 );
@@ -149,7 +154,7 @@ for (const id of ids) {
     }
   }
   cpSync(join(corpus, id, "swarm.toml"), join(repo, "swarm.toml"));
-  for (const patch of entry.patches) {
+  for (const patch of entry.patches.filter((one) => chosen === null || chosen.includes(one.name))) {
     const out = join(dir, "verdicts", patch.name);
     const ran = spawnSync(
       process.execPath,

@@ -25,8 +25,8 @@ jobs:
       - run: npm run gates
 
   # Every real repository the verifier has judged, at its base, with the patches judged on it and
-  # the statuses they are expected to read (corpus/README.md). One job an entry; host where the
-  # container cannot build the base, as the entry says.
+  # the statuses they are expected to read (corpus/README.md). One job a patch (t6's eight in one
+  # job outlasted its five hours); host where the container cannot build the base, as the entry says.
   corpus-entries:
     runs-on: ubuntu-latest
     outputs:
@@ -35,7 +35,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - id: list
         run: |
-          echo "ids=$(node -e 'const fs=require("fs");const ids=JSON.parse(fs.readFileSync("corpus/manifest.json","utf8")).filter(id=>JSON.parse(fs.readFileSync(`corpus/${id}/entry.json`,"utf8")).local!==true);console.log(JSON.stringify(ids))')" >> "$GITHUB_OUTPUT"
+          echo "ids=$(node -e 'const fs=require("fs");const ids=JSON.parse(fs.readFileSync("corpus/manifest.json","utf8")).flatMap(id=>{const e=JSON.parse(fs.readFileSync(`corpus/${id}/entry.json`,"utf8"));return e.local===true?[]:e.patches.map(p=>`${id}/${p.name}`)});console.log(JSON.stringify(ids))')" >> "$GITHUB_OUTPUT"
   corpus:
     needs: corpus-entries
     runs-on: ubuntu-latest
@@ -59,4 +59,7 @@ jobs:
       - run: npm install -g pnpm@9.15.0
       - run: npm ci
       - run: npm run build
-      - run: node scripts/corpus.mjs --only ${{ matrix.id }} --source github --out corpus-${{ matrix.id }}.json
+      - name: Verify the patch against its entry
+        env:
+          ITEM: ${{ matrix.id }}
+        run: node scripts/corpus.mjs --only "${ITEM%%/*}" --patches "${ITEM#*/}" --source github --out "corpus-${ITEM//\//-}.json"
