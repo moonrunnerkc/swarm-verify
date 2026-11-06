@@ -61,6 +61,13 @@ swarm-orchestrator's `packages/swarm-verify`; 2.0.0 is the first built from this
 
 ### Fixed
 
+- **A replay judges with the sealed set the recording used.** It judged with whatever set its own
+  checkout had: a set sealed for another checkout (a producer's working clone) was missing, and requirements
+  its tests decided read unverified. A verification now carries its sealed set in its evidence,
+  digested by the statement, and a replay judges with that set.
+- **A setup that never ran is named so.** A base whose dependency setup never ran (docker could
+  not mount the checkout, a timeout) was reported as dependencies that "did not install from its lockfile", with "fix the dependency the
+  setup output names"; it is now named as a setup that never ran, with the reason.
 - **Checks in a container run as a user the image lists.** Isolated checks run as the host's uid
   and gid, which a pinned image's /etc/passwd and /etc/group do not list, so any tool that looks
   its user up failed: ssh-keygen, Node's os.userInfo, `id -un`. In tracemantle, 47 ssh-keygen tests
