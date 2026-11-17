@@ -1,7 +1,9 @@
 import { buildVersion } from "./build-version.ts";
 import { UsageError, usageFor } from "./cli-command-definitions.ts";
 
-export type Handler = (args: readonly string[]) => Promise<number>;
+export type Handler = (args: readonly string[], signal?: AbortSignal) => Promise<number>;
+
+const stopping = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
 
 /** Dispatches one command line, with usage errors exiting 2. */
 export async function dispatch(
@@ -20,10 +22,19 @@ export async function dispatch(
     return 0;
   }
   const handler = handlers[command];
+  // A signal cancels the run: its process groups and containers are stopped, then it exits 3.
+  const controller = new AbortController();
+  const cancel = () => controller.abort(new Error("the run was cancelled by a signal"));
+  for (const name of stopping) process.once(name, cancel);
   try {
     if (handler === undefined) throw new UsageError(`"${command}" is not a ${program} command`);
-    return await handler(rest);
+    const code = await handler(rest, controller.signal);
+    return controller.signal.aborted ? 3 : code;
   } catch (error) {
+    if (controller.signal.aborted) {
+      process.stderr.write(`${program}: the run was cancelled\n`);
+      return 3;
+    }
     const message = error instanceof Error ? error.message : String(error);
     // parseArgs reports an unknown or malformed flag with a code; that is a usage error too.
     const usageProblem =
@@ -31,5 +42,7 @@ export async function dispatch(
       (error as NodeJS.ErrnoException).code?.startsWith("ERR_PARSE_ARGS") === true;
     process.stderr.write(usageProblem ? `${message}\n\n${usage}\n` : `${program}: ${message}\n`);
     return usageProblem ? 2 : 1;
+  } finally {
+    for (const name of stopping) process.removeListener(name, cancel);
   }
 }

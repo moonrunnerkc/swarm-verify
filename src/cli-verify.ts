@@ -62,6 +62,7 @@ async function run(
   base: string,
   candidate: VerifyRequestInput["candidate"],
   values: SharedValues,
+  signal?: AbortSignal,
 ): Promise<{ readonly code: number; readonly result: VerifyResult }> {
   // Each run its own directory: a run is never published over another.
   const stamp = `${new Date().toISOString().replace(/[:.]/g, "-")}-${randomBytes(3).toString("hex")}`;
@@ -99,6 +100,7 @@ async function run(
   const result = await verifyRequest(request, {
     sigstore: values.sigstore === true,
     signing: values["allow-unsigned"] === true ? "optional" : "required",
+    ...(signal === undefined ? {} : { signal }),
     verifierVersion: buildVersion,
   });
   if (values.json === true) {
@@ -124,7 +126,7 @@ export function commandExitCode(result: VerifyResult): number {
 }
 
 /** `verify`: the working tree, a ref range or a patch file, against a base commit. */
-export async function verify(args: readonly string[]): Promise<number> {
+export async function verify(args: readonly string[], signal?: AbortSignal): Promise<number> {
   const { values } = parseArgs({
     args: [...args],
     options: {
@@ -155,6 +157,7 @@ export async function verify(args: readonly string[]): Promise<number> {
         await commitOf(workspace, from),
         { kind: "commit", commit: head },
         values,
+        signal,
       )
     ).code;
   }
@@ -164,7 +167,7 @@ export async function verify(args: readonly string[]): Promise<number> {
     const sha256 = createHash("sha256")
       .update(await readFile(path))
       .digest("hex");
-    return (await run(workspace, base, { kind: "patch", path, sha256 }, values)).code;
+    return (await run(workspace, base, { kind: "patch", path, sha256 }, values, signal)).code;
   }
   const scratch = await mkdtemp(join(tmpdir(), "swarm-verify-candidate-"));
   try {
@@ -175,6 +178,7 @@ export async function verify(args: readonly string[]): Promise<number> {
         base,
         { kind: "patch", path: snapshot.path, sha256: snapshot.sha256 },
         values,
+        signal,
       )
     ).code;
   } finally {
@@ -186,7 +190,7 @@ export async function verify(args: readonly string[]): Promise<number> {
  * `ci`: the change on HEAD since it left the base branch, with a Markdown summary where the CI
  * system reads one. The base is --base, else the pull request's base branch.
  */
-export async function ci(args: readonly string[]): Promise<number> {
+export async function ci(args: readonly string[], signal?: AbortSignal): Promise<number> {
   const { values } = parseArgs({
     args: [...args],
     options: { ...sharedOptions, base: { type: "string" } },
@@ -205,6 +209,7 @@ export async function ci(args: readonly string[]): Promise<number> {
     mergeBase,
     { kind: "commit", commit: head },
     values,
+    signal,
   );
   const summary = process.env.GITHUB_STEP_SUMMARY;
   if (summary) await appendFile(summary, renderMarkdown(result));

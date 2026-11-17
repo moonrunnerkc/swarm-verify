@@ -37,7 +37,10 @@ async function signerFrom(values: {
  * replay agrees, 1 when it diverges, 5 when it could not run, 6 when the bundle was not
  * authenticated (nothing in it ran).
  */
-export async function replayCommand(args: readonly string[]): Promise<number> {
+export async function replayCommand(
+  args: readonly string[],
+  signal?: AbortSignal,
+): Promise<number> {
   const { values, positionals } = parseArgs({
     args: [...args],
     allowPositionals: true,
@@ -65,6 +68,7 @@ export async function replayCommand(args: readonly string[]): Promise<number> {
       verifierVersion: buildVersion,
       signer,
       allowHost: values["allow-host"] === true,
+      ...(signal === undefined ? {} : { signal }),
     });
   } catch (error) {
     if (error instanceof UnauthenticatedBundleError) {

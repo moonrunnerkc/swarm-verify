@@ -6,10 +6,10 @@ import type { Handler } from "./cli-main.ts";
  * without a second implementation behind them.
  */
 export const verifierCommands: Readonly<Record<"verify" | "init" | "ci" | "replay", Handler>> = {
-  verify: async (args) => (await import("./cli-verify.ts")).verify(args),
+  verify: async (args, signal) => (await import("./cli-verify.ts")).verify(args, signal),
   init: async (args) => (await import("./cli-init.ts")).init(args),
-  ci: async (args) => (await import("./cli-verify.ts")).ci(args),
-  replay: async (args) => (await import("./cli-replay.ts")).replayCommand(args),
+  ci: async (args, signal) => (await import("./cli-verify.ts")).ci(args, signal),
+  replay: async (args, signal) => (await import("./cli-replay.ts")).replayCommand(args, signal),
 };
 
 export { commandDefinitions, UsageError } from "./cli-command-definitions.ts";
