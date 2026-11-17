@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { generateKeyPairSync } from "node:crypto";
+import { createPublicKey, generateKeyPairSync } from "node:crypto";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -94,6 +94,43 @@ describe("the packed verifier", () => {
       { cwd: repo, encoding: "utf8" },
     );
     expect(checked.stdout).toContain("ok     signature");
+    expect(checked.stdout).toContain("ok     state");
     expect(checked.status).toBe(0);
+
+    // The consumer replays with the key it configured, not the one beside the bundle.
+    const trusted = join(scratch, "trusted.pub.pem");
+    await writeFile(
+      trusted,
+      createPublicKey(signingKey).export({ type: "spki", format: "pem" }).toString(),
+    );
+    const replayed = spawnSync(
+      bin,
+      ["replay", out, "--key", trusted, "--allow-host", "--out", join(scratch, "replay")],
+      { cwd: repo, encoding: "utf8", env },
+    );
+    expect(replayed.stdout).toMatch(/^agreement/m);
+    expect(replayed.status).toBe(0);
+    const stranger = join(scratch, "stranger.pub.pem");
+    await writeFile(
+      stranger,
+      generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "pem" }),
+    );
+    const refused = spawnSync(bin, ["replay", out, "--key", stranger, "--allow-host"], {
+      cwd: repo,
+      encoding: "utf8",
+      env,
+    });
+    expect(refused.status).toBe(6);
+    const planned = spawnSync(
+      bin,
+      ["verify", "--preflight", "--isolation", "host", "--range", "main..fix"],
+      {
+        cwd: repo,
+        encoding: "utf8",
+        env,
+      },
+    );
+    expect(planned.stdout).toMatch(/^acceptance\s+swarm-verify\.acceptance\/v1/m);
+    expect(planned.status).toBe(0);
   });
 });
