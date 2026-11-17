@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { containerRun, defaultImages, pnpmShim, type Sandbox, settleWait } from "./sandbox.ts";
+import {
+  containerLimits,
+  containerRun,
+  defaultImages,
+  pnpmShim,
+  type Sandbox,
+  settleWait,
+} from "./sandbox.ts";
 
 const sandbox: Sandbox = {
   image: defaultImages.node,
@@ -32,6 +39,7 @@ describe("the container a command runs in", () => {
     expect(run).toContain("type=bind,src=/s/run/account/passwd,dst=/etc/passwd,readonly");
     expect(run.join(" ")).not.toContain("/swarm-cache");
     expect(run.slice(-4)).toEqual([defaultImages.node, "/bin/sh", "-c", `${pnpmShim}npm test`]);
+    for (const limit of containerLimits) expect(run).toContain(limit);
   });
 
   it("opens the network and mounts the dependency cache only while dependencies are prepared", () => {

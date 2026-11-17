@@ -206,6 +206,7 @@ export function containerRun(
     input.stage === "prepare" || input.network === "open" ? "bridge" : "none",
     "--user",
     sandbox.user,
+    ...containerLimits,
     "--workdir",
     input.cwd,
     ...mounts,
@@ -217,6 +218,18 @@ export function containerRun(
   ];
   return { name, args };
 }
+
+/**
+ * What every container gets regardless of the project: no capabilities, no privilege gained
+ * through setuid, and a bound on processes, so a fork bomb stops at the bound. Memory and CPU are
+ * not bounded, since test suites differ too widely; the docs say so.
+ */
+export const containerLimits = [
+  "--cap-drop=ALL",
+  "--security-opt=no-new-privileges",
+  "--pids-limit=4096",
+  "--init",
+];
 
 /** Removes a container a timed-out or cancelled run left behind; the client's exit does not stop it. */
 export async function removeContainer(name: string): Promise<void> {
