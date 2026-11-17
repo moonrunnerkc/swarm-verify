@@ -13,7 +13,7 @@ import { baselineKey, codeSha256 } from "./code-digest.ts";
 import { type MeasuredRun, reportPlans, runMeasured } from "./per-test.ts";
 import type { Baseline, Predicate } from "./predicate.ts";
 import type { ReportPlan } from "./report-plan.ts";
-import { overlaySealed, type SealedSet } from "./sealed-store.ts";
+import { overlaySealed, SealError, type SealedSet } from "./sealed-store.ts";
 
 export {
   alteredSealed,
@@ -147,7 +147,30 @@ export async function measureBase(input: {
   const tests = runs.map((one) => one.evidence);
   let sealedRuns: readonly MeasuredRun[] = [];
   if (input.sealed !== null) {
-    await overlaySealed(input.workspace, input.sealed, input.checkout.dir, input.home);
+    const refused = await overlaySealed(
+      input.workspace,
+      input.sealed,
+      input.checkout.dir,
+      input.home,
+    ).then(
+      () => null,
+      (error: unknown) => {
+        if (error instanceof SealError) return error.message;
+        throw error;
+      },
+    );
+    if (refused !== null) {
+      await resetTracked(input.checkout);
+      await removeWrittenSince(input.checkout, before);
+      return {
+        baseline: {
+          status: "unmeasured",
+          reason: `the held-out checks could not be laid into the base's tree: ${refused}`,
+        },
+        runs,
+        sealedRuns: [],
+      };
+    }
     sealedRuns = (await runSealed(input.sealed, input.context, scratch, "base")).measured;
     await restoreFromBase(
       input.checkout,

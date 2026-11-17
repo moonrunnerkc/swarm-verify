@@ -3,7 +3,7 @@ import { type BaseCheckout, type ChangedFile, restoreFrom, treeDigest } from "./
 import { type CheckContext, passRate } from "./checks.ts";
 import type { TestFileChanges, TestOutcome } from "./compare.ts";
 import { instrument } from "./coverage.ts";
-import { overlaySealed, runSealed, type SealedSet } from "./held-out.ts";
+import { overlaySealed, runSealed, SealError, type SealedSet } from "./held-out.ts";
 import { judgeCheck } from "./judgment.ts";
 import { mutationWitness } from "./mutation.ts";
 import { type ChangedArtifact, categoryOf } from "./paths.ts";
@@ -216,13 +216,34 @@ export async function judgeCandidate(input: CandidateInput): Promise<CandidateJu
           `the checks rewrote tracked files of the candidate (tree sha256 ${after}, delivered ${input.candidateSha256}), so this measurement is not of the delivered candidate`,
         ];
   let hidden: Awaited<ReturnType<typeof runSealed>> | null = null;
+  const sealedProblems: string[] = [];
   if (input.sealed !== null) {
     // The base's tests and test configuration judge the held-out run, not the candidate's.
     const tested = artifacts.filter((one) => one.category === "tests").map((one) => one.path);
     await restoreFrom(checkout, checkout.baseCommit, tested);
-    await overlaySealed(input.workspace, input.sealed, checkout.dir, input.home);
-    hidden = await runSealed(input.sealed, context, scratch);
+    const placed = await overlaySealed(
+      input.workspace,
+      input.sealed,
+      checkout.dir,
+      input.home,
+    ).then(
+      () => null,
+      (error: unknown) => {
+        if (error instanceof SealError) return error.message;
+        throw error;
+      },
+    );
+    if (placed === null) hidden = await runSealed(input.sealed, context, scratch);
+    else
+      sealedProblems.push(
+        `the held-out checks could not be laid into the candidate's tree (${placed}), so they did not run`,
+      );
     await restoreFrom(checkout, input.candidateTree, tested);
+    const afterSealed = await treeDigest(checkout.dir);
+    if (afterSealed !== input.candidateSha256)
+      sealedProblems.push(
+        `the held-out run rewrote tracked files of the candidate (tree sha256 ${afterSealed}, delivered ${input.candidateSha256}), so later measurements are not of the delivered candidate`,
+      );
   }
   const baseSide = await rerunBaseSide(
     input,
@@ -239,6 +260,7 @@ export async function judgeCandidate(input: CandidateInput): Promise<CandidateJu
     ...(baseSide.notice === null ? [] : [baseSide.notice]),
     ...sets.rewrites.map((one) => `${one}, so the checks did not measure the delivered candidate`),
     ...rewritten,
+    ...sealedProblems,
     ...candidateSide.flatMap((one) => one.rewrites),
     ...baseSide.rewrites,
   ];

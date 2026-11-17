@@ -1,9 +1,15 @@
 import { createHash } from "node:crypto";
 import { chmod, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { z } from "zod";
 import type { DeclaredCheck } from "../config/swarm-toml.ts";
+import {
+  ContainmentError,
+  readContained,
+  relativeComponents,
+  writeContained,
+} from "../fs/contained.ts";
 import { gitText } from "./change.ts";
 
 /**
@@ -12,6 +18,21 @@ import { gitText } from "./change.ts";
  * `independently-generated` is one a producer had written from the requirements alone, by a
  * process that never saw the change. A check names the requirements it witnesses, if any.
  */
+const repositoryPath = z
+  .string()
+  .min(1)
+  .refine(
+    (path) => {
+      try {
+        relativeComponents(path);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    { message: "a relative path inside the repository, with no .. and no absolute prefix" },
+  );
+
 export const sealedSchema = z.object({
   glob: z.string().min(1),
   authority: z.enum(["user-acceptance", "independently-generated"]).default("user-acceptance"),
@@ -25,7 +46,7 @@ export const sealedSchema = z.object({
       }),
     )
     .min(1),
-  files: z.array(z.object({ path: z.string().min(1), sha256: z.string() })).min(1),
+  files: z.array(z.object({ path: repositoryPath, sha256: z.string() })).min(1),
 });
 export type SealedSet = z.infer<typeof sealedSchema>;
 
@@ -96,10 +117,9 @@ export async function seal(
   await chmod(home, 0o700);
   const files = [];
   for (const path of paths) {
-    const content = await readFile(join(workspace, path));
-    const target = join(directory, "files", path);
-    await mkdir(dirname(target), { recursive: true, mode: 0o700 });
-    await writeFile(target, content, { mode: 0o600 });
+    const content = await contained(() => readContained(workspace, path));
+    if (content === null) throw new SealError(`${path} is listed by git but is not there`);
+    await contained(() => writeContained(join(directory, "files"), path, content));
     files.push({ path, sha256: createHash("sha256").update(content).digest("hex") });
   }
   const sealed: SealedSet = {
@@ -138,14 +158,18 @@ export async function alteredSealed(
   const directory = await sealedDirectory(workspace, home);
   const altered: string[] = [];
   for (const file of sealed.files) {
-    const content = await readFile(join(directory, "files", file.path)).catch(() => null);
+    const content = await readContained(join(directory, "files"), file.path).catch(() => null);
     const digest = content === null ? null : createHash("sha256").update(content).digest("hex");
     if (digest !== file.sha256) altered.push(file.path);
   }
   return altered;
 }
 
-/** Copies the sealed files into a checkout, refusing any whose bytes changed in the store. */
+/**
+ * Copies the sealed files into a checkout, refusing any whose bytes changed in the store. The
+ * checkout is the candidate's tree, so a link or a file the candidate put on a sealed path is
+ * refused rather than written through (SealError, naming the path).
+ */
 export async function overlaySealed(
   workspace: string,
   sealed: SealedSet,
@@ -154,12 +178,21 @@ export async function overlaySealed(
 ): Promise<void> {
   const directory = await sealedDirectory(workspace, home);
   for (const file of sealed.files) {
-    const content = await readFile(join(directory, "files", file.path));
-    if (createHash("sha256").update(content).digest("hex") !== file.sha256) {
+    const content = await contained(() => readContained(join(directory, "files"), file.path));
+    if (content === null || createHash("sha256").update(content).digest("hex") !== file.sha256) {
       throw new SealError(`the sealed copy of ${file.path} changed after it was sealed`);
     }
-    await mkdir(dirname(join(dir, file.path)), { recursive: true });
-    await writeFile(join(dir, file.path), content);
+    await contained(() => writeContained(dir, file.path, content, 0o644));
+  }
+}
+
+/** A containment refusal as a SealError, so a caller handles one kind of failure. */
+async function contained<T>(work: () => Promise<T>): Promise<T> {
+  try {
+    return await work();
+  } catch (error) {
+    if (error instanceof ContainmentError) throw new SealError(error.message);
+    throw error;
   }
 }
 
@@ -189,12 +222,7 @@ export async function sealFiles(input: {
   await chmod(home, 0o700);
   const files = [];
   for (const file of input.files) {
-    const target = join(directory, "files", file.path);
-    if (!target.startsWith(`${join(directory, "files")}/`)) {
-      throw new SealError(`${file.path} is not a path inside the repository`);
-    }
-    await mkdir(dirname(target), { recursive: true, mode: 0o700 });
-    await writeFile(target, file.content, { mode: 0o600 });
+    await contained(() => writeContained(join(directory, "files"), file.path, file.content));
     const sha256 = createHash("sha256").update(file.content).digest("hex");
     files.push({ path: file.path, sha256 });
   }
@@ -230,7 +258,12 @@ export async function sealedLogs(
   for (const file of sealed.files)
     logs.push({
       name: sealedFileLogName(file.path),
-      text: await readFile(join(directory, "files", file.path), "utf8"),
+      text: await contained(() => readContained(join(directory, "files"), file.path)).then(
+        (bytes) => {
+          if (bytes === null) throw new SealError(`the sealed copy of ${file.path} is gone`);
+          return bytes.toString("utf8");
+        },
+      ),
     });
   return logs;
 }
@@ -246,9 +279,8 @@ export async function placeSealed(
   await rm(directory, { recursive: true, force: true });
   await mkdir(join(directory, "files"), { recursive: true, mode: 0o700 });
   for (const file of sealed.files) {
-    const target = join(directory, "files", file.path);
-    await mkdir(dirname(target), { recursive: true, mode: 0o700 });
-    await writeFile(target, contents.get(file.path) ?? "", { mode: 0o600 });
+    const content = contents.get(file.path) ?? "";
+    await contained(() => writeContained(join(directory, "files"), file.path, content));
   }
   await writeFile(join(directory, "sealed.json"), `${JSON.stringify(sealed, null, 2)}\n`, {
     mode: 0o600,
