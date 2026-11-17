@@ -2,6 +2,9 @@
  * The public API of swarm-verify. Everything a caller needs to verify a candidate and read the
  * result is exported here; modules under src/verify are internal and may change in any release.
  */
+
+export type { Authenticated, SignerPolicy } from "./api/bundle-auth.ts";
+export { authenticatedStatement, UnauthenticatedBundleError } from "./api/bundle-auth.ts";
 export type {
   EvidenceFiles,
   EvidenceRef,
@@ -13,6 +16,10 @@ export type {
   RequirementStatus,
 } from "./api/outcome.ts";
 export { overallStates, requirementStatuses } from "./api/outcome.ts";
+export type { Delivery, DeliveryStatus } from "./api/publish.ts";
+export { manifestVersion } from "./api/publish.ts";
+export type { Replay } from "./api/replay.ts";
+export { replay, UnreplayableBundleError } from "./api/replay.ts";
 export type {
   CheckAuthority,
   ExecutionPolicy,
@@ -39,12 +46,14 @@ export {
   CandidateChangedError,
   InvalidRequestError,
   parseRequest,
+  RunCancelledError,
   snapshotWorkingTree,
   verify,
 } from "./api/verify.ts";
 export { buildVersion as verifierVersion } from "./build-version.ts";
 export { declaredChecks } from "./config/declared.ts";
 export type { DeclaredCheck } from "./config/swarm-toml.ts";
+export { acceptancePolicy } from "./verify/acceptance.ts";
 export { reportPlans } from "./verify/per-test.ts";
 export { predicateType } from "./verify/predicate.ts";
 export { exitCodeOf, renderMarkdown, renderText } from "./verify/report.ts";
