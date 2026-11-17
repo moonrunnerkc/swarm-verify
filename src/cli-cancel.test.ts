@@ -41,7 +41,7 @@ const alive = (pid: number) => {
 };
 
 describe("a run cancelled by a signal", () => {
-  it("exits 3, stops the checks' descendants, and leaves no complete evidence", async () => {
+  it("exits 3, stops the checks' descendants, and publishes no evidence", async () => {
     const out = join(root, "out");
     const child = spawn(process.execPath, [cli, "verify", "--isolation", "host", "--out", out], {
       cwd: repo,
@@ -66,10 +66,7 @@ describe("a run cancelled by a signal", () => {
     expect(code).toBe(3);
     await new Promise((settle) => setTimeout(settle, 500));
     expect(alive(pid)).toBe(false);
-    const published = await readdir(out).catch(() => [] as string[]);
-    if (published.includes("statement.json")) {
-      const statement = JSON.parse(await readFile(join(out, "statement.json"), "utf8"));
-      expect(statement.predicate.state).not.toBe("complete");
-    }
+    // A cancelled run publishes nothing: its refused checks would read as failures.
+    expect(await readdir(out).catch(() => [] as string[])).toEqual([]);
   });
 });

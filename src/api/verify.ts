@@ -27,6 +27,13 @@ export class CandidateChangedError extends Error {
   }
 }
 
+export class RunCancelledError extends Error {
+  constructor() {
+    super("the verification was cancelled before it finished, so no evidence was published");
+    this.name = "RunCancelledError";
+  }
+}
+
 export interface VerifyCallOptions {
   readonly signal?: AbortSignal;
   /** Sign keylessly through cosign and Sigstore instead of with a resolved key. */
@@ -114,6 +121,8 @@ export async function verify(
     ...(options.pinnedLocks === undefined ? {} : { pinnedLocks: options.pinnedLocks }),
     ...(options.recordedLatest === undefined ? {} : { recordedLatest: options.recordedLatest }),
   });
+  // A cancelled run measured nothing it can stand behind: its checks were refused, not failed.
+  if (options.signal?.aborted === true) throw new RunCancelledError();
   const directory = resolve(request.artifacts.directory);
   const delivery = await publishEvidence({
     directory,
