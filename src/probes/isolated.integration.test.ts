@@ -46,6 +46,35 @@ describe("verifying in a container", () => {
     expect(result.state).toBe("complete");
   });
 
+  it("reuses the base run in isolation, where the candidate cannot reach the cache", async () => {
+    // One real pinned dependency, so the installed tree is digested and the environment reproducible.
+    const pinned = {
+      version: "7.0.0",
+      resolved: "https://registry.npmjs.org/is-number/-/is-number-7.0.0.tgz",
+      integrity:
+        "sha512-41Cifkg6e8TylSpdtTpeLVMqvSBEVzTttHvERD741+pnZ8ANv0004MRL43QKPDlK9cGvNp6NZWZUBlbGXYxxng==",
+    };
+    const packages = {
+      "": { name: "fixture", version: "1.0.0", dependencies: { "is-number": "7.0.0" } },
+      "node_modules/is-number": pinned,
+    };
+    const files = {
+      "half.mjs": "export const half = n => n;\n",
+      "test/half.test.mjs": halfTest,
+      "package.json":
+        '{"name":"fixture","version":"1.0.0","type":"module","private":true,"scripts":{"test":"node --test"},"dependencies":{"is-number":"7.0.0"}}\n',
+      "package-lock.json": `${JSON.stringify({ name: "fixture", version: "1.0.0", lockfileVersion: 3, requires: true, packages })}\n`,
+    };
+    const probe = await probeFixture(files, "node --test", parent);
+    await probe.put("half.mjs", "export const half = n => n / 2;\n");
+    const policy = { mode: "isolated", dependencies: "prepare", network: "closed" } as const;
+    const first = await probe.verify([], policy);
+    expect(first.baseline).toMatchObject({ status: "measured", cached: false });
+    const again = await probe.verify([], policy);
+    expect(again.baseline).toMatchObject({ status: "measured", cached: true });
+    expect(again.state).toBe("complete");
+  });
+
   // A judging clone verified with SWARM_HOME=../home was blocked: docker resolved the relative
   // cache mount from the scratch directory it ran in, a path that did not exist.
   it("runs a sealed held-out check with SWARM_HOME given relative to where it started", async () => {

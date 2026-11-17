@@ -30,6 +30,8 @@ export function baselineKey(input: {
   readonly environmentSha256: string;
   readonly sealedSha256: string | null;
   readonly codeSha256: string;
+  /** The execution policy and setup the base ran under, which the environment does not name. */
+  readonly policySha256: string;
 }): string {
   return createHash("sha256")
     .update(
@@ -38,6 +40,7 @@ export function baselineKey(input: {
         input.environmentSha256,
         input.sealedSha256,
         input.codeSha256,
+        input.policySha256,
       ]),
     )
     .digest("hex");

@@ -1,8 +1,14 @@
-import { mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { allChecks, CheckNameCollisionError, hostExecution, runCheck } from "./checks.ts";
+import {
+  allChecks,
+  baseCache,
+  CheckNameCollisionError,
+  hostExecution,
+  runCheck,
+} from "./checks.ts";
 
 let dir: string;
 
@@ -43,5 +49,24 @@ describe("the checks of one run", () => {
     ];
     expect(() => allChecks(declared, [])).toThrow(CheckNameCollisionError);
     expect(() => allChecks(declared.slice(0, 1), [])).not.toThrow();
+  });
+});
+
+describe("the base cache", () => {
+  it("writes an entry whole under concurrent writers and reads back a valid one", async () => {
+    const home = await mkdtemp(join(tmpdir(), "base-cache-"));
+    try {
+      const file = baseCache.file(home, "k");
+      const entry = (n: number) => ({ checks: [], tests: [], heldOut: [], heldOutTests: [], n });
+      await Promise.all(Array.from({ length: 8 }, (_, n) => baseCache.write(file, entry(n))));
+      expect(await baseCache.read(file)).not.toBeNull();
+      expect(
+        (await readdir(join(home, "baselines"))).filter((name) => name.endsWith(".partial")),
+      ).toEqual([]);
+      await writeFile(file, '{"checks": [');
+      expect(await baseCache.read(file)).toBeNull();
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
   });
 });

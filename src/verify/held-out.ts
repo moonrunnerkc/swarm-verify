@@ -105,6 +105,15 @@ export async function measureBase(input: {
   readonly workspace: string;
   /** Run the base even where a cached run exists; the fresh run is still written to the cache. */
   readonly fresh: boolean;
+  /** The execution policy, setup command and timeout the base runs under. */
+  readonly policy: {
+    readonly mode: "isolated" | "host";
+    readonly network: "open" | "closed";
+    readonly dependencies: string;
+    readonly image?: string | undefined;
+    readonly setup: string | null;
+    readonly timeoutMs: number;
+  };
 }): Promise<{
   readonly baseline: Baseline;
   readonly runs: readonly MeasuredRun[];
@@ -117,12 +126,14 @@ export async function measureBase(input: {
     environmentSha256: input.environment.sha256,
     sealedSha256: sealedSha256(input.sealed),
     codeSha256,
+    policySha256: createHash("sha256").update(JSON.stringify(input.policy)).digest("hex"),
   });
   const file = baseCache.file(input.home, key);
   const environmentSha256 = input.environment.sha256;
   // A base measured on an environment no later run can reproduce (linked or set up by a
-  // command no lockfile pins) is neither read from the cache nor written to it.
-  const reuse = input.environment.reproducible;
+  // command no lockfile pins) is neither read from the cache nor written to it, and neither is a
+  // host run's: a candidate on the host runs as the operator and can write the cache itself.
+  const reuse = input.environment.reproducible && input.policy.mode === "isolated";
   const cached = reuse && !input.fresh ? await baseCache.read(file) : null;
   if (cached !== null) {
     const { checks, heldOut, tests, heldOutTests } = cached;

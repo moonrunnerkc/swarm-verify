@@ -230,11 +230,11 @@ describe("measuring every check at the base commit first", () => {
     expect(predicate.regression.newFailures).toEqual([]);
   });
 
-  it("reuses the base run for the same base commit and environment", async () => {
+  it("measures the base again on the host, where a candidate could have written the cache", async () => {
     await put("src/clamp.mjs", correct);
     await verify();
     const again = (await verify()).statement.predicate;
-    expect(again.baseline).toMatchObject({ status: "measured", cached: true });
+    expect(again.baseline).toMatchObject({ status: "measured", cached: false });
   });
 });
 

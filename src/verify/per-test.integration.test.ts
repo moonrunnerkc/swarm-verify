@@ -65,7 +65,7 @@ const verify = async () =>
   ).statement.predicate;
 
 describe("judging a suite that fails at the base commit test by test", () => {
-  it("passes a fix with the command failing at both commits, and reuses the base report", async () => {
+  it("passes a fix with the command failing at both commits, and measures the base again on the host", async () => {
     await put("src/clamp.mjs", clamp("return Math.min(high, Math.max(low, value));"));
     const predicate = await verify();
     expect(predicate.state).toBe("complete");
@@ -82,8 +82,9 @@ describe("judging a suite that fails at the base commit test by test", () => {
     });
     expect(predicate.baseline).toMatchObject({ status: "measured", cached: false });
     expect(predicate.mutation.status).toBe("killed");
+    // A candidate on the host runs as the operator and could have written the cache.
     const again = await verify();
-    expect(again.baseline).toMatchObject({ cached: true });
+    expect(again.baseline).toMatchObject({ cached: false });
     expect(again.state).toBe("complete");
   });
 

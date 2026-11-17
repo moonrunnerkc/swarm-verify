@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createHash, randomBytes } from "node:crypto";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import type { TrustedCheck } from "../api/request.ts";
@@ -202,9 +202,12 @@ export const baseCache = {
       return null;
     }
   },
+  /** Written whole or not at all: a reader never sees half an entry, and a racing writer's entry stands. */
   async write(file: string, value: StoredBase): Promise<void> {
     await mkdir(join(file, ".."), { recursive: true, mode: 0o700 });
-    await writeFile(file, `${JSON.stringify(value)}\n`, { mode: 0o600 });
+    const partial = `${file}.${process.pid}.${randomBytes(6).toString("hex")}.partial`;
+    await writeFile(partial, `${JSON.stringify(value)}\n`, { mode: 0o600, flag: "wx" });
+    await rename(partial, file);
   },
 };
 

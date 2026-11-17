@@ -127,6 +127,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
         environment,
         workspace,
         fresh: options.freshBase === true,
+        policy: { ...options.policy, setup: config?.setup ?? null, timeoutMs: context.timeoutMs },
       });
       baseline = measured.baseline;
       baseRuns = measured.runs;
