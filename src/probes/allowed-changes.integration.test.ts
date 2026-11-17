@@ -3,6 +3,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { Requirement } from "../api/request.ts";
+import { acceptancePolicy } from "../verify/acceptance.ts";
 import { checksOffline, halfTest, probeFixture, requirement } from "./fixture.ts";
 
 /**
@@ -175,12 +176,20 @@ describe("an approved behavior change", () => {
     const refused = await probe.verify(rounds);
     expect(refused.checks[0]?.tests?.expectationChanges).toEqual(["test/half.test.mjs::half"]);
     expect(refused.state).not.toBe("complete");
-    expect(refused.policy).toEqual({ behaviorChange: "none", reruns: 3 });
+    expect(refused.policy).toEqual({
+      behaviorChange: "none",
+      reruns: 3,
+      acceptance: acceptancePolicy,
+    });
     const allowed = await probe.verify(rounds, { behaviorChange: "authorized" });
     expect(allowed.checks[0]?.tests?.superseded).toEqual(["test/half.test.mjs::half"]);
     expect(allowed.requirements[0]?.status).toBe("satisfied");
     expect(allowed.state).toBe("complete");
-    expect(allowed.policy).toEqual({ behaviorChange: "authorized", reruns: 3 });
+    expect(allowed.policy).toEqual({
+      behaviorChange: "authorized",
+      reruns: 3,
+      acceptance: acceptancePolicy,
+    });
     checksOffline(allowed);
   });
 });

@@ -3,11 +3,12 @@ import { dirname, join, resolve } from "node:path";
 import { detectChecks } from "../config/detect.ts";
 import { readSwarmToml } from "../config/swarm-toml.ts";
 import {
+  blockedRun,
   executionOf,
   independenceReasons,
+  judgedPredicate,
   notYetMeasured,
   regressionOf,
-  stateOf,
   unmeasuredOf,
 } from "./assess.ts";
 import { judgeCandidate } from "./candidate.ts";
@@ -211,10 +212,6 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       unmeasuredChecks.push(...judged.unmeasured);
     }
 
-    const failed =
-      !applied.applied ||
-      failures.length > 0 ||
-      (heldOut.status === "measured" && heldOut.heldOutPassRate < 1);
     const regression = regressionOf(runs);
     const requirements = await assessRequirements(options.requirements ?? [], {
       checks: runs,
@@ -238,9 +235,8 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
     );
     reasons.unshift(...blocked);
     reasons.push(...independenceReasons(requirements));
-    const state = stateOf({ blocked, requirements, regression, execution, failed });
-    const predicate: Predicate = {
-      state,
+    const draft: Predicate = {
+      state: "incomplete",
       scope: (options.requirements ?? []).length > 0 ? "requirements" : "regression-only",
       reasons,
       base: { commit: change.baseCommit },
@@ -279,6 +275,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       })),
       verifier: { name: "swarm-verify", version: options.version },
     };
+    const predicate = judgedPredicate(draft, blockedRun({ blocked, requirements }));
     const statement = buildStatement({
       treeSha256: applied.applied ? applied.result.treeSha256 : emptyTree,
       patchSha256: createHash("sha256").update(change.patch).digest("hex"),

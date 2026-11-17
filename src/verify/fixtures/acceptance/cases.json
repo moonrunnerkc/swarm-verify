@@ -1,0 +1,320 @@
+{
+  "comment": "Expected verdicts written by hand from the acceptance rule as documented in docs/verifying.md, not produced by the code. `predicate` is merged over `template`; `expected.state` is the state the evidence supports (blocked stands as recorded), `expected.unsupported` the requirement IDs recorded satisfied that the evidence does not support, `expected.problems` whether the record cannot be judged as it stands.",
+  "template": {
+    "state": "complete",
+    "change": { "applied": true },
+    "requirements": [
+      {
+        "id": "R1",
+        "kind": "fix",
+        "required": true,
+        "status": "satisfied",
+        "testsAsked": false,
+        "behaviorAsked": false,
+        "evidence": [
+          {
+            "kind": "test",
+            "ref": "half positive",
+            "authority": "pre-existing",
+            "outcome": "fixed"
+          }
+        ]
+      }
+    ],
+    "checks": [{ "name": "test", "kind": "test", "result": "pass", "collected": 3 }],
+    "baseline": { "status": "measured" },
+    "heldOut": { "status": "unmeasured" },
+    "regression": { "status": "none" },
+    "execution": { "policyMet": true, "dependencies": { "mode": "prepared" } },
+    "policy": { "acceptance": "swarm-verify.acceptance/v1" }
+  },
+  "cases": [
+    {
+      "name": "a fix witnessed by a pre-existing test that failed before and passes after",
+      "predicate": {},
+      "expected": { "state": "complete", "unsupported": [], "problems": false }
+    },
+    {
+      "name": "a feature with asked-for tests of its own beside an independent witness",
+      "predicate": {
+        "requirements": [
+          {
+            "id": "R1",
+            "kind": "feature",
+            "required": true,
+            "status": "satisfied",
+            "testsAsked": true,
+            "evidence": [
+              {
+                "kind": "test",
+                "ref": "held",
+                "authority": "user-acceptance",
+                "outcome": "witness"
+              },
+              {
+                "kind": "test",
+                "ref": "own",
+                "authority": "implementation-authored",
+                "outcome": "witness"
+              }
+            ]
+          }
+        ]
+      },
+      "expected": { "state": "complete", "unsupported": [], "problems": false }
+    },
+    {
+      "name": "a refactor shown by structure with nothing regressed",
+      "predicate": {
+        "requirements": [
+          {
+            "id": "R1",
+            "kind": "refactor",
+            "required": true,
+            "status": "satisfied",
+            "evidence": [
+              {
+                "kind": "structure",
+                "ref": "src/new.ts defines move",
+                "authority": "user-acceptance",
+                "outcome": "observed"
+              },
+              { "kind": "test", "ref": "kept", "authority": "pre-existing", "outcome": "preserved" }
+            ]
+          }
+        ]
+      },
+      "expected": { "state": "complete", "unsupported": [], "problems": false }
+    },
+    {
+      "name": "an upgrade resolved on a fresh install with nothing regressed",
+      "predicate": {
+        "requirements": [
+          {
+            "id": "R1",
+            "kind": "upgrade",
+            "required": true,
+            "status": "satisfied",
+            "evidence": [
+              {
+                "kind": "package",
+                "ref": "npm:vitest within 4.x",
+                "authority": "user-acceptance",
+                "outcome": "observed"
+              }
+            ]
+          }
+        ]
+      },
+      "expected": { "state": "complete", "unsupported": [], "problems": false }
+    },
+    {
+      "name": "F6: a complete record with no checks and an unmeasured base",
+      "predicate": {
+        "checks": [],
+        "baseline": { "status": "unmeasured", "reason": "not measured" }
+      },
+      "expected": { "state": "incomplete", "unsupported": [], "problems": false }
+    },
+    {
+      "name": "a test check that collected no tests",
+      "predicate": {
+        "checks": [{ "name": "test", "kind": "test", "result": "pass", "collected": 0 }]
+      },
+      "expected": { "state": "incomplete", "unsupported": [], "problems": false }
+    },
+    {
+      "name": "a check whose run could not be compared",
+      "predicate": {
+        "checks": [{ "name": "test", "kind": "test", "result": "unresolved", "collected": 3 }]
+      },
+      "expected": { "state": "incomplete", "unsupported": [], "problems": false }
+    },
+    {
+      "name": "a base that was not measured, checks otherwise passing",
+      "predicate": { "baseline": { "status": "unmeasured", "reason": "setup failed" } },
+      "expected": { "state": "incomplete", "unsupported": [], "problems": false }
+    },
+    {
+      "name": "a satisfied requirement with no evidence recorded",
+      "predicate": {
+        "requirements": [{ "id": "R1", "kind": "fix", "required": true, "status": "satisfied" }]
+      },
+      "expected": { "state": "incomplete", "unsupported": ["R1"], "problems": false }
+    },
+    {
+      "name": "a fix witnessed only by the implementation's own test",
+      "predicate": {
+        "requirements": [
+          {
+            "id": "R1",
+            "kind": "fix",
+            "required": true,
+            "status": "satisfied",
+            "evidence": [
+              {
+                "kind": "test",
+                "ref": "own",
+                "authority": "implementation-authored",
+                "outcome": "witness"
+              }
+            ]
+          }
+        ]
+      },
+      "expected": { "state": "incomplete", "unsupported": ["R1"], "problems": false }
+    },
+    {
+      "name": "asked-for tests that belong to another requirement",
+      "predicate": {
+        "requirements": [
+          {
+            "id": "R1",
+            "kind": "fix",
+            "required": true,
+            "status": "satisfied",
+            "testsAsked": true,
+            "evidence": [
+              {
+                "kind": "test",
+                "ref": "held-1",
+                "authority": "user-acceptance",
+                "outcome": "witness"
+              },
+              {
+                "kind": "test",
+                "ref": "own-1",
+                "authority": "implementation-authored",
+                "outcome": "witness"
+              }
+            ]
+          },
+          {
+            "id": "R2",
+            "kind": "fix",
+            "required": true,
+            "status": "satisfied",
+            "testsAsked": true,
+            "evidence": [
+              {
+                "kind": "test",
+                "ref": "held-2",
+                "authority": "user-acceptance",
+                "outcome": "witness"
+              }
+            ]
+          }
+        ]
+      },
+      "expected": { "state": "incomplete", "unsupported": ["R2"], "problems": false }
+    },
+    {
+      "name": "a requirement ID recorded twice",
+      "predicate": {
+        "requirements": [
+          {
+            "id": "R1",
+            "kind": "fix",
+            "required": true,
+            "status": "satisfied",
+            "evidence": [
+              { "kind": "test", "ref": "a", "authority": "pre-existing", "outcome": "fixed" }
+            ]
+          },
+          {
+            "id": "R1",
+            "kind": "fix",
+            "required": true,
+            "status": "satisfied",
+            "evidence": [
+              { "kind": "test", "ref": "b", "authority": "pre-existing", "outcome": "fixed" }
+            ]
+          }
+        ]
+      },
+      "expected": { "state": "incomplete", "unsupported": [], "problems": true }
+    },
+    {
+      "name": "a check name recorded twice",
+      "predicate": {
+        "checks": [
+          { "name": "test", "kind": "test", "result": "pass", "collected": 3 },
+          { "name": "test", "kind": "test", "result": "pass", "collected": 3 }
+        ]
+      },
+      "expected": { "state": "incomplete", "unsupported": [], "problems": true }
+    },
+    {
+      "name": "an acceptance policy this rule is not",
+      "predicate": { "policy": { "acceptance": "swarm-verify.acceptance/v9" } },
+      "expected": { "state": "incomplete", "unsupported": [], "problems": true }
+    },
+    {
+      "name": "an upgrade on linked dependencies",
+      "predicate": {
+        "requirements": [
+          {
+            "id": "R1",
+            "kind": "upgrade",
+            "required": true,
+            "status": "satisfied",
+            "evidence": [
+              {
+                "kind": "package",
+                "ref": "npm:vitest",
+                "authority": "user-acceptance",
+                "outcome": "observed"
+              }
+            ]
+          }
+        ],
+        "execution": { "policyMet": true, "dependencies": { "mode": "linked" } }
+      },
+      "expected": { "state": "incomplete", "unsupported": ["R1"], "problems": false }
+    },
+    {
+      "name": "a regression found beside a witnessed fix",
+      "predicate": { "regression": { "status": "found" } },
+      "expected": { "state": "incomplete", "unsupported": [], "problems": false }
+    },
+    {
+      "name": "a held-out check that failed",
+      "predicate": { "heldOut": { "status": "measured", "heldOutPassRate": 0.5 } },
+      "expected": { "state": "incomplete", "unsupported": [], "problems": false }
+    },
+    {
+      "name": "a flaky test in a passing check",
+      "predicate": {
+        "checks": [
+          {
+            "name": "test",
+            "kind": "test",
+            "result": "pass",
+            "collected": 3,
+            "tests": { "flaky": ["t"] }
+          }
+        ]
+      },
+      "expected": { "state": "incomplete", "unsupported": [], "problems": false }
+    },
+    {
+      "name": "an execution policy that was not met",
+      "predicate": { "execution": { "policyMet": false, "dependencies": { "mode": "prepared" } } },
+      "expected": { "state": "incomplete", "unsupported": [], "problems": false }
+    },
+    {
+      "name": "a regression-only run with checks passing",
+      "predicate": { "requirements": [] },
+      "expected": { "state": "complete", "unsupported": [], "problems": false }
+    },
+    {
+      "name": "a run recorded blocked",
+      "predicate": {
+        "state": "blocked",
+        "checks": [],
+        "baseline": { "status": "unmeasured", "reason": "no docker" }
+      },
+      "expected": { "state": "blocked", "unsupported": [], "problems": false }
+    }
+  ]
+}

@@ -210,38 +210,34 @@ if (statement !== null) {
   }
 }
 
-/**
- * The state the recorded evidence supports, by the rule the verifier applies (src/verify/
- * requirements.ts and assess.ts): complete only when the change applied, every required
- * requirement is satisfied by evidence that holds with at least one decisive witness its
- * implementation's author did not choose (a fix or feature: a test failing before and passing
- * after; a refactor: structure, nothing regressed; an upgrade: a resolved package on a fresh
- * install, nothing regressed), nothing regressed or stayed unresolved, no check failed or was
- * flaky, the held-out checks passed and the execution policy was met. `blocked` stands.
- */
-const witnessing = new Set(["fixed", "witness", "superseded"]);
-const holding = new Set([
-  ...witnessing,
+// BEGIN acceptance rule, generated from src/verify/acceptance.ts; do not edit
+export const acceptancePolicy = "swarm-verify.acceptance/v1";
+export const witnessingOutcomes = ["fixed", "witness", "superseded"];
+export const holdingOutcomes = [
+  ...witnessingOutcomes,
   "preserved",
   "pass",
   "observed",
   "passes before and after",
   "passes but for inherited failures",
-]);
-
-function satisfied(one, predicate) {
+];
+const witnesses = (ref) => witnessingOutcomes.includes(ref.outcome ?? "");
+export function requirementSupported(one, predicate) {
   const evidence = one.evidence ?? [];
-  if (one.status !== "satisfied" || evidence.length === 0) return false;
-  if (!evidence.every((ref) => holding.has(ref.outcome))) return false;
+  if (evidence.length === 0) return false;
+  if (!evidence.every((ref) => holdingOutcomes.includes(ref.outcome ?? ""))) return false;
   const quiet = predicate.regression?.status === "none";
-  const witnesses = (ref) => witnessing.has(ref.outcome);
-  const decisive = {
-    fix: witnesses,
-    feature: witnesses,
-    refactor: (ref) => ref.kind === "structure" || witnesses(ref),
-    upgrade: one.behaviorAsked === true ? witnesses : (ref) => ref.kind === "package",
-  }[one.kind];
-  const shown = evidence.filter(decisive ?? (() => true));
+  const decisive =
+    one.kind === "fix" || one.kind === "feature"
+      ? witnesses
+      : one.kind === "refactor"
+        ? (ref) => ref.kind === "structure" || witnesses(ref)
+        : one.kind === "upgrade"
+          ? one.behaviorAsked === true
+            ? witnesses
+            : (ref) => ref.kind === "package"
+          : () => true;
+  const shown = evidence.filter(decisive);
   if (!shown.some((ref) => ref.authority !== "implementation-authored")) return false;
   const own = (ref) => ref.authority === "implementation-authored" && witnesses(ref);
   const asks = one.testsAsked === true && (one.kind === "fix" || one.kind === "feature");
@@ -253,35 +249,72 @@ function satisfied(one, predicate) {
   }
   return true;
 }
-
-function derivedState(predicate) {
-  if (predicate.state === "blocked") return "blocked";
-  const required = (predicate.requirements ?? []).filter((one) => one.required);
-  // A flaky test failed and passed on one snapshot: it leaves its check unresolved.
-  const checksHold = (predicate.checks ?? []).every(
-    (check) =>
-      (check.result === "pass" || check.result === "inherited-failures") &&
-      (check.tests?.flaky ?? []).length === 0,
-  );
+export function recordProblems(predicate) {
+  const problems = [];
+  const policy = predicate.policy?.acceptance;
+  if (policy !== undefined && policy !== acceptancePolicy)
+    problems.push(`it is judged under ${policy}, which this verifier does not implement`);
+  const duplicates = (names) => names.filter((name, at) => names.indexOf(name) !== at);
+  const ids = duplicates((predicate.requirements ?? []).map((one) => one.id));
+  if (ids.length > 0) problems.push(`requirement ID ${ids.join(", ")} appears more than once`);
+  const names = duplicates((predicate.checks ?? []).map((check) => check.name));
+  if (names.length > 0) problems.push(`check ${names.join(", ")} appears more than once`);
+  return problems;
+}
+export function acceptedState(predicate) {
+  const checks = predicate.checks ?? [];
+  const checksHold =
+    checks.length > 0 &&
+    checks.every(
+      (check) =>
+        (check.result === "pass" || check.result === "inherited-failures") &&
+        !(check.kind === "test" && check.collected === 0) &&
+        (check.tests?.flaky ?? []).length === 0,
+    );
   const heldOut = predicate.heldOut;
   const heldOutHolds = heldOut?.status !== "measured" || heldOut.heldOutPassRate === 1;
+  const required = (predicate.requirements ?? []).filter((one) => one.required === true);
   return predicate.change?.applied === true &&
-    required.every((one) => satisfied(one, predicate)) &&
+    recordProblems(predicate).length === 0 &&
+    predicate.baseline?.status === "measured" &&
+    checksHold &&
+    required.every((one) => one.status === "satisfied" && requirementSupported(one, predicate)) &&
     predicate.regression?.status === "none" &&
     predicate.execution?.policyMet === true &&
-    checksHold &&
     heldOutHolds
     ? "complete"
     : "incomplete";
+}
+// END acceptance rule
+
+/** The recorded state's support: blocked stands as the run's finding; anything else is derived. */
+function derivedState(predicate) {
+  return predicate.state === "blocked" ? "blocked" : acceptedState(predicate);
 }
 
 const signedPredicate = statement?.predicate;
 if (signed && signedPredicate !== undefined && signedPredicate !== null) {
   const predicate = signedPredicate;
+  const problems = recordProblems(predicate);
+  check(
+    "record",
+    problems.length === 0,
+    problems.length === 0 ? `judged under ${acceptancePolicy}` : problems.join("; "),
+  );
+  const unsupported = (predicate.requirements ?? []).filter(
+    (one) => one.status === "satisfied" && !requirementSupported(one, predicate),
+  );
+  check(
+    "support",
+    unsupported.length === 0,
+    unsupported.length === 0
+      ? "every satisfied requirement is supported by its recorded evidence"
+      : `recorded satisfied without supporting evidence: ${unsupported.map((one) => one.id).join(", ")}`,
+  );
   const derived = derivedState(predicate);
   check(
     "state",
-    derived === predicate.state || (derived === "incomplete" && predicate.state === "incomplete"),
+    derived === predicate.state,
     derived === predicate.state
       ? `${predicate.state}, supported by the recorded evidence`
       : `recorded ${predicate.state}, but the recorded evidence supports ${derived}`,

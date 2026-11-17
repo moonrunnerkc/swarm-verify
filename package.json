@@ -51,7 +51,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "checks": "node scripts/check-doc-paths.mjs",
+    "checks": "node scripts/check-doc-paths.mjs && node --no-warnings scripts/sync-offline.mjs --check",
     "typecheck": "tsc --noEmit",
     "lint": "biome check",
     "format": "biome format --write",

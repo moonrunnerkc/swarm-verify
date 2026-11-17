@@ -222,6 +222,8 @@ export const predicateSchema = z.object({
     behaviorChange: z.enum(["none", "authorized"]),
     /** How often a test whose failure decides its verdict is run again; absent where none was. */
     reruns: z.number().int().nonnegative().optional(),
+    /** The acceptance semantics the state was derived under; absent before swarm-verify 3.0.0. */
+    acceptance: z.string().min(1).optional(),
   }),
   unmeasured: z.array(z.string()),
   /** The log files written beside the statement (each check's full output), by digest. */

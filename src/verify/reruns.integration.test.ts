@@ -3,6 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { halfTest, probeFixture, requirement } from "../probes/fixture.ts";
+import { acceptancePolicy } from "./acceptance.ts";
 import { writeAttestation } from "./dsse.ts";
 import { exitCodeOf } from "./report.ts";
 import { resolveSigningKey } from "./signing.ts";
@@ -145,7 +146,11 @@ describe("a test that fails on every run", () => {
     });
     await probe.put("half.mjs", "export const half = n => n * 2;\n");
     const result = await probe.verify([], { reruns: 1 });
-    expect(result.policy).toEqual({ behaviorChange: "none", reruns: 1 });
+    expect(result.policy).toEqual({
+      behaviorChange: "none",
+      reruns: 1,
+      acceptance: acceptancePolicy,
+    });
     expect(result.checks[0]?.tests?.reruns?.[0]?.results).toEqual(["fail", "fail"]);
   });
 });

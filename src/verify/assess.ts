@@ -1,6 +1,7 @@
-import type { Execution, OverallState, Regression, RequirementOutcome } from "../api/outcome.ts";
+import type { Execution, Regression, RequirementOutcome } from "../api/outcome.ts";
 import type { ExecutionPolicy } from "../api/request.ts";
-import type { Baseline, CheckResult, Coverage, HeldOut, Mutation } from "./predicate.ts";
+import { acceptancePolicy, acceptedState, requirementSupported } from "./acceptance.ts";
+import type { Baseline, CheckResult, Coverage, HeldOut, Mutation, Predicate } from "./predicate.ts";
 
 /** Sorted, then the first hundred: the same ids give the same list whatever order they came in. */
 const capped = (ids: readonly string[]) => [...ids].sort().slice(0, 100);
@@ -124,28 +125,46 @@ export function executionOf(
   };
 }
 
-/**
- * The overall state, derived only here. Blocked when nothing could be measured for a reason
- * outside the candidate; complete only when every required requirement is satisfied, nothing
- * regressed or stayed unresolved, and the execution policy was met.
- */
-export function stateOf(input: {
+/** Whether nothing could be measured for a reason outside the candidate. */
+export function blockedRun(input: {
   readonly blocked: readonly string[];
   readonly requirements: readonly RequirementOutcome[];
-  readonly regression: Regression;
-  readonly execution: Execution;
-  readonly failed: boolean;
-}): OverallState {
-  if (input.blocked.length > 0) return "blocked";
-  const required = input.requirements.filter((requirement) => requirement.required);
-  if (required.some((requirement) => requirement.status === "blocked")) return "blocked";
-  const satisfied = required.every((requirement) => requirement.status === "satisfied");
-  return satisfied &&
-    !input.failed &&
-    input.regression.status === "none" &&
-    input.execution.policyMet
-    ? "complete"
-    : "incomplete";
+}): boolean {
+  if (input.blocked.length > 0) return true;
+  return input.requirements.some((one) => one.required && one.status === "blocked");
+}
+
+/**
+ * The predicate as accepted, by the one acceptance rule verify.mjs also applies: a requirement
+ * recorded satisfied that its evidence does not support is unverified, and the state is what the
+ * recorded evidence supports, or blocked where the run was.
+ */
+export function judgedPredicate(draft: Predicate, blocked: boolean): Predicate {
+  const policy = { ...draft.policy, acceptance: acceptancePolicy };
+  const requirements = draft.requirements.map((one) =>
+    one.status !== "satisfied" || requirementSupported(one, { ...draft, policy })
+      ? one
+      : {
+          ...one,
+          status: "unverified" as const,
+          limitation:
+            "the recorded evidence does not support satisfaction under the acceptance rule",
+          nextAction:
+            "map evidence that holds, with a decisive witness the implementation did not choose",
+        },
+  );
+  const judged = { ...draft, requirements, policy };
+  if (blocked) return { ...judged, state: "blocked" };
+  const state = acceptedState(judged);
+  const reasons = [...draft.reasons];
+  if (state === "incomplete") {
+    if (draft.checks.length === 0) reasons.push("no check ran, so nothing was measured");
+    if (draft.baseline.status !== "measured" && draft.checks.length > 0)
+      reasons.push("the base was not measured, so no result can be compared with it");
+    const empty = draft.checks.filter((check) => check.kind === "test" && check.collected === 0);
+    for (const check of empty) reasons.push(`check ${check.name}: the run collected no tests`);
+  }
+  return { ...judged, state, reasons: [...new Set(reasons)] };
 }
 
 /** One reason per required requirement whose only decisive witnesses are the implementation's own. */
