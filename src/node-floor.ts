@@ -13,6 +13,8 @@
  * docs/verifier-first/node-22.md.
  */
 export const requiredNodeMajor = 22;
+/** Node 22.13 is the first 22.x with module.stripTypeScriptTypes, which the mutation pass parses with. */
+export const requiredNodeMinor = 13;
 
 /** The first release that lets the harness name process isolation on the command line. */
 export const isolatedCoverageFloor = { major: 22, minor: 8 } as const;
@@ -39,10 +41,14 @@ function parts(version: string): { readonly major: number; readonly minor: numbe
 /** The one line to print and stop on, or null where the runtime is new enough to run at all. */
 export function nodeFloorShortfall(version: string): string | null {
   const read = parts(version);
-  if (read !== null && read.major >= requiredNodeMajor) {
+  if (
+    read !== null &&
+    (read.major > requiredNodeMajor ||
+      (read.major === requiredNodeMajor && read.minor >= requiredNodeMinor))
+  ) {
     return null;
   }
-  return `swarm needs Node ${requiredNodeMajor} or newer and found ${version}.`;
+  return `swarm needs Node ${requiredNodeMajor}.${requiredNodeMinor} or newer and found ${version}.`;
 }
 
 /**

@@ -132,4 +132,4 @@ This repository owns the verifier: source, tests, build, releases and the Action
 Orchestrator, the coding agent, consumes it at an exact version through the API above. Report a
 defect at [this repository's issues](https://github.com/moonrunnerkc/swarm-verify/issues).
 
-Node 22 or newer and git. ISC licensed; see [LICENSE](LICENSE).
+Node 22.13 or newer and git. ISC licensed; see [LICENSE](LICENSE).

@@ -10,16 +10,17 @@ import {
 } from "./node-floor.ts";
 
 describe("the runtime floor for running the tool at all", () => {
-  it("is Node 22, since only the isolated coverage measurement needs anything newer", () => {
+  it("is Node 22.13, the first 22.x with module.stripTypeScriptTypes", () => {
     expect(requiredNodeMajor).toBe(22);
-    expect(nodeFloorShortfall("v22.0.0")).toBeNull();
+    expect(nodeFloorShortfall("v22.13.0")).toBeNull();
+    expect(nodeFloorShortfall("v22.12.0")).not.toBeNull();
     expect(nodeFloorShortfall("v24.0.0")).toBeNull();
   });
 
   it("names the version found and the version required, in one line", () => {
     const line = nodeFloorShortfall("v20.19.0");
 
-    expect(line).toContain("Node 22 or newer");
+    expect(line).toContain("Node 22.13 or newer");
     expect(line).toContain("found v20.19.0");
     expect(line?.includes("\n")).toBe(false);
   });
