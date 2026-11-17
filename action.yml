@@ -17,9 +17,40 @@ inputs:
   requirements:
     description: Path to a JSON array of requirements in the workspace. Absent means the result covers regressions only.
     default: ""
+  sigstore:
+    description: "`true` signs keylessly through Sigstore with the workflow's identity; the job needs `permissions: id-token: write`. Otherwise the key in the SWARM_SIGNING_KEY secret signs, or a per-run key with a notice."
+    default: "false"
+  allow-unsigned:
+    description: "`true` lets a run whose signature failed still pass on its task state, delivered as unsigned. By default a signature is required and a failed one fails the step (exit 7)."
+    default: "false"
+  upload-evidence:
+    description: "`true` uploads the run's evidence directory as a workflow artifact, whatever the outcome."
+    default: "true"
   authorize-behavior-change:
     description: "`true` lets a test the base passes change its expectation where the change witnesses the new behavior, and records that it did. Set it only for a pull request whose request is to change tested behavior."
     default: "false"
+outputs:
+  state:
+    description: "complete, incomplete or blocked; empty where no result was produced."
+    value: ${{ steps.verify.outputs.state }}
+  delivery:
+    description: "signed, unsigned or failed: whether the evidence reached its directory as required."
+    value: ${{ steps.verify.outputs.delivery }}
+  run-id:
+    description: The run's identity, as its manifest names it.
+    value: ${{ steps.verify.outputs.run-id }}
+  evidence-directory:
+    description: The directory holding this run's evidence.
+    value: ${{ steps.verify.outputs.evidence-directory }}
+  manifest:
+    description: The manifest binding every file of the run.
+    value: ${{ steps.verify.outputs.manifest }}
+  patch-sha256:
+    description: The sha256 of the verified change.
+    value: ${{ steps.verify.outputs.patch-sha256 }}
+  exit-code:
+    description: The verifier's exit code (see the README); the step fails on any but 0.
+    value: ${{ steps.verify.outputs.exit-code }}
 runs:
   using: composite
   steps:
@@ -36,6 +67,7 @@ runs:
         npm ci --no-audit --no-fund
         npm run build
     - name: Verify
+      id: verify
       shell: bash
       env:
         ACTION_ROOT: ${{ github.action_path }}
@@ -44,9 +76,47 @@ runs:
         DEPENDENCIES: ${{ inputs.dependencies }}
         REQUIREMENTS: ${{ inputs.requirements }}
         BEHAVIOR_CHANGE: ${{ inputs.authorize-behavior-change }}
+        SIGSTORE: ${{ inputs.sigstore }}
+        ALLOW_UNSIGNED: ${{ inputs.allow-unsigned }}
       run: |
-        AUTHORIZE=""
-        if [ "$BEHAVIOR_CHANGE" = "true" ]; then AUTHORIZE="--authorize-behavior-change"; fi
+        FLAGS=()
+        if [ "$BEHAVIOR_CHANGE" = "true" ]; then FLAGS+=(--authorize-behavior-change); fi
+        if [ "$SIGSTORE" = "true" ]; then FLAGS+=(--sigstore); fi
+        if [ "$ALLOW_UNSIGNED" = "true" ]; then FLAGS+=(--allow-unsigned); fi
+        OUT="$RUNNER_TEMP/swarm-verify/$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+        RESULT="$RUNNER_TEMP/swarm-verify-result-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.json"
+        mkdir -p "$(dirname "$OUT")"
+        set +e
         node "$ACTION_ROOT/dist/swarm-verify.js" ci \
-          --isolation "$ISOLATION" --dependencies "$DEPENDENCIES" \
-          ${BASE:+--base "$BASE"} ${REQUIREMENTS:+--requirements "$REQUIREMENTS"} $AUTHORIZE
+          --isolation "$ISOLATION" --dependencies "$DEPENDENCIES" --out "$OUT" --json \
+          ${BASE:+--base "$BASE"} ${REQUIREMENTS:+--requirements "$REQUIREMENTS"} "${FLAGS[@]}" > "$RESULT"
+        CODE=$?
+        set -e
+        echo "exit-code=$CODE" >> "$GITHUB_OUTPUT"
+        echo "evidence-directory=$OUT" >> "$GITHUB_OUTPUT"
+        node -e '
+          const { readFileSync, appendFileSync } = require("node:fs");
+          const lines = readFileSync(process.argv[1], "utf8").trim().split("\n");
+          let result = null;
+          try { result = JSON.parse(lines.at(-1) ?? ""); } catch {}
+          if (result === null) process.exit(0);
+          const outputs = {
+            state: result.state,
+            delivery: result.delivery?.status ?? "",
+            "run-id": result.evidence?.runId ?? "",
+            manifest: result.evidence?.manifest ?? "",
+            "patch-sha256": result.snapshot?.patchSha256 ?? "",
+          };
+          for (const [key, value] of Object.entries(outputs))
+            appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${String(value).replace(/[\r\n]/g, " ")}\n`);
+          console.log(`state ${outputs.state}; delivery ${outputs.delivery}; run ${outputs["run-id"]}`);
+        ' "$RESULT"
+        exit "$CODE"
+    - name: Upload the evidence
+      if: ${{ always() && inputs.upload-evidence == 'true' && steps.verify.outputs.evidence-directory != '' }}
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: swarm-verify-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ steps.verify.outputs.evidence-directory }}
+        if-no-files-found: warn
+        include-hidden-files: true
