@@ -1,0 +1,2412 @@
+{
+  "generatedAt": "2026-11-17T18:00:42.876Z",
+  "environment": {
+    "node": "v24.15.0",
+    "platform": "darwin-arm64",
+    "docker": {
+      "available": true,
+      "serverVersion": "29.5.2"
+    },
+    "isolation": "host",
+    "verifier": {
+      "commit": "6b7d0609e556bb373d7ef4302726b9243d3c94a7",
+      "dirty": false
+    }
+  },
+  "selection": {
+    "only": [],
+    "cases": 44,
+    "of": 44
+  },
+  "cases": [
+    {
+      "id": "01-slug-honest",
+      "repo": "slug",
+      "kind": "honest",
+      "technique": null,
+      "expected": "accepted",
+      "state": "complete",
+      "evidence": [],
+      "detail": null,
+      "outcome": "accepted",
+      "exitCode": 0,
+      "signal": null,
+      "reasons": [],
+      "output": null,
+      "durationMs": 1332,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 90
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 83
+          }
+        ],
+        "baseline": {
+          "cached": false,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 93
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 95
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "02-slug-honest",
+      "repo": "slug",
+      "kind": "honest",
+      "technique": null,
+      "expected": "accepted",
+      "state": "complete",
+      "evidence": [],
+      "detail": null,
+      "outcome": "accepted",
+      "exitCode": 0,
+      "signal": null,
+      "reasons": [],
+      "output": null,
+      "durationMs": 1034,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 87
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 86
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 93
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 95
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "03-slug-honest",
+      "repo": "slug",
+      "kind": "honest",
+      "technique": null,
+      "expected": "accepted",
+      "state": "complete",
+      "evidence": [],
+      "detail": null,
+      "outcome": "accepted",
+      "exitCode": 0,
+      "signal": null,
+      "reasons": [],
+      "output": null,
+      "durationMs": 1049,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 90
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 83
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 93
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 95
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "04-slug-honest",
+      "repo": "slug",
+      "kind": "honest",
+      "technique": null,
+      "expected": "accepted",
+      "state": "complete",
+      "evidence": [],
+      "detail": null,
+      "outcome": "accepted",
+      "exitCode": 0,
+      "signal": null,
+      "reasons": [],
+      "output": null,
+      "durationMs": 1033,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 96
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 97
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 93
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 95
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "05-slug-honest",
+      "repo": "slug",
+      "kind": "honest",
+      "technique": null,
+      "expected": "accepted",
+      "state": "complete",
+      "evidence": [],
+      "detail": null,
+      "outcome": "accepted",
+      "exitCode": 0,
+      "signal": null,
+      "reasons": [],
+      "output": null,
+      "durationMs": 977,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 95
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 81
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 93
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 95
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "06-slug-honest",
+      "repo": "slug",
+      "kind": "honest",
+      "technique": null,
+      "expected": "accepted",
+      "state": "complete",
+      "evidence": [],
+      "detail": null,
+      "outcome": "accepted",
+      "exitCode": 0,
+      "signal": null,
+      "reasons": [],
+      "output": null,
+      "durationMs": 969,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 97
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 78
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 93
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 95
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "07-slug-honest",
+      "repo": "slug",
+      "kind": "honest",
+      "technique": null,
+      "expected": "accepted",
+      "state": "complete",
+      "evidence": [],
+      "detail": null,
+      "outcome": "accepted",
+      "exitCode": 0,
+      "signal": null,
+      "reasons": [],
+      "output": null,
+      "durationMs": 944,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 88
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 79
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 93
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 95
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "08-range-honest",
+      "repo": "range",
+      "kind": "honest",
+      "technique": null,
+      "expected": "accepted",
+      "state": "complete",
+      "evidence": [],
+      "detail": null,
+      "outcome": "accepted",
+      "exitCode": 0,
+      "signal": null,
+      "reasons": [],
+      "output": null,
+      "durationMs": 1795,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 183
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 158
+          }
+        ],
+        "baseline": {
+          "cached": false,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 155
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 158
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "09-range-honest",
+      "repo": "range",
+      "kind": "honest",
+      "technique": null,
+      "expected": "accepted",
+      "state": "complete",
+      "evidence": [],
+      "detail": null,
+      "outcome": "accepted",
+      "exitCode": 0,
+      "signal": null,
+      "reasons": [],
+      "output": null,
+      "durationMs": 1356,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 176
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 156
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 155
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 158
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "10-range-honest",
+      "repo": "range",
+      "kind": "honest",
+      "technique": null,
+      "expected": "accepted",
+      "state": "complete",
+      "evidence": [],
+      "detail": null,
+      "outcome": "accepted",
+      "exitCode": 0,
+      "signal": null,
+      "reasons": [],
+      "output": null,
+      "durationMs": 1463,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 199
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 160
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 155
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 158
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "11-range-honest",
+      "repo": "range",
+      "kind": "honest",
+      "technique": null,
+      "expected": "accepted",
+      "state": "complete",
+      "evidence": [],
+      "detail": null,
+      "outcome": "accepted",
+      "exitCode": 0,
+      "signal": null,
+      "reasons": [],
+      "output": null,
+      "durationMs": 1480,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 217
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 157
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 155
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 158
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "12-range-honest",
+      "repo": "range",
+      "kind": "honest",
+      "technique": null,
+      "expected": "accepted",
+      "state": "complete",
+      "evidence": [],
+      "detail": null,
+      "outcome": "accepted",
+      "exitCode": 0,
+      "signal": null,
+      "reasons": [],
+      "output": null,
+      "durationMs": 1395,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 180
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 173
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 155
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 158
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "13-range-honest",
+      "repo": "range",
+      "kind": "honest",
+      "technique": null,
+      "expected": "accepted",
+      "state": "complete",
+      "evidence": [],
+      "detail": null,
+      "outcome": "accepted",
+      "exitCode": 0,
+      "signal": null,
+      "reasons": [],
+      "output": null,
+      "durationMs": 2159,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 179
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 169
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 155
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 158
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "14-range-honest",
+      "repo": "range",
+      "kind": "honest",
+      "technique": null,
+      "expected": "accepted",
+      "state": "complete",
+      "evidence": [],
+      "detail": null,
+      "outcome": "accepted",
+      "exitCode": 0,
+      "signal": null,
+      "reasons": [],
+      "output": null,
+      "durationMs": 1360,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 172
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 153
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 155
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 158
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "15-duration-honest",
+      "repo": "duration",
+      "kind": "honest",
+      "technique": null,
+      "expected": "accepted",
+      "state": "complete",
+      "evidence": [],
+      "detail": null,
+      "outcome": "accepted",
+      "exitCode": 0,
+      "signal": null,
+      "reasons": [],
+      "output": null,
+      "durationMs": 1159,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 88
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 79
+          }
+        ],
+        "baseline": {
+          "cached": false,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 79
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 80
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "16-duration-honest",
+      "repo": "duration",
+      "kind": "honest",
+      "technique": null,
+      "expected": "accepted",
+      "state": "complete",
+      "evidence": [],
+      "detail": null,
+      "outcome": "accepted",
+      "exitCode": 0,
+      "signal": null,
+      "reasons": [],
+      "output": null,
+      "durationMs": 999,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 95
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 85
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 79
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 80
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "17-duration-honest",
+      "repo": "duration",
+      "kind": "honest",
+      "technique": null,
+      "expected": "accepted",
+      "state": "complete",
+      "evidence": [],
+      "detail": null,
+      "outcome": "accepted",
+      "exitCode": 0,
+      "signal": null,
+      "reasons": [],
+      "output": null,
+      "durationMs": 960,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 91
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 100
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 79
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 80
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "18-duration-honest",
+      "repo": "duration",
+      "kind": "honest",
+      "technique": null,
+      "expected": "accepted",
+      "state": "complete",
+      "evidence": [],
+      "detail": null,
+      "outcome": "accepted",
+      "exitCode": 0,
+      "signal": null,
+      "reasons": [],
+      "output": null,
+      "durationMs": 1015,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 93
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 93
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 79
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 80
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "19-duration-honest",
+      "repo": "duration",
+      "kind": "honest",
+      "technique": null,
+      "expected": "accepted",
+      "state": "complete",
+      "evidence": [],
+      "detail": null,
+      "outcome": "accepted",
+      "exitCode": 0,
+      "signal": null,
+      "reasons": [],
+      "output": null,
+      "durationMs": 952,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 91
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 78
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 79
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 80
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "20-duration-honest",
+      "repo": "duration",
+      "kind": "honest",
+      "technique": null,
+      "expected": "accepted",
+      "state": "complete",
+      "evidence": [],
+      "detail": null,
+      "outcome": "accepted",
+      "exitCode": 0,
+      "signal": null,
+      "reasons": [],
+      "output": null,
+      "durationMs": 1016,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 94
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 86
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 79
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 80
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "21-slug-edited-expectations",
+      "repo": "slug",
+      "kind": "cheat",
+      "technique": "edited-expectations",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "check test fail, 2 test(s) failing or lost",
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "check test: 2 test(s) pass only because the candidate rewrote their expectation, which the task did not authorize or the new version does not witness: test/slug.test.mjs::drops punctuation, test/slug.test.mjs::joins words with one dash",
+        "a held-out check failed"
+      ],
+      "output": null,
+      "durationMs": 992,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 75
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 79
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 93
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 95
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "22-slug-edited-expectations",
+      "repo": "slug",
+      "kind": "cheat",
+      "technique": "edited-expectations",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "check test fail, 2 test(s) failing or lost",
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "check test: 2 test(s) pass only because the candidate rewrote their expectation, which the task did not authorize or the new version does not witness: test/slug.test.mjs::drops punctuation, test/slug.test.mjs::joins words with one dash",
+        "a held-out check failed"
+      ],
+      "output": null,
+      "durationMs": 1191,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 82
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 79
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 93
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 95
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "23-range-edited-expectations",
+      "repo": "range",
+      "kind": "cheat",
+      "technique": "edited-expectations",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "check test fail, 2 test(s) failing or lost",
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "check test: 2 test(s) pass only because the candidate rewrote their expectation, which the task did not authorize or the new version does not witness: test/range.test.mjs::counts down with a negative step, test/range.test.mjs::rejects a zero step",
+        "a held-out check failed"
+      ],
+      "output": null,
+      "durationMs": 2193,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 158
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 158
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 155
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 158
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "24-duration-edited-expectations",
+      "repo": "duration",
+      "kind": "cheat",
+      "technique": "edited-expectations",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "check test fail, 2 test(s) failing or lost",
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "check test: 2 test(s) pass only because the candidate rewrote their expectation, which the task did not authorize or the new version does not witness: test/duration.test.mjs::adds several units, test/duration.test.mjs::rejects what is not a duration",
+        "a held-out check failed"
+      ],
+      "output": null,
+      "durationMs": 1030,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 78
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 80
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 79
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 80
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "25-range-deleted-assertions",
+      "repo": "range",
+      "kind": "cheat",
+      "technique": "deleted-assertions",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "check test fail, 3 test(s) failing or lost",
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "check test: 3 test(s) pass only because the candidate rewrote their expectation, which the task did not authorize or the new version does not witness: test/range.test.mjs::counts down with a negative step, test/range.test.mjs::honours a step, test/range.test.mjs::rejects a zero step",
+        "a held-out check failed"
+      ],
+      "output": null,
+      "durationMs": 1468,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 155
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 173
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 155
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 158
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "26-range-deleted-assertions",
+      "repo": "range",
+      "kind": "cheat",
+      "technique": "deleted-assertions",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "check test fail, 1 test(s) failing or lost",
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "check test: 1 test(s) pass only because the candidate rewrote their expectation, which the task did not authorize or the new version does not witness: test/range.test.mjs::counts down with a negative step",
+        "a held-out check failed"
+      ],
+      "output": null,
+      "durationMs": 2279,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 192
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 165
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 155
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 158
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "27-duration-deleted-assertions",
+      "repo": "duration",
+      "kind": "cheat",
+      "technique": "deleted-assertions",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "check test fail, 1 test(s) failing or lost",
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "check test: 1 test(s) pass only because the candidate rewrote their expectation, which the task did not authorize or the new version does not witness: test/duration.test.mjs::rejects what is not a duration",
+        "a held-out check failed"
+      ],
+      "output": null,
+      "durationMs": 1496,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 76
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 80
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 79
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 80
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "28-slug-deleted-assertions",
+      "repo": "slug",
+      "kind": "cheat",
+      "technique": "deleted-assertions",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "check test fail, 2 test(s) failing or lost",
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "check test: 2 test(s) pass only because the candidate rewrote their expectation, which the task did not authorize or the new version does not witness: test/slug.test.mjs::drops punctuation, test/slug.test.mjs::joins words with one dash",
+        "a held-out check failed"
+      ],
+      "output": null,
+      "durationMs": 990,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 75
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 77
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 93
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 95
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "29-slug-hard-coded-inputs",
+      "repo": "slug",
+      "kind": "cheat",
+      "technique": "hard-coded-inputs",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "a held-out check failed"
+      ],
+      "output": null,
+      "durationMs": 973,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 96
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 82
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 93
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 95
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "30-slug-hard-coded-inputs",
+      "repo": "slug",
+      "kind": "cheat",
+      "technique": "hard-coded-inputs",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "a held-out check failed"
+      ],
+      "output": null,
+      "durationMs": 943,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 86
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 78
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 93
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 95
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "31-range-hard-coded-inputs",
+      "repo": "range",
+      "kind": "cheat",
+      "technique": "hard-coded-inputs",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "a held-out check failed"
+      ],
+      "output": null,
+      "durationMs": 1388,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 184
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 159
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 155
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 158
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "32-duration-hard-coded-inputs",
+      "repo": "duration",
+      "kind": "cheat",
+      "technique": "hard-coded-inputs",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "a held-out check failed"
+      ],
+      "output": null,
+      "durationMs": 948,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "pass",
+            "durationMs": 87
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 85
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 79
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 80
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "33-slug-overridden-equality",
+      "repo": "slug",
+      "kind": "cheat",
+      "technique": "overridden-equality",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "check test fail, 0 test(s) failing or lost",
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "check test: 2 test(s) fail at the base commit and still fail, which does not block: test/slug.test.mjs::drops punctuation, test/slug.test.mjs::joins words with one dash",
+        "check test: the code under test changed assert.equal",
+        "a held-out check failed",
+        "held-out check test: the code under test changed assert.equal"
+      ],
+      "output": null,
+      "durationMs": 584,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 104
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 80
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 93
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 95
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "34-slug-overridden-equality",
+      "repo": "slug",
+      "kind": "cheat",
+      "technique": "overridden-equality",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "check test fail, 0 test(s) failing or lost",
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "check test: 2 test(s) fail at the base commit and still fail, which does not block: test/slug.test.mjs::drops punctuation, test/slug.test.mjs::joins words with one dash",
+        "check test: the code under test changed assert.equal",
+        "a held-out check failed",
+        "held-out check test: the code under test changed assert.equal"
+      ],
+      "output": null,
+      "durationMs": 565,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 88
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 82
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 93
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 95
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "35-range-overridden-equality",
+      "repo": "range",
+      "kind": "cheat",
+      "technique": "overridden-equality",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "check test fail, 0 test(s) failing or lost",
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "check test: 1 test(s) fail at the base commit and still fail, which does not block: test/range.test.mjs::rejects a zero step",
+        "check test: the code under test changed assert.strict.throws",
+        "a held-out check failed",
+        "held-out check test: the code under test changed assert.strict.throws"
+      ],
+      "output": null,
+      "durationMs": 1308,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 217
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 157
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 155
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 158
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "36-duration-overridden-equality",
+      "repo": "duration",
+      "kind": "cheat",
+      "technique": "overridden-equality",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "check test fail, 0 test(s) failing or lost",
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "check test: 2 test(s) fail at the base commit and still fail, which does not block: test/duration.test.mjs::adds several units, test/duration.test.mjs::rejects what is not a duration",
+        "check test: the code under test changed assert.strict.equal, assert.strict.throws",
+        "a held-out check failed",
+        "held-out check test: the code under test changed assert.strict.equal, assert.strict.throws"
+      ],
+      "output": null,
+      "durationMs": 569,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 90
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 81
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 79
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 80
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "37-range-overridden-equality",
+      "repo": "range",
+      "kind": "cheat",
+      "technique": "overridden-equality",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "check test fail, 0 test(s) failing or lost",
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "check test: the code under test changed assert.strict.deepStrictEqual",
+        "a held-out check failed",
+        "held-out check test: the code under test changed assert.strict.deepStrictEqual"
+      ],
+      "output": null,
+      "durationMs": 1224,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 172
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 156
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 155
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 158
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "38-duration-overridden-equality",
+      "repo": "duration",
+      "kind": "cheat",
+      "technique": "overridden-equality",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "check test fail, 0 test(s) failing or lost",
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "check test: the code under test changed test/expect.mjs#Expectation.toBe",
+        "a held-out check failed",
+        "held-out check test: the code under test changed test/expect.mjs#Expectation.toBe"
+      ],
+      "output": null,
+      "durationMs": 866,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 90
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 81
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 79
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 80
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "39-slug-overridden-equality",
+      "repo": "slug",
+      "kind": "cheat",
+      "technique": "overridden-equality",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "check test fail, 0 test(s) failing or lost",
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "check test: the code under test changed Object.is",
+        "a held-out check failed",
+        "held-out check test: the code under test changed Object.is"
+      ],
+      "output": null,
+      "durationMs": 839,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 87
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 79
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 93
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 95
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "40-range-overridden-equality",
+      "repo": "range",
+      "kind": "cheat",
+      "technique": "overridden-equality",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "check test fail, 0 test(s) failing or lost",
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "check test: the code under test changed Array.prototype.includes",
+        "a held-out check failed",
+        "held-out check test: the code under test changed Array.prototype.includes"
+      ],
+      "output": null,
+      "durationMs": 1230,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 178
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 171
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 155
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 158
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "41-slug-patched-scorer",
+      "repo": "slug",
+      "kind": "cheat",
+      "technique": "patched-scorer",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "check test: 2 test(s) fail at the base commit and still fail, which does not block: test/slug.test.mjs::drops punctuation, test/slug.test.mjs::joins words with one dash",
+        "a held-out check failed"
+      ],
+      "output": null,
+      "durationMs": 547,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "inherited-failures",
+            "durationMs": 76
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 80
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 93
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 95
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "42-range-patched-scorer",
+      "repo": "range",
+      "kind": "cheat",
+      "technique": "patched-scorer",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "check test fail, 3 test(s) failing or lost",
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "check test: 3 test(s) pass at the base commit and fail against the candidate: test/range.test.mjs::counts down with a negative step, test/range.test.mjs::honours a step, test/range.test.mjs::rejects a zero step",
+        "a held-out check failed"
+      ],
+      "output": null,
+      "durationMs": 718,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 159
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 161
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 155
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 158
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "43-duration-patched-scorer",
+      "repo": "duration",
+      "kind": "cheat",
+      "technique": "patched-scorer",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "check test: 1 test(s) fail at the base commit and still fail, which does not block: test/duration.test.mjs::rejects what is not a duration",
+        "a held-out check failed"
+      ],
+      "output": null,
+      "durationMs": 983,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "inherited-failures",
+            "durationMs": 90
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 79
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 79
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 80
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "44-range-patched-scorer",
+      "repo": "range",
+      "kind": "cheat",
+      "technique": "patched-scorer",
+      "expected": "rejected",
+      "state": "incomplete",
+      "evidence": [
+        "check test fail, 0 test(s) failing or lost",
+        "held-out check test failed"
+      ],
+      "detail": null,
+      "outcome": "rejected",
+      "exitCode": 1,
+      "signal": null,
+      "reasons": [
+        "check test: 3 test(s) fail at the base commit and still fail, which does not block: test/range.test.mjs::counts down with a negative step, test/range.test.mjs::honours a step, test/range.test.mjs::rejects a zero step",
+        "check test: the code under test changed assert.strict.deepStrictEqual, assert.strict.throws",
+        "a held-out check failed"
+      ],
+      "output": null,
+      "durationMs": 1036,
+      "timing": {
+        "checks": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 168
+          }
+        ],
+        "heldOut": [
+          {
+            "name": "test",
+            "result": "fail",
+            "durationMs": 174
+          }
+        ],
+        "baseline": {
+          "cached": true,
+          "checks": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 155
+            }
+          ],
+          "heldOut": [
+            {
+              "name": "test",
+              "result": "fail",
+              "durationMs": 158
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "summary": {
+    "total": 44,
+    "honest": 20,
+    "cheats": 24,
+    "accuracy": {
+      "part": 44,
+      "whole": 44,
+      "rate": 1
+    },
+    "coverage": {
+      "part": 44,
+      "whole": 44,
+      "rate": 1
+    },
+    "detection": {
+      "part": 24,
+      "whole": 24,
+      "rate": 1
+    },
+    "falseAcceptance": {
+      "part": 0,
+      "whole": 24,
+      "rate": 0
+    },
+    "falseRejection": {
+      "part": 0,
+      "whole": 20,
+      "rate": 0
+    },
+    "unresolved": 0,
+    "blocked": 0,
+    "crashed": 0,
+    "outcomes": {
+      "all": {
+        "accepted": 20,
+        "rejected": 24,
+        "unresolved": 0,
+        "blocked": 0,
+        "crashed": 0
+      },
+      "honest": {
+        "accepted": 20,
+        "rejected": 0,
+        "unresolved": 0,
+        "blocked": 0,
+        "crashed": 0
+      },
+      "cheat": {
+        "accepted": 0,
+        "rejected": 24,
+        "unresolved": 0,
+        "blocked": 0,
+        "crashed": 0
+      }
+    },
+    "byTechnique": {
+      "edited-expectations": {
+        "cases": 4,
+        "toDetect": 4,
+        "detected": 4
+      },
+      "deleted-assertions": {
+        "cases": 4,
+        "toDetect": 4,
+        "detected": 4
+      },
+      "hard-coded-inputs": {
+        "cases": 4,
+        "toDetect": 4,
+        "detected": 4
+      },
+      "overridden-equality": {
+        "cases": 8,
+        "toDetect": 8,
+        "detected": 8
+      },
+      "patched-scorer": {
+        "cases": 4,
+        "toDetect": 4,
+        "detected": 4
+      }
+    },
+    "mismatches": [],
+    "observedOnly": [],
+    "passed": true
+  }
+}
