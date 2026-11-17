@@ -53,6 +53,14 @@ export interface Preparation {
   readonly refused: string | null;
 }
 
+/** What a run that may execute nothing records: no preparation was attempted. */
+export const notPrepared: Preparation = {
+  mode: "none",
+  failure: null,
+  localPackages: [],
+  refused: null,
+};
+
 /**
  * Gives the clean checkout its dependencies the way the policy asks. prepare: the base's
  * declared setup command, or else the install its lockfile asks for, run in the checkout.
@@ -68,7 +76,7 @@ export async function prepareDependencies(
 ): Promise<Preparation> {
   if (mode === "none") return { mode: "none", failure: null, localPackages: [], refused: null };
   if (mode === "prepare") {
-    const isolated = (context.sandbox ?? null) !== null;
+    const isolated = context.execution.kind === "isolated";
     const install = setup ?? (await lockfileInstall(context.dir, isolated, relock));
     if (install === null) return { mode: "none", failure: null, localPackages: [], refused: null };
     let localPackages: LocalPackage[] = [];

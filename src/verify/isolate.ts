@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { ExecutionPolicy } from "../api/request.ts";
+import { type ExecutionCapability, hostExecution } from "./checks.ts";
 import { accountFiles } from "./container-user.ts";
 import { imageFor, readyImage, type Sandbox, SandboxUnavailableError } from "./sandbox.ts";
 
@@ -52,4 +53,34 @@ export async function isolate(
     if (error instanceof SandboxUnavailableError) return { unavailable: error.message };
     throw error;
   }
+}
+
+/**
+ * Whether project-controlled commands may run at all, and where. Host is ready only because the
+ * policy names it; a requested container that cannot be made leaves nothing ready.
+ */
+export type Readiness =
+  | {
+      readonly ready: true;
+      readonly execution: ExecutionCapability;
+      readonly isolated: { readonly image: string; readonly imageId: string } | null;
+    }
+  | { readonly ready: false; readonly reason: string };
+
+export async function readiness(
+  policy: ExecutionPolicy,
+  dir: string,
+  scratch: string,
+  home: string,
+  checks: readonly { readonly command: string }[],
+): Promise<Readiness> {
+  if (policy.mode === "host") return { ready: true, execution: hostExecution, isolated: null };
+  const commands = checks.map((check) => check.command);
+  const made = await isolate(policy, dir, scratch, home, commands);
+  if ("unavailable" in made) return { ready: false, reason: made.unavailable };
+  return {
+    ready: true,
+    execution: { kind: "isolated", sandbox: made.sandbox },
+    isolated: { image: made.sandbox.image, imageId: made.imageId },
+  };
 }

@@ -2,7 +2,7 @@ import { mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { runCheck } from "./checks.ts";
+import { hostExecution, runCheck } from "./checks.ts";
 
 let dir: string;
 
@@ -25,7 +25,7 @@ describe("running a check", () => {
       command: 'python3 -c "from half import half; assert half(10) == 5"',
       kind: "test" as const,
     };
-    const context = { dir, home: dir, timeoutMs: 30_000 };
+    const context = { dir, home: dir, timeoutMs: 30_000, execution: hostExecution };
     await writeFile(source, "def half(n):\n    return n / 3\n");
     await utimes(source, stamp, stamp);
     expect((await runCheck(check, context)).result.result).toBe("fail");

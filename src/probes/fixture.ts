@@ -37,6 +37,7 @@ interface RequestExtras {
   readonly mode: "isolated" | "host";
   readonly network: "open" | "closed";
   readonly reruns: number;
+  readonly image: string;
   /** Where baselines and sealed checks live, if not the fixture's own home. */
   readonly swarmHome: string;
 }
@@ -97,6 +98,7 @@ export async function probeFixture(
               mode: extra.mode ?? "host",
               network: extra.network ?? "open",
               dependencies: extra.dependencies ?? "linked",
+              ...(extra.image === undefined ? {} : { image: extra.image }),
             },
           },
           artifacts: { directory: join(out, "evidence") },

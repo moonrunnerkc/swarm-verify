@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DeclaredCheck } from "../config/swarm-toml.ts";
 import { removeTree } from "./change.ts";
-import { privateHome } from "./checks.ts";
+import { hostExecution, privateHome } from "./checks.ts";
 import { reportPlans, runMeasured } from "./per-test.ts";
 
 export class HeldOutRefused extends Error {
@@ -20,7 +20,12 @@ async function measure(check: DeclaredCheck, dir: string, label: string) {
   const scratch = await mkdtemp(join(tmpdir(), "swarm-verify-validate-"));
   try {
     const plans = await reportPlans(dir, [check]);
-    const context = { dir, home: await privateHome(scratch), timeoutMs: 20 * 60_000 };
+    const context = {
+      dir,
+      home: await privateHome(scratch),
+      timeoutMs: 20 * 60_000,
+      execution: hostExecution,
+    };
     // The checkout's virtual environment first, as a container run has it (containerPath).
     const venv = join(dir, ".venv", "bin");
     const path = existsSync(venv) ? `${venv}:${process.env.PATH ?? ""}` : (process.env.PATH ?? "");

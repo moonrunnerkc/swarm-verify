@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { hostExecution } from "./checks.ts";
 import { mutationWitness } from "./mutation.ts";
 import type { MutantOutcome } from "./per-test.ts";
 
@@ -13,7 +14,7 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-const context = () => ({ dir, home: dir, timeoutMs: 60_000 });
+const context = () => ({ dir, home: dir, timeoutMs: 60_000, execution: hostExecution });
 
 describe("one mutant of the change", () => {
   // A parser's rejection fails every test that imports the file, which would read as a kill.

@@ -13,18 +13,18 @@ import {
 import { judgeCandidate } from "./candidate.ts";
 import { baseReader } from "./change.ts";
 import { applyChange, cloneBase } from "./checkout.ts";
-import { allChecks, environmentOf, privateHome } from "./checks.ts";
+import { allChecks, type CheckContext, environmentOf, privateHome } from "./checks.ts";
 import type { TestOutcome } from "./compare.ts";
 import { dependencyIdentity } from "./deps.ts";
 import { generatedLocks } from "./generated-lock.ts";
 import { alteredSealed, measureBase, readSealed, swarmHome } from "./held-out.ts";
-import { isolate } from "./isolate.ts";
+import { readiness } from "./isolate.ts";
 import { latestTargets, publicRegistries } from "./latest-version.ts";
 import { artifactsOf } from "./paths.ts";
 import { type MeasuredRun, reportPlans } from "./per-test.ts";
 import type { CheckResult, Predicate } from "./predicate.ts";
 import { buildStatement } from "./predicate.ts";
-import { baseSetupFailed, prepareDependencies } from "./prepare.ts";
+import { baseSetupFailed, notPrepared, prepareDependencies } from "./prepare.ts";
 import { assessRequirements } from "./requirements.ts";
 import { defaultReruns } from "./reruns.ts";
 import { sealedLogs } from "./sealed-store.ts";
@@ -49,24 +49,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
     );
     const sealed = await readSealed(options.workspace, home);
     const scratch = dirname(checkout.dir);
-    const isolation =
-      options.policy.mode === "isolated"
-        ? await isolate(
-            options.policy,
-            checkout.dir,
-            scratch,
-            home,
-            checks.map((check) => check.command),
-          )
-        : null;
-    const context = {
-      dir: checkout.dir,
-      home: await privateHome(scratch),
-      timeoutMs: (config?.timeoutMinutes ?? 20) * 60_000,
-      signal: options.signal,
-      sandbox: isolation !== null && "sandbox" in isolation ? isolation.sandbox : null,
-      checkNetwork: options.policy.network,
-    };
+    const ready = await readiness(options.policy, checkout.dir, scratch, home, checks);
     const reasons: string[] = [];
     const failures: string[] = [];
     const inheritedText: string[] = [];
@@ -78,16 +61,25 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       reasons.push(
         "swarm.toml [protect] allow has no effect: candidate artifacts may change together",
       );
-    if (isolation !== null && "unavailable" in isolation) blocked.push(isolation.unavailable);
+    if (!ready.ready) blocked.push(ready.reason);
     // An oracle whose sealed bytes changed judges nothing: the run stops before any check.
     const altered = sealed === null ? [] : await alteredSealed(options.workspace, sealed, home);
     if (altered.length > 0)
       blocked.push(
         `the sealed held-out files changed after they were sealed: ${altered.join(", ")}; seal them again`,
       );
-    const isolated =
-      isolation !== null && "sandbox" in isolation
-        ? { image: isolation.sandbox.image, imageId: isolation.imageId }
+    const isolated = ready.ready ? ready.isolated : null;
+    // Nothing the project controls runs without a ready execution and nothing blocking it.
+    const context: CheckContext | null =
+      ready.ready && blocked.length === 0
+        ? {
+            dir: checkout.dir,
+            home: await privateHome(scratch),
+            timeoutMs: (config?.timeoutMinutes ?? 20) * 60_000,
+            signal: options.signal,
+            execution: ready.execution,
+            checkNetwork: options.policy.network,
+          }
         : null;
     let runs: CheckResult[] = [];
     let outcomes: TestOutcome[] = [];
@@ -95,12 +87,15 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
     let { baseline, heldOut, coverage, mutation } = notYetMeasured(sealed !== null);
     const locks = await generatedLocks(checkout.dir, options.pinnedLocks);
     await locks.before("base");
-    const prepared = await prepareDependencies(
-      options.workspace,
-      config?.setup ?? null,
-      options.policy.dependencies,
-      context,
-    );
+    const prepared =
+      context === null
+        ? notPrepared
+        : await prepareDependencies(
+            options.workspace,
+            config?.setup ?? null,
+            options.policy.dependencies,
+            context,
+          );
     await locks.after("base");
     if (prepared.refused !== null) blocked.push(prepared.refused);
     // Part of the dependency stage: the one stage with the network open, and recorded.
@@ -117,7 +112,8 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
     const plans = await reportPlans(checkout.dir, checks);
     let baseRuns: readonly MeasuredRun[] = [];
     let sealedBase: readonly MeasuredRun[] = [];
-    if (checks.length > 0 && prepared.failure === null && blocked.length === 0) {
+    const measurable = checks.length > 0 && prepared.failure === null && blocked.length === 0;
+    if (context !== null && measurable) {
       const environment = await environmentOf(checkout.dir, checks, dependencies, isolated);
       const workspace = options.workspace;
       const measured = await measureBase({
@@ -150,14 +146,15 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       (one) => one.category === "lockfiles" || one.category === "manifests",
     );
     let candidateSetup: MeasuredRun["run"] | null = null;
-    const install = (relock = false) =>
-      prepareDependencies(options.workspace, config?.setup ?? null, "prepare", context, relock);
+    const install = (ready: CheckContext, relock = false) =>
+      prepareDependencies(options.workspace, config?.setup ?? null, "prepare", ready, relock);
     const ownDependencies =
+      context !== null &&
       depsChanged &&
       prepared.failure === null &&
       (prepared.mode === "prepared" || prepared.mode === "setup");
-    if (ownDependencies) {
-      const again = await install((await locks.before("candidate")).relock);
+    if (ownDependencies && context !== null) {
+      const again = await install(context, (await locks.before("candidate")).relock);
       await locks.after("candidate");
       candidateSetup = again.failure;
       dependencies = await dependencyIdentity(checkout.dir, again.mode, again.localPackages);
@@ -178,7 +175,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
     } else if (candidateSetup !== null) {
       reasons.push("installing the candidate's dependencies from its lockfile failed");
       failures.push(`setup failed:\n${candidateSetup.outputTail}`);
-    } else if (blocked.length === 0) {
+    } else if (blocked.length === 0 && context !== null) {
       const judged = await judgeCandidate({
         checkout,
         checks,
@@ -200,7 +197,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
         reinstallBase: ownDependencies
           ? async () => {
               await locks.restoreBase();
-              const again = await install();
+              const again = await install(context);
               return again.failure === null && again.refused === null;
             }
           : null,

@@ -21,14 +21,23 @@ export interface CheckRun {
   readonly notRun: string | null;
 }
 
+/**
+ * Where project-controlled commands may run, decided once by the caller. Host is a caller's
+ * explicit choice; a container that could not be made never becomes host, it stops the run.
+ */
+export type ExecutionCapability =
+  | { readonly kind: "host" }
+  | { readonly kind: "isolated"; readonly sandbox: Sandbox };
+
+export const hostExecution: ExecutionCapability = { kind: "host" };
+
 export interface CheckContext {
   readonly dir: string;
   /** A private HOME for the checks; never the operator's. */
   readonly home: string;
   readonly timeoutMs: number;
   readonly signal?: AbortSignal | undefined;
-  /** The container every command runs in, or null to run on the host. */
-  readonly sandbox?: Sandbox | null | undefined;
+  readonly execution: ExecutionCapability;
   /** Whether checks may reach the network inside the container. */
   readonly checkNetwork?: "closed" | "open" | undefined;
 }
@@ -47,9 +56,9 @@ export async function runCheck(
   // The base run, the change and the mutant rewrite the same files within seconds, often at the
   // same size; a .pyc written by one run would be trusted by the next.
   const env = { PYTHONDONTWRITEBYTECODE: "1", ...extraEnv };
-  const sandbox = context.sandbox ?? null;
+  const execution = context.execution;
   const ran =
-    sandbox === null
+    execution.kind === "host"
       ? await runProcessGroup("/bin/sh", ["-c", check.command], {
           cwd: context.dir,
           env: { ...childEnvironment(process.env, { homeDir: context.home }).variables, ...env },
@@ -57,7 +66,13 @@ export async function runCheck(
           maxOutputBytes,
           signal: context.signal,
         })
-      : await runInSandbox(sandbox, check.command, { ...context, maxOutputBytes }, env, stage);
+      : await runInSandbox(
+          execution.sandbox,
+          check.command,
+          { ...context, maxOutputBytes },
+          env,
+          stage,
+        );
   const output = `${ran.stdout}${ran.stderr}`;
   const notRun = ran.timedOut
     ? "it timed out"
