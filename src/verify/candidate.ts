@@ -1,6 +1,6 @@
 import type { DeclaredCheck } from "../config/swarm-toml.ts";
 import { type BaseCheckout, type ChangedFile, restoreFrom, treeDigest } from "./checkout.ts";
-import { type CheckContext, passRate } from "./checks.ts";
+import { type CheckContext, logName, passRate } from "./checks.ts";
 import type { TestFileChanges, TestOutcome } from "./compare.ts";
 import { instrument } from "./coverage.ts";
 import { runSealedOnCandidate, type SealedSet } from "./held-out.ts";
@@ -276,7 +276,7 @@ export async function judgeCandidate(input: CandidateInput): Promise<CandidateJu
     logs: checks.flatMap((check, at) => {
       const candidate = sets.candidate[at] as MeasuredRun;
       const obligation = sets.obligation[at] as MeasuredRun;
-      const name = check.name.replace(/[^\w.-]/g, "_");
+      const name = logName(check.name);
       return [
         { name: `logs/${name}.txt`, text: candidate.run.output },
         ...(obligation === candidate

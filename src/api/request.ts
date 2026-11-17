@@ -171,31 +171,48 @@ export const producerSchema = z.strictObject({
 });
 export type Producer = z.output<typeof producerSchema>;
 
-export const verifyRequestSchema = z.strictObject({
-  version: z.literal(requestVersion),
-  /** A git repository holding the base commit (and the candidate commit, when one is named). */
-  repository: z.string().min(1),
-  base: z.strictObject({ commit: commitSchema }),
-  /** The candidate, by an identity that cannot change under the verifier. */
-  candidate: z.discriminatedUnion("kind", [
-    z.strictObject({ kind: z.literal("patch"), path: z.string().min(1), sha256: sha256Schema }),
-    z.strictObject({ kind: z.literal("commit"), commit: commitSchema }),
-  ]),
-  requirements: z.array(requirementSchema).default([]),
-  checks: z.array(trustedCheckSchema).default([]),
-  policy: z.strictObject({
-    /** Whether the task authorizes changing what existing tests expect. */
-    behaviorChange: z.enum(["none", "authorized"]).default("none"),
-    /**
-     * Reruns of a check on the same snapshot when a test's failure there decides the verdict. A
-     * test that passes on one is flaky: uncertain, never a regression and never a fix.
-     */
-    reruns: z.number().int().min(0).max(10).default(3),
-    execution: executionPolicySchema,
-  }),
-  /** Where the statement, bundle, patch and logs are written. Outside the candidate's tree. */
-  artifacts: z.strictObject({ directory: z.string().min(1) }),
-  producer: producerSchema.default({ instructions: [] }),
-});
+export const verifyRequestSchema = z
+  .strictObject({
+    version: z.literal(requestVersion),
+    /** A git repository holding the base commit (and the candidate commit, when one is named). */
+    repository: z.string().min(1),
+    base: z.strictObject({ commit: commitSchema }),
+    /** The candidate, by an identity that cannot change under the verifier. */
+    candidate: z.discriminatedUnion("kind", [
+      z.strictObject({ kind: z.literal("patch"), path: z.string().min(1), sha256: sha256Schema }),
+      z.strictObject({ kind: z.literal("commit"), commit: commitSchema }),
+    ]),
+    requirements: z.array(requirementSchema).default([]),
+    checks: z.array(trustedCheckSchema).default([]),
+    policy: z.strictObject({
+      /** Whether the task authorizes changing what existing tests expect. */
+      behaviorChange: z.enum(["none", "authorized"]).default("none"),
+      /**
+       * Reruns of a check on the same snapshot when a test's failure there decides the verdict. A
+       * test that passes on one is flaky: uncertain, never a regression and never a fix.
+       */
+      reruns: z.number().int().min(0).max(10).default(3),
+      execution: executionPolicySchema,
+    }),
+    /** Where the statement, bundle, patch and logs are written. Outside the candidate's tree. */
+    artifacts: z.strictObject({ directory: z.string().min(1) }),
+    producer: producerSchema.default({ instructions: [] }),
+  })
+  .superRefine((request, context) => {
+    const twice = (names: readonly string[]) =>
+      names.filter((name, at) => names.indexOf(name) !== at);
+    for (const id of twice(request.requirements.map((one) => one.id)))
+      context.addIssue({
+        code: "custom",
+        path: ["requirements"],
+        message: `requirement ${id} appears more than once`,
+      });
+    for (const name of twice(request.checks.map((one) => one.name)))
+      context.addIssue({
+        code: "custom",
+        path: ["checks"],
+        message: `check ${name} appears more than once`,
+      });
+  });
 export type VerifyRequestInput = z.input<typeof verifyRequestSchema>;
 export type VerifyRequest = z.output<typeof verifyRequestSchema>;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { versionConstraintSchema } from "./request.ts";
+import { verifyRequestSchema, versionConstraintSchema } from "./request.ts";
 
 const reads = (ecosystem: "npm" | "pypi", range: string) =>
   versionConstraintSchema.safeParse({ name: "pkg", ecosystem, range, wording: range }).success;
@@ -32,5 +32,31 @@ describe("a version constraint's range", () => {
     expect(parsed.success).toBe(false);
     expect(parsed.error?.issues[0]?.path).toEqual(["range"]);
     expect(reads("npm", "")).toBe(false);
+  });
+});
+
+describe("a request's names", () => {
+  const request = (extra: Record<string, unknown>) =>
+    verifyRequestSchema.safeParse({
+      version: "swarm-verify.request/v1",
+      repository: "/repo",
+      base: { commit: "a".repeat(40) },
+      candidate: { kind: "commit", commit: "b".repeat(40) },
+      policy: { execution: { mode: "host" } },
+      artifacts: { directory: "/out" },
+      ...extra,
+    });
+  const requirement = (id: string) => ({ id, text: "x", source: "user", kind: "fix" });
+  const check = (name: string) => ({
+    name,
+    command: "true",
+    kind: "test",
+    authority: "user-acceptance",
+  });
+
+  it("refuses a requirement ID or a check name given twice", () => {
+    expect(request({ requirements: [requirement("R1"), requirement("R1")] }).success).toBe(false);
+    expect(request({ checks: [check("held"), check("held")] }).success).toBe(false);
+    expect(request({ requirements: [requirement("R1"), requirement("R2")] }).success).toBe(true);
   });
 });

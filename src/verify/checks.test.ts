@@ -2,7 +2,7 @@ import { mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { hostExecution, runCheck } from "./checks.ts";
+import { allChecks, CheckNameCollisionError, hostExecution, runCheck } from "./checks.ts";
 
 let dir: string;
 
@@ -32,5 +32,16 @@ describe("running a check", () => {
     await writeFile(source, "def half(n):\n    return n / 2\n");
     await utimes(source, stamp, stamp);
     expect((await runCheck(check, context)).result.result).toBe("pass");
+  });
+});
+
+describe("the checks of one run", () => {
+  it("refuses two checks whose logs would be written to the same file", () => {
+    const declared = [
+      { name: "unit tests", command: "npm test", kind: "test" as const },
+      { name: "unit_tests", command: "npm run t", kind: "test" as const },
+    ];
+    expect(() => allChecks(declared, [])).toThrow(CheckNameCollisionError);
+    expect(() => allChecks(declared.slice(0, 1), [])).not.toThrow();
   });
 });

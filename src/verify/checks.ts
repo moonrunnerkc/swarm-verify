@@ -209,11 +209,18 @@ export const baseCache = {
 };
 
 export class CheckNameCollisionError extends Error {
-  constructor(name: string) {
-    super(`the request's check ${name} has the name of a check the base declares; rename it`);
+  constructor(name: string, other?: string) {
+    super(
+      other === undefined
+        ? `the request's check ${name} has the name of a check the base declares; rename it`
+        : `the checks ${other} and ${name} would write the same log file; rename one`,
+    );
     this.name = "CheckNameCollisionError";
   }
 }
+
+/** A check's name as its log file is named. */
+export const logName = (name: string) => name.replace(/[^\w.-]/g, "_");
 
 /** The base's declared checks, then the request's own, each labeled with its authority. */
 export function allChecks(
@@ -223,5 +230,12 @@ export function allChecks(
   const names = new Set(declared.map((check) => check.name));
   for (const check of trusted)
     if (names.has(check.name)) throw new CheckNameCollisionError(check.name);
-  return [...declared, ...trusted];
+  const all = [...declared, ...trusted];
+  const files = new Map<string, string>();
+  for (const check of all) {
+    const other = files.get(logName(check.name));
+    if (other !== undefined) throw new CheckNameCollisionError(check.name, other);
+    files.set(logName(check.name), check.name);
+  }
+  return all;
 }
