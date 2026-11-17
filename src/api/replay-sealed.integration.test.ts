@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { probeFixture } from "../probes/fixture.ts";
+import { fixtureSigner, probeFixture } from "../probes/fixture.ts";
 import { sealFiles } from "../verify/sealed-store.ts";
 import { replay } from "./replay.ts";
 
@@ -54,6 +54,8 @@ describe("replaying against another checkout than the one sealed for", () => {
       out: join(probe.home, "replay"),
       verifierVersion: "probe",
       swarmHome: probe.home,
+      signer: fixtureSigner(),
+      allowHost: true,
     });
     expect(replayed.replayed.requirements[0]).toMatchObject({ status: "satisfied" });
     expect(replayed.divergences).toEqual([]);

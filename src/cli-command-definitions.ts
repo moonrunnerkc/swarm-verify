@@ -19,7 +19,8 @@ export const commandDefinitions: readonly CommandDefinition[] = [
   },
   {
     name: "replay",
-    syntax: "replay <evidence-dir> [--workspace <repo>] [--out <dir>] [--json]",
+    syntax:
+      "replay <evidence-dir> (--key <public.pem> | --certificate-identity <id> --certificate-oidc-issuer <url>) [--allow-host] [--workspace <repo>] [--out <dir>] [--json]",
     description: "run a recorded verification again as it was run and compare every result",
   },
   {

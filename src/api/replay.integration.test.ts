@@ -1,6 +1,6 @@
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { halfTest, probeFixture, requirement } from "../probes/fixture.ts";
+import { fixtureSigner, halfTest, probeFixture, requirement } from "../probes/fixture.ts";
 import { replay } from "./replay.ts";
 
 // ruleprobe (docs/acceptance/2026-10-31/t3-ruleprobe in swarm-orchestrator): verified on the host
@@ -21,6 +21,8 @@ describe("replaying a verification recorded on the host", () => {
       out: join(probe.home, "replay"),
       verifierVersion: "probe",
       swarmHome: probe.home,
+      signer: fixtureSigner(),
+      allowHost: true,
     });
     expect(replayed.replayed.execution).toMatchObject({
       mode: "host",
@@ -71,6 +73,8 @@ describe("replaying a verification whose dependency preparation was refused", ()
       out: join(probe.home, "replay"),
       verifierVersion: "probe",
       swarmHome: probe.home,
+      signer: fixtureSigner(),
+      allowHost: true,
     });
     expect(replayed.replayed.state).toBe("blocked");
     expect(replayed.replayed.execution.dependencies.mode).toBe("refused");

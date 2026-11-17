@@ -1,4 +1,5 @@
-import { mkdir } from "node:fs/promises";
+import { generateKeyPairSync } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { replayCommand } from "./cli-replay.ts";
@@ -28,10 +29,35 @@ describe("replay on the command line", () => {
       dirname(result.evidence.bundle ?? ""),
       "--workspace",
       probe.repo,
+      "--key",
+      result.evidence.publicKey ?? "",
+      "--allow-host",
     ]);
     expect(code).toBe(5);
     expect(written.join("")).toMatch(
       /cannot be replayed: it was verified with linked dependencies/,
     );
+  });
+});
+
+describe("replay's signer on the command line", () => {
+  it("needs a trusted signer and exits 6 when the bundle is not signed by it", async () => {
+    const probe = await probeFixture({
+      "half.mjs": "export const half = n => n;\n",
+      "test/half.test.mjs": halfTest,
+    });
+    await probe.put("half.mjs", "export const half = n => n / 2;\n");
+    const result = await probe.verify([], { dependencies: "none" });
+    const bundle = dirname(result.evidence.bundle ?? "");
+    await expect(replayCommand([bundle, "--workspace", probe.repo])).rejects.toThrow(
+      /replay needs the signer you trust/,
+    );
+    const other = join(probe.home, "other.pub.pem");
+    await writeFile(
+      other,
+      generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "pem" }),
+    );
+    vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    expect(await replayCommand([bundle, "--workspace", probe.repo, "--key", other])).toBe(6);
   });
 });

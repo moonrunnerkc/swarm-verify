@@ -1,9 +1,10 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { generateKeyPairSync } from "node:crypto";
+import { createPublicKey, generateKeyPairSync } from "node:crypto";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { expect } from "vitest";
+import type { SignerPolicy } from "../api/bundle-auth.ts";
 import type { Requirement } from "../api/request.ts";
 import { requestVersion, type VerifyRequestInput } from "../api/request.ts";
 import type { VerifyResult } from "../api/result.ts";
@@ -45,6 +46,14 @@ interface RequestExtras {
 process.env.SWARM_SIGNING_KEY ??= generateKeyPairSync("ed25519")
   .privateKey.export({ type: "pkcs8", format: "pem" })
   .toString();
+
+/** The signer policy a test that made a bundle with the fixture's key trusts. */
+export function fixtureSigner(): SignerPolicy {
+  const publicKey = createPublicKey(process.env.SWARM_SIGNING_KEY ?? "")
+    .export({ type: "spki", format: "pem" })
+    .toString();
+  return { kind: "key", publicKeys: [publicKey] };
+}
 
 export async function probeFixture(
   files: Readonly<Record<string, string>>,

@@ -4,7 +4,7 @@ import { dirname, join, relative } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { replay } from "../api/replay.ts";
 import { seal } from "../verify/held-out.ts";
-import { halfTest, probeFixture, requirement } from "./fixture.ts";
+import { fixtureSigner, halfTest, probeFixture, requirement } from "./fixture.ts";
 
 /**
  * The isolated backend end to end: needs a docker daemon, as isolated verification does. The
@@ -176,6 +176,8 @@ describe("replaying an authorized behavior change", () => {
       out: join(probe.home, "replay"),
       verifierVersion: "probe",
       swarmHome: probe.home,
+      signer: fixtureSigner(),
+      allowHost: true,
     });
     expect(replayed.replayed.policy).toEqual({ behaviorChange: "authorized", reruns: 3 });
     expect(replayed.replayed.execution).toMatchObject({ mode: "isolated", network: "closed" });

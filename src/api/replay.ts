@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { envelopeOf } from "../verify/dsse.ts";
+import { ContainmentError, readContained } from "../fs/contained.ts";
 import { keptLockName, type PinnedLocks } from "../verify/generated-lock.ts";
-import { type Statement, statementSchema } from "../verify/predicate.ts";
+import type { Statement } from "../verify/predicate.ts";
 import { defaultReruns } from "../verify/reruns.ts";
 import {
   placeSealed,
@@ -13,6 +13,7 @@ import {
   sealedSchema,
   swarmHome,
 } from "../verify/sealed-store.ts";
+import { authenticatedStatement, type SignerPolicy } from "./bundle-auth.ts";
 import { divergencesOf } from "./divergences.ts";
 import { type ExecutionPolicy, requestVersion, type VerifyRequestInput } from "./request.ts";
 import type { VerifyResult } from "./result.ts";
@@ -34,24 +35,41 @@ export class UnreplayableBundleError extends Error {
 
 const sha256 = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 
-/** The signed statement and patch of an evidence directory written by `verify`. */
+/**
+ * The signed statement and patch of an evidence directory written by `verify`, the envelope
+ * authenticated against the caller's signer policy before anything in it is read.
+ */
 async function readBundle(
   directory: string,
+  signer: SignerPolicy,
+  signal: AbortSignal | undefined,
 ): Promise<{ readonly statement: Statement; readonly patch: string }> {
-  const document = JSON.parse(await readFile(join(directory, "attestation.sigstore.json"), "utf8"));
-  const envelope = envelopeOf(document);
-  if (envelope === null)
-    throw new UnreplayableBundleError("attestation.sigstore.json holds no DSSE envelope");
-  const statement = statementSchema.parse(
-    JSON.parse(Buffer.from(envelope.payload, "base64").toString("utf8")),
+  const { statement } = await authenticatedStatement(
+    join(directory, "attestation.sigstore.json"),
+    signer,
+    signal,
   );
   const patch = join(directory, "change.patch");
   const expected = statement.subject.find((subject) => subject.name === "change.patch")?.digest
     .sha256;
-  if (expected === undefined || sha256(await readFile(patch)) !== expected) {
+  const bytes = await bundleFile(directory, "change.patch");
+  if (expected === undefined || bytes === null || sha256(bytes) !== expected) {
     throw new UnreplayableBundleError("change.patch is not the patch the statement signed");
   }
   return { statement, patch };
+}
+
+/** A file of the evidence directory, read without following links; null where it is absent. */
+async function bundleFile(directory: string, name: string): Promise<Buffer | null> {
+  try {
+    return await readContained(directory, name);
+  } catch (error) {
+    if (error instanceof ContainmentError)
+      throw new UnreplayableBundleError(
+        `${name} is not a plain file of the bundle: ${error.message}`,
+      );
+    throw error;
+  }
 }
 
 /** The uv.lock each side's preparation generated, read from the bundle and held to its signed digest. */
@@ -64,7 +82,7 @@ async function keptLocks(
     const name = keptLockName(side);
     const logged = recorded.logs.find((log) => log.name === name);
     if (logged === undefined) continue;
-    const bytes = await readFile(join(directory, name)).catch(() => null);
+    const bytes = await bundleFile(directory, name);
     if (bytes === null || sha256(bytes) !== logged.sha256)
       throw new UnreplayableBundleError(`${name} is not the lock the statement signed`);
     pinned[side] = bytes.toString("utf8");
@@ -79,7 +97,7 @@ async function recordedSealed(
 ): Promise<{ readonly sealed: SealedSet; readonly contents: Map<string, string> } | null> {
   const signed = (name: string) => recorded.logs.find((log) => log.name === name)?.sha256;
   const read = async (name: string) => {
-    const bytes = await readFile(join(directory, name)).catch(() => null);
+    const bytes = await bundleFile(directory, name);
     if (bytes === null || sha256(bytes) !== signed(name))
       throw new UnreplayableBundleError(`${name} is not the sealed file the statement signed`);
     return bytes.toString("utf8");
@@ -104,6 +122,7 @@ export const hostPlatform = () => `${process.platform}-${process.arch}`;
 export function replayExecution(
   recorded: Statement["predicate"],
   platform: string = hostPlatform(),
+  allowHost = false,
 ): ExecutionPolicy {
   const { execution, environment } = recorded;
   if (execution.dependencies.mode === "linked") {
@@ -113,6 +132,11 @@ export function replayExecution(
   }
   const dependencies = execution.dependencies.mode === "none" ? "none" : "prepare";
   if (execution.mode === "host") {
+    // The recording's own setting is not the caller's permission to run its commands here.
+    if (!allowHost)
+      throw new UnreplayableBundleError(
+        "it was verified on the host, and replaying it runs its commands on this host unisolated; authorize that explicitly (--allow-host, or allowHost in the API) to replay it",
+      );
     if (environment.platform !== platform) {
       throw new UnreplayableBundleError(
         `it was verified on the host on ${environment.platform}, and this host is ${platform}; replay it on ${environment.platform}`,
@@ -137,6 +161,7 @@ export function replayRequest(
     readonly patch: { readonly path: string; readonly sha256: string };
     readonly out: string;
     readonly platform?: string;
+    readonly allowHost?: boolean;
   },
 ): VerifyRequestInput {
   return {
@@ -174,7 +199,7 @@ export function replayRequest(
       behaviorChange: recorded.policy.behaviorChange,
       // A recording made before reruns existed is replayed with them: the replay is the check.
       reruns: recorded.policy.reruns ?? defaultReruns,
-      execution: replayExecution(recorded, input.platform),
+      execution: replayExecution(recorded, input.platform, input.allowHost === true),
     },
     artifacts: { directory: input.out },
     producer: recorded.producer,
@@ -194,14 +219,20 @@ export async function replay(
     readonly out: string;
     readonly verifierVersion: string;
     readonly swarmHome?: string;
+    /** Who the caller trusts to have signed the bundle; checked before anything in it is used. */
+    readonly signer: SignerPolicy;
+    /** The caller's permission to run a host recording's commands on this host. */
+    readonly allowHost?: boolean;
+    readonly signal?: AbortSignal;
   },
 ): Promise<Replay> {
-  const { statement, patch } = await readBundle(bundle);
+  const { statement, patch } = await readBundle(bundle, options.signer, options.signal);
   const recorded = statement.predicate;
   const request = replayRequest(recorded, {
     repository: options.repository,
     patch: { path: patch, sha256: sha256(await readFile(patch)) },
     out: options.out,
+    allowHost: options.allowHost === true,
   });
   // The recording's sealed set, placed for this checkout under a home of the replay's own: the
   // sealed store is keyed by checkout, and the recording may have sealed for another one.
@@ -214,6 +245,7 @@ export async function replay(
     const replayed = await verify(request, {
       verifierVersion: options.verifierVersion,
       freshBase: true,
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
       pinnedLocks: await keptLocks(bundle, recorded),
       ...(own !== null
         ? { swarmHome: own }

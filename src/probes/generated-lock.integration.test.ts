@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { replay } from "../api/replay.ts";
-import { probeFixture, requirement } from "./fixture.ts";
+import { fixtureSigner, probeFixture, requirement } from "./fixture.ts";
 
 /**
  * A Python project that tracks no uv.lock, verified in a container: the lock `uv lock` resolves
@@ -48,6 +48,8 @@ describe("a uv.lock resolved while verifying", () => {
       out: join(probe.home, "replay"),
       verifierVersion: "probe",
       swarmHome: probe.home,
+      signer: fixtureSigner(),
+      allowHost: true,
     });
     expect(replayed.divergences).toEqual([]);
 
@@ -61,6 +63,8 @@ describe("a uv.lock resolved while verifying", () => {
         out: join(probe.home, "replay-altered"),
         verifierVersion: "probe",
         swarmHome: probe.home,
+        signer: fixtureSigner(),
+        allowHost: true,
       }),
     ).rejects.toThrow(/lockfiles\/base\/uv.lock is not the lock the statement signed/);
   });
