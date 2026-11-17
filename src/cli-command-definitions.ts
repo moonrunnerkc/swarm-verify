@@ -9,7 +9,7 @@ export const commandDefinitions: readonly CommandDefinition[] = [
   {
     name: "verify",
     syntax:
-      "verify [--base <ref>] [--patch <file> | --range <a..b>] [--isolation isolated|host] [--dependencies prepare|linked|none] [--requirements <file>] [--authorize-behavior-change] [--out <dir>] [--sigstore] [--allow-unsigned] [--json]",
+      "verify [--base <ref>] [--patch <file> | --range <a..b>] [--isolation isolated|host] [--dependencies prepare|linked|none] [--requirements <file>] [--authorize-behavior-change] [--out <dir>] [--sigstore] [--allow-unsigned] [--preflight] [--json]",
     description: "rerun the declared checks on a change in a clean checkout and sign the verdict",
   },
   {
@@ -26,7 +26,7 @@ export const commandDefinitions: readonly CommandDefinition[] = [
   {
     name: "ci",
     syntax:
-      "ci [--base <ref>] [--isolation isolated|host] [--dependencies prepare|linked|none] [--requirements <file>] [--authorize-behavior-change] [--out <dir>] [--sigstore] [--allow-unsigned] [--json]",
+      "ci [--base <ref>] [--isolation isolated|host] [--dependencies prepare|linked|none] [--requirements <file>] [--authorize-behavior-change] [--out <dir>] [--sigstore] [--allow-unsigned] [--preflight] [--json]",
     description: "verify HEAD's change against the pull request's base branch",
   },
 ];

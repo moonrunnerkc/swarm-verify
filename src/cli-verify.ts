@@ -3,6 +3,7 @@ import { appendFile, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { type Preflight, preflight } from "./api/preflight.ts";
 import { requestVersion, type VerifyRequestInput } from "./api/request.ts";
 import type { VerifyResult } from "./api/result.ts";
 import { snapshotWorkingTree, verify as verifyRequest } from "./api/verify.ts";
@@ -16,6 +17,7 @@ export const sharedOptions = {
   out: { type: "string" },
   sigstore: { type: "boolean" },
   "allow-unsigned": { type: "boolean" },
+  preflight: { type: "boolean" },
   json: { type: "boolean" },
   isolation: { type: "string" },
   dependencies: { type: "string" },
@@ -27,6 +29,7 @@ interface SharedValues {
   readonly out?: string | undefined;
   readonly sigstore?: boolean | undefined;
   readonly "allow-unsigned"?: boolean | undefined;
+  readonly preflight?: boolean | undefined;
   readonly json?: boolean | undefined;
   readonly isolation?: string | undefined;
   readonly dependencies?: string | undefined;
@@ -63,7 +66,7 @@ async function run(
   candidate: VerifyRequestInput["candidate"],
   values: SharedValues,
   signal?: AbortSignal,
-): Promise<{ readonly code: number; readonly result: VerifyResult }> {
+): Promise<{ readonly code: number; readonly result: VerifyResult | null }> {
   // Each run its own directory: a run is never published over another.
   const stamp = `${new Date().toISOString().replace(/[:.]/g, "-")}-${randomBytes(3).toString("hex")}`;
   const out = resolve(values.out ?? join(workspace, ".swarm", "verify", stamp));
@@ -97,6 +100,11 @@ async function run(
       ...(values["prompt-sha256"] === undefined ? {} : { promptSha256: values["prompt-sha256"] }),
     },
   };
+  if (values.preflight === true) {
+    const plan = await preflight(request, { sigstore: values.sigstore === true });
+    write(values.json === true ? JSON.stringify(plan) : renderPreflight(plan));
+    return { code: plan.missing.length > 0 ? 5 : 0, result: null };
+  }
   const result = await verifyRequest(request, {
     sigstore: values.sigstore === true,
     signing: values["allow-unsigned"] === true ? "optional" : "required",
@@ -212,6 +220,36 @@ export async function ci(args: readonly string[], signal?: AbortSignal): Promise
     signal,
   );
   const summary = process.env.GITHUB_STEP_SUMMARY;
-  if (summary) await appendFile(summary, renderMarkdown(result));
+  if (summary && result !== null) await appendFile(summary, renderMarkdown(result));
   return code;
+}
+
+/** The plan as lines a person reads. */
+function renderPreflight(plan: Preflight): string {
+  const rows: [string, string][] = [
+    ["base", plan.baseCommit],
+    ["candidate", plan.candidate],
+    ["scope", plan.scope],
+    ...plan.requirements.map((one): [string, string] => [
+      "requirement",
+      `${one.id} ${one.kind}${one.required ? "" : " (optional)"}`,
+    ]),
+    ...plan.checks.map((one): [string, string] => [
+      "check",
+      `${one.name}: ${one.command} (${one.authority}; ${one.runner ?? "exit code only"})`,
+    ]),
+    ["held-out", plan.heldOut.sealed ? `${plan.heldOut.checks} sealed check(s)` : "none sealed"],
+    [
+      "execution",
+      plan.execution.mode === "host"
+        ? "host, not isolated"
+        : `isolated in ${plan.execution.image} (${plan.execution.imagePresent === true ? "present" : "would be pulled"}), network ${plan.execution.network}`,
+    ],
+    ["setup", plan.setup],
+    ...plan.stages.map((one): [string, string] => ["stage", one]),
+    ["signing", plan.signing],
+    ["acceptance", plan.acceptance],
+    ...plan.missing.map((one): [string, string] => ["missing", one]),
+  ];
+  return rows.map(([key, value]) => `${key.padEnd(12)} ${value}`).join("\n");
 }
