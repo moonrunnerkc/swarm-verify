@@ -173,7 +173,7 @@ function judged(
       limitation:
         "the task asks for tests, and the change adds none that fails before it and passes after it",
       nextAction:
-        "add the tests the task asks for: each fails against the base and passes with the change",
+        "add the tests the task asks for, each failing against the base and passing with the change, and map them in this requirement's evidence.tests",
     };
   }
   if (requirement.kind === "refactor" && inputs.regression.status !== "none") {
@@ -230,19 +230,24 @@ export async function assessRequirements(
   inputs: RequirementInputs,
 ): Promise<RequirementOutcome[]> {
   const outcomes: RequirementOutcome[] = [];
+  const askers = requirements.filter(
+    (one) => one.testsAsked && (one.kind === "fix" || one.kind === "feature"),
+  ).length;
   for (const requirement of requirements) {
     const { tests, checks, structure, packages } = requirement.evidence;
     const bound = (inputs.sealedTests ?? []).filter((one) =>
       (one.requirements ?? []).includes(requirement.id),
     );
     const selected = tests.flatMap((selector) => testRefs(selector, inputs));
-    // Asked-for tests are the change's own witnesses wherever they are, mapped or not.
-    const own = requirement.testsAsked
-      ? inputs.outcomes
-          .filter((one) => one.origin !== "pre-existing" && one.authority === undefined)
-          .map(testRef)
-          .filter((one) => witnessing.has(one.outcome))
-      : [];
+    // Asked-for tests are the change's own witnesses, unmapped ones only where a single
+    // requirement asks for tests: with several, a test counts for the requirement that maps it.
+    const own =
+      requirement.testsAsked && askers === 1
+        ? inputs.outcomes
+            .filter((one) => one.origin !== "pre-existing" && one.authority === undefined)
+            .map(testRef)
+            .filter((one) => witnessing.has(one.outcome))
+        : [];
     const evidence: EvidenceRef[] = [
       ...selected,
       ...[...bound.map(testRef), ...own].filter(

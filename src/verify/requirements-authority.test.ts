@@ -167,3 +167,30 @@ describe("independent evidence", () => {
     ]);
   });
 });
+
+// U3 (2026-11-17 review): every added witnessing test was attached to every requirement that
+// asked for tests, so a test written for R1 fulfilled R2's obligation too.
+describe("asked-for tests across requirements", () => {
+  it("counts an added test only for the requirement that maps it when several ask for tests", async () => {
+    const first = { ...feature([{ name: ownTest.id }]), testsAsked: true };
+    const second = requirementSchema.parse({
+      id: "R2",
+      text: "add --labels",
+      kind: "feature",
+      source: "user",
+      testsAsked: true,
+      evidence: { tests: [], checks: ["test"] },
+    });
+    const sealed = [
+      sealedTest("fixed", "pass"),
+      { ...sealedTest("fixed", "pass"), id: "held::labels", requirements: ["R2"] },
+    ];
+    const [r1, r2] = await assessRequirements([first, second], inputs({ sealedTests: sealed }));
+    expect(r1).toMatchObject({ status: "satisfied" });
+    expect(r2).toMatchObject({ status: "unverified" });
+    expect(r2?.limitation).toBe(
+      "the task asks for tests, and the change adds none that fails before it and passes after it",
+    );
+    expect(r2?.evidence.map((one) => one.ref)).not.toContain(ownTest.id);
+  });
+});
