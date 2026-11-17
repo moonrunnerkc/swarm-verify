@@ -1,8 +1,8 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { packageEvidence } from "./requirement-evidence.ts";
+import { constraintEvidence, packageEvidence } from "./requirement-evidence.ts";
 
 const lock = (version: string) =>
   JSON.stringify({ packages: { "node_modules/@stryker-mutator/core": { version } } });
@@ -49,5 +49,22 @@ describe("a requirement's package claim", () => {
 
   it("is not observed where the version did not move", async () => {
     expect(await claimed(undefined, "9.6.1")).toMatchObject({ outcome: "not observed" });
+  });
+});
+
+describe("a candidate lockfile that cannot be read", () => {
+  it("is never read through a link, and says it could not be read rather than resolving nothing", async () => {
+    const outside = await mkdtemp(join(tmpdir(), "lock-outside-"));
+    await writeFile(join(outside, "package-lock.json"), lock("10.1.1"));
+    const dir = await mkdtemp(join(tmpdir(), "lock-linked-"));
+    await symlink(join(outside, "package-lock.json"), join(dir, "package-lock.json"));
+    const claim = { name: "@stryker-mutator/core", ecosystem: "npm" as const };
+    const ref = await packageEvidence(async () => lock("9.6.1"), dir, claim);
+    expect(ref.outcome).toBe("unresolved");
+    expect(ref.detail).toMatch(/package-lock\.json is a symbolic link, which is not followed/);
+    const constraint = { ...claim, range: "^10", latest: false, wording: "upgrade to 10" };
+    const bound = await constraintEvidence(dir, constraint, undefined);
+    expect(bound.outcome).toBe("unresolved");
+    expect(bound.detail).toMatch(/symbolic link/);
   });
 });

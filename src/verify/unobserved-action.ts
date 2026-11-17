@@ -1,6 +1,7 @@
 import type { EvidenceRef } from "../api/outcome.ts";
 import { isConstraint, testRef, witnessing } from "./requirement-evidence.ts";
 import type { RequirementInputs } from "./requirements.ts";
+import { unresolvedClaim } from "./structure-claims.ts";
 
 export const noSuchTest = "no executed test has this name";
 export const noSuchCheck = "no such check ran";
@@ -12,6 +13,19 @@ export function witnessTitles(inputs: RequirementInputs, mapped: readonly Eviden
     .filter((one) => witnessing.has(testRef(one).outcome) && !refs.has(testRef(one).ref))
     .map((one) => one.title)
     .slice(0, 8);
+}
+
+const undecided = (one: EvidenceRef) => one.outcome === unresolvedClaim;
+
+/** What evidence that does not hold leaves: what was not observed, what could not be established. */
+export function unobservedLimitation(unobserved: readonly EvidenceRef[]): string {
+  const refs = (some: readonly EvidenceRef[]) => some.map((one) => one.ref).join(", ");
+  const unread = unobserved.filter(undecided);
+  const absent = unobserved.filter((one) => !undecided(one));
+  return [
+    ...(absent.length > 0 ? [`not observed: ${refs(absent)}`] : []),
+    ...(unread.length > 0 ? [`not established: ${refs(unread)}`] : []),
+  ].join("; ");
 }
 
 /** What to do about evidence that was not observed: fix what matched nothing, or run it. */
@@ -33,12 +47,15 @@ export function unobservedAction(
     witnesses.find((title) => title.includes(" > ")) ??
     inputs.outcomes.find((one) => one.title.includes(" > "))?.title ??
     "suite > test title";
+  const named = (some: readonly EvidenceRef[]) =>
+    some.map((one) => `${one.ref}: ${one.detail}`).join("; ");
+  const unestablished = named(unobserved.filter(undecided));
   const structure = unobserved
-    .filter((one) => one.kind === "structure")
+    .filter((one) => one.kind === "structure" && !undecided(one))
     .map((one) => `${one.ref}: ${one.detail}`)
     .join("; ");
   const packages = unobserved
-    .filter((one) => one.kind === "package" && !isConstraint(one))
+    .filter((one) => one.kind === "package" && !isConstraint(one) && !undecided(one))
     .map((one) => `${one.ref}: ${one.detail}`)
     .join("; ");
   const steps = [
@@ -55,6 +72,9 @@ export function unobservedAction(
       : []),
     ...(structure.length > 0
       ? [`fix or drop the structure claims that do not hold (${structure})`]
+      : []),
+    ...(unestablished.length > 0
+      ? [`establish what no read of the tree could (${unestablished})`]
       : []),
     ...(witnesses.length > 0
       ? [

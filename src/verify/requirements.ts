@@ -16,7 +16,13 @@ import {
 import { attested } from "./requirement-independence.ts";
 import { splitTestName, titleSelects } from "./test-names.ts";
 import { livesIn } from "./test-report.ts";
-import { noSuchCheck, noSuchTest, unobservedAction, witnessTitles } from "./unobserved-action.ts";
+import {
+  noSuchCheck,
+  noSuchTest,
+  unobservedAction,
+  unobservedLimitation,
+  witnessTitles,
+} from "./unobserved-action.ts";
 
 export interface RequirementInputs {
   readonly checks: readonly CheckResult[];
@@ -142,7 +148,7 @@ function judged(
   if (unobserved.length > 0) {
     return {
       status: "unverified",
-      limitation: `not observed: ${unobserved.map((one) => one.ref).join(", ")}`,
+      limitation: unobservedLimitation(unobserved),
       nextAction: unobservedAction(unobserved, inputs, evidence),
     };
   }

@@ -134,3 +134,26 @@ describe("a move whose text stays behind in the old file", () => {
     expect(outcome?.nextAction).toContain('"contains": "text", "absent": true');
   });
 });
+
+describe("a refactor whose provides claim rests on a module-level __getattr__", () => {
+  it("is unverified, never satisfied or failed, and says what would establish the name", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "refactor-getattr-"));
+    await writeFile(
+      join(dir, "shim.py"),
+      "def __getattr__(name):\n    raise AttributeError(name)\n",
+    );
+    const lazy = requirementSchema.parse({
+      id: "R1",
+      text: "Leave a shim at shim.py that still provides load",
+      kind: "refactor",
+      source: "user",
+      evidence: { structure: [{ path: "shim.py", symbol: "load", provides: true }] },
+    });
+    const [outcome] = await assessRequirements([lazy], { ...inputs, dir });
+    expect(outcome?.status).toBe("unverified");
+    expect(outcome?.evidence[0]?.outcome).toBe("unresolved");
+    expect(outcome?.limitation).toMatch(/^not established: shim\.py provides load/);
+    expect(outcome?.nextAction).toMatch(/__getattr__/);
+    expect(outcome?.nextAction).toMatch(/a test that imports load/);
+  });
+});

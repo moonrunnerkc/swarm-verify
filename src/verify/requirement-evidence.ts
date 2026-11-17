@@ -1,10 +1,10 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import type { EvidenceRef } from "../api/outcome.ts";
 import type { Requirement, VersionConstraint } from "../api/request.ts";
+import { readCandidateText } from "./candidate-read.ts";
 import type { TestOutcome } from "./compare.ts";
 import type { LatestTarget } from "./latest-version.ts";
+import { unresolvedClaim } from "./structure-claims.ts";
 import { parseVersionRange, satisfies } from "./version-range.ts";
 
 type PackageClaim = Requirement["evidence"]["packages"][number];
@@ -34,6 +34,38 @@ export async function resolvedVersion(
   );
 }
 
+/** Thrown where a candidate lockfile is there and was not read: never taken for its absence. */
+export class UnreadLockfileError extends Error {
+  constructor(detail: string) {
+    super(`${detail}; replace it with a regular file in the checkout`);
+    this.name = "UnreadLockfileError";
+  }
+}
+
+/** A reader of the candidate tree that refuses links and paths outside it, null only when absent. */
+const candidateReader =
+  (dir: string): Reader =>
+  async (path) => {
+    const read = await readCandidateText(dir, path);
+    if (read.kind === "absent") return null;
+    if (read.kind === "file") return read.text;
+    throw new UnreadLockfileError(read.detail);
+  };
+
+/** The version the candidate's lockfile resolves, or why its lockfile was not read. */
+async function candidateVersion(
+  dir: string,
+  claim: Pick<PackageClaim, "name" | "ecosystem">,
+): Promise<{ version: string | null } | { unread: string }> {
+  try {
+    return { version: await resolvedVersion(candidateReader(dir), claim) };
+  } catch (error) {
+    // A parse error's message can quote the file; only the containment refusal is named.
+    if (error instanceof UnreadLockfileError) return { unread: error.message };
+    return { unread: "the candidate's lockfile does not parse" };
+  }
+}
+
 /**
  * An upgrade's resolved version: observed when the candidate's lockfile resolves the package to
  * the named version (or any version, when none is named) and that differs from the base's.
@@ -43,9 +75,17 @@ export async function packageEvidence(
   dir: string,
   claim: PackageClaim,
 ): Promise<EvidenceRef> {
-  const readCandidate = (path: string) => readFile(join(dir, path), "utf8").catch(() => null);
   const before = await resolvedVersion(readBase, claim);
-  const after = await resolvedVersion(readCandidate, claim);
+  const candidate = await candidateVersion(dir, claim);
+  if ("unread" in candidate)
+    return {
+      kind: "package",
+      ref: `${claim.ecosystem}:${claim.name}`,
+      authority: claim.authority ?? "user-acceptance",
+      outcome: unresolvedClaim,
+      detail: candidate.unread,
+    };
+  const after = candidate.version;
   const matches = after !== null && (claim.version === undefined || within(after, claim.version));
   const moved = after !== before;
   const detail = `resolved ${before ?? "nothing"} at the base and ${after ?? "nothing"} in the candidate`;
@@ -79,8 +119,7 @@ export async function constraintEvidence(
   constraint: VersionConstraint,
   latest: LatestTarget | undefined,
 ): Promise<EvidenceRef> {
-  const readCandidate = (path: string) => readFile(join(dir, path), "utf8").catch(() => null);
-  const installed = await resolvedVersion(readCandidate, constraint);
+  const candidate = await candidateVersion(dir, constraint);
   const ref = `${constraint.ecosystem}:${constraint.name} within ${constraint.latest ? "the latest " : ""}${constraint.range}`;
   const from = `from the task's wording "${constraint.wording}"`;
   const result = (outcome: string, detail: string): EvidenceRef => ({
@@ -90,6 +129,8 @@ export async function constraintEvidence(
     outcome,
     detail: `${detail}; ${from}`,
   });
+  if ("unread" in candidate) return result(unresolvedClaim, candidate.unread);
+  const installed = candidate.version;
   if (installed === null) {
     return result("not observed", "the candidate's lockfile does not resolve it");
   }

@@ -64,7 +64,7 @@ describe("a structure claim about a Python module, read by its syntax tree", () 
     ]);
   });
 
-  it("says a module-level __getattr__ may provide a name, and that no parser can say", async () => {
+  it("leaves a name a module-level __getattr__ may provide unresolved: no parser can say", async () => {
     const lazy = await tree({
       [old]:
         "def __getattr__(name):\n    from .builtin_claims import _BUILTIN_CLAIMS\n    return _BUILTIN_CLAIMS\n",
@@ -74,8 +74,8 @@ describe("a structure claim about a Python module, read by its syntax tree", () 
       symbol: "_BUILTIN_CLAIMS",
       provides: true,
     });
-    expect(outcome).toBe("observed");
-    expect(detail).toMatch(/__getattr__ may provide it/);
+    expect(outcome).toBe("unresolved");
+    expect(detail).toMatch(/__getattr__ looks names up dynamically, which no parser can resolve/);
   });
 
   it("counts a definition inside a top-level try or if, and refuses a file that is not Python", async () => {
