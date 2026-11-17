@@ -1,7 +1,7 @@
 import { tmpdir } from "node:os";
 import { childEnvironment } from "../exec/child-environment.ts";
-import { executableOnPath } from "../exec/executable.ts";
 import { runProcessGroup } from "../exec/run-process.ts";
+import { trustedCommand, trustedPythonArgs } from "../exec/trusted-executable.ts";
 import { moduleText } from "./candidate-read.ts";
 import type { SymbolRead } from "./symbols.ts";
 
@@ -126,14 +126,14 @@ print(json.dumps(read(path, {path}, sys.stdin.buffer.read().decode("utf-8"))))
 export async function pythonSymbols(dir: string, path: string): Promise<SymbolRead> {
   const source = await moduleText(dir, path);
   if (typeof source !== "string") return source;
-  const python = await executableOnPath("python3", process.env.PATH);
+  const python = await trustedCommand("python3");
   if (python === null)
     return {
       problem: `no python3 in an absolute PATH entry, so ${path} was not read`,
       state: "unreadable",
     };
   const trusted = tmpdir();
-  const ran = await runProcessGroup(python, ["-I", "-B", "-c", pythonReader, dir, path], {
+  const ran = await runProcessGroup(python, [...trustedPythonArgs, "-c", pythonReader, dir, path], {
     stdin: source,
     cwd: trusted,
     env: childEnvironment(process.env, { homeDir: trusted }).variables,
