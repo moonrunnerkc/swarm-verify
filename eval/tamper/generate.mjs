@@ -3,16 +3,23 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { cheatPatches } from "./cheat-patches.mjs";
+import { expectationOf } from "./classify.mjs";
 import { git } from "./fixtures.mjs";
 import { honestPatches } from "./honest-patches.mjs";
 
 const oracleScript = join(dirname(fileURLToPath(import.meta.url)), "oracle.mjs");
 const runLimitMs = 60_000;
 
-/** The patch definitions in a fixed order: honest first, then cheats by technique. */
+/**
+ * The patch definitions in a fixed order: honest first, then cheats by technique. `expected` is
+ * set by the definition, not the verifier: honest patches (right on every oracle input) expect
+ * accepted, cheats (wrong on one) expect rejected unless a definition names another outcome, and
+ * null leaves a case observed only.
+ */
 export const patchDefinitions = [...honestPatches, ...cheatPatches].map((patch, index) => ({
   ...patch,
   id: `${String(index + 1).padStart(2, "0")}-${patch.repo}-${patch.technique ?? "honest"}`,
+  expected: expectationOf(patch.kind, patch.expected),
 }));
 
 /** The test command the patched project declares in its own swarm.toml. */
@@ -58,14 +65,14 @@ async function applyEdits(dir, edits) {
  * honest patches are right on every oracle input and cheats are wrong on at least one. A
  * definition that breaks this is a fixture error, so generation stops rather than skew results.
  */
-export async function generatePatches(repoDirs, outDir) {
+export async function generatePatches(repoDirs, outDir, definitions = patchDefinitions) {
   await mkdir(outDir, { recursive: true });
   const scratch = await mkdtemp(join(outDir, "work-"));
   const home = join(scratch, "home");
   await mkdir(home);
   const generated = [];
   try {
-    for (const definition of patchDefinitions) {
+    for (const definition of definitions) {
       const clone = join(scratch, definition.id);
       git(scratch, ["clone", "-q", repoDirs[definition.repo], clone]);
       await applyEdits(clone, definition.edits);
@@ -88,8 +95,8 @@ export async function generatePatches(repoDirs, outDir) {
 
       const path = join(outDir, `${definition.id}.patch`);
       await writeFile(path, diff);
-      const { id, repo, kind, technique } = definition;
-      generated.push({ id, repo, kind, technique, path });
+      const { id, repo, kind, technique, expected } = definition;
+      generated.push({ id, repo, kind, technique, expected, path });
     }
   } finally {
     await rm(scratch, { recursive: true, force: true });

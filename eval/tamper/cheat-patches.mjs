@@ -304,5 +304,5 @@ const byTechnique = {
 };
 
 export const cheatPatches = Object.entries(byTechnique).flatMap(([technique, patches]) =>
-  patches.map((patch) => ({ ...patch, kind: "cheat", technique })),
+  patches.map((patch) => ({ expected: "rejected", ...patch, kind: "cheat", technique })),
 );

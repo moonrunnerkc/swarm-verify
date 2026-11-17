@@ -193,4 +193,4 @@ export const honestPatches = [
     repo: "duration",
     edits: { "src/duration.mjs": durationSource(body) },
   })),
-].map((patch) => ({ ...patch, kind: "honest", technique: null }));
+].map((patch) => ({ expected: "accepted", ...patch, kind: "honest", technique: null }));
