@@ -10,7 +10,16 @@ import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 
-const cli = fileURLToPath(new URL("./dist/swarm-verify.js", import.meta.url));
+const cli =
+  process.env.SWARM_VERIFY_MCP_CLI ??
+  fileURLToPath(new URL("./dist/swarm-verify.js", import.meta.url));
+
+/** Protocol revisions this server speaks, newest first; a client asking for another gets the newest. */
+export const supportedProtocols = ["2025-06-18", "2025-03-26", "2024-11-05"];
+/** What one verification may print before it is stopped and reported as an error. */
+const maxOutputBytes = 32 * 1024 * 1024;
+/** Verifications run at once; later calls wait their turn. */
+const maxConcurrent = 2;
 const { version } = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
 
 const tool = {
@@ -30,34 +39,95 @@ const tool = {
         type: "string",
         description: "A ref range such as main..feature to verify instead.",
       },
+      isolation: {
+        type: "string",
+        enum: ["isolated", "host"],
+        description:
+          "isolated (the default) runs the checks in a container; host runs them on this machine and is reported as not isolated.",
+      },
     },
     additionalProperties: false,
   },
 };
 
-function runVerify(input) {
-  const args = [cli, "verify", "--json"];
-  for (const name of ["workspace", "base", "patch", "range"]) {
-    if (typeof input[name] === "string") args.push(`--${name}`, input[name]);
+let running = 0;
+const waiting = [];
+const children = new Map();
+
+async function turn() {
+  if (running < maxConcurrent) {
+    running += 1;
+    return;
   }
-  return new Promise((settle) => {
-    const child = spawn(process.execPath, args, { stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk;
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk;
-    });
-    child.on("close", (code) => settle({ code, stdout, stderr }));
-  });
+  await new Promise((settle) => waiting.push(settle));
+  running += 1;
 }
 
-async function callTool(params) {
+function release() {
+  running -= 1;
+  waiting.shift()?.();
+}
+
+/** One `swarm-verify verify --json`, stopped when the client cancels the request or it prints too much. */
+async function runVerify(input, requestId) {
+  const args = [cli, "verify", "--json"];
+  for (const name of ["workspace", "base", "patch", "range", "isolation"]) {
+    if (typeof input[name] === "string") args.push(`--${name}`, input[name]);
+  }
+  await turn();
+  try {
+    return await new Promise((settle) => {
+      const child = spawn(process.execPath, args, { stdio: ["ignore", "pipe", "pipe"] });
+      children.set(requestId, child);
+      let stdout = "";
+      let stderr = "";
+      let overflow = false;
+      const take = (chunk, into) => {
+        if (stdout.length + stderr.length + chunk.length > maxOutputBytes) {
+          overflow = true;
+          child.kill("SIGTERM");
+          return into;
+        }
+        return into + chunk;
+      };
+      child.stdout.on("data", (chunk) => {
+        stdout = take(chunk, stdout);
+      });
+      child.stderr.on("data", (chunk) => {
+        stderr = take(chunk, stderr);
+      });
+      child.on("close", (code) => {
+        children.delete(requestId);
+        settle({ code, stdout, stderr, overflow });
+      });
+    });
+  } finally {
+    release();
+  }
+}
+
+async function callTool(params, requestId) {
   if (params?.name !== tool.name)
     throw Object.assign(new Error(`no tool named ${params?.name}`), { code: -32602 });
-  const ran = await runVerify(params.arguments ?? {});
+  const input = params.arguments ?? {};
+  if (typeof input !== "object" || input === null || Array.isArray(input))
+    throw Object.assign(new Error("arguments must be an object"), { code: -32602 });
+  for (const [name, value] of Object.entries(input))
+    if (!(name in tool.inputSchema.properties) || typeof value !== "string")
+      throw Object.assign(new Error(`${name} is not a string argument of verify`), {
+        code: -32602,
+      });
+  if (input.isolation !== undefined && !["isolated", "host"].includes(input.isolation))
+    throw Object.assign(new Error("isolation is isolated or host"), { code: -32602 });
+  const ran = await runVerify(input, requestId);
+  if (ran.overflow) {
+    const text = `swarm-verify printed more than ${maxOutputBytes} bytes and was stopped`;
+    return { content: [{ type: "text", text }], isError: true };
+  }
+  if (ran.code === 3) {
+    const text = "the verification was cancelled; no evidence was published";
+    return { content: [{ type: "text", text }], isError: true };
+  }
   let printed = null;
   try {
     printed = JSON.parse(ran.stdout.trim().split("\n").at(-1) ?? "");
@@ -68,20 +138,25 @@ async function callTool(params) {
     const text = `swarm-verify exited ${ran.code} without a result:\n${`${ran.stderr}${ran.stdout}`.trim()}`;
     return { content: [{ type: "text", text }], isError: true };
   }
-  const summary = `state ${printed.state}; attestation ${printed.evidence.bundle}`;
+  const delivery = printed.delivery?.status ?? "unknown";
+  const summary = `state ${printed.state}; delivery ${delivery}; run ${printed.evidence?.runId ?? "unknown"}; manifest ${printed.evidence?.manifest ?? "none"}`;
   return {
     content: [
       { type: "text", text: summary },
       { type: "text", text: JSON.stringify(printed) },
     ],
     structuredContent: printed,
-    isError: false,
+    // The verification ran; a task that is not complete is its answer, not a tool error. Evidence
+    // that was not delivered as required is.
+    isError: delivery === "failed",
   };
 }
 
 const handlers = {
   initialize: async (params) => ({
-    protocolVersion: params?.protocolVersion ?? "2025-06-18",
+    protocolVersion: supportedProtocols.includes(params?.protocolVersion)
+      ? params.protocolVersion
+      : supportedProtocols[0],
     capabilities: { tools: {} },
     serverInfo: { name: "swarm-verify", version },
   }),
@@ -102,15 +177,19 @@ createInterface({ input: process.stdin }).on("line", async (line) => {
     send({ id: null, error: { code: -32700, message: "the line is not JSON" } });
     return;
   }
-  // A notification gets no answer.
-  if (message.id === undefined) return;
+  // A notification gets no answer; a cancellation stops the verification it names.
+  if (message.id === undefined) {
+    if (message.method === "notifications/cancelled")
+      children.get(message.params?.requestId)?.kill("SIGTERM");
+    return;
+  }
   const handler = handlers[message.method];
   if (handler === undefined) {
     send({ id: message.id, error: { code: -32601, message: `no method ${message.method}` } });
     return;
   }
   try {
-    send({ id: message.id, result: await handler(message.params) });
+    send({ id: message.id, result: await handler(message.params, message.id) });
   } catch (error) {
     send({ id: message.id, error: { code: error.code ?? -32603, message: error.message } });
   }
