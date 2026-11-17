@@ -5,7 +5,9 @@ import {
   type BaseCheckout,
   removeWrittenSince,
   resetTracked,
+  restoreFrom,
   restoreFromBase,
+  treeDigest,
   untrackedPaths,
 } from "./checkout.ts";
 import { baseCache, type CheckContext, type CheckRun } from "./checks.ts";
@@ -147,18 +149,7 @@ export async function measureBase(input: {
   const tests = runs.map((one) => one.evidence);
   let sealedRuns: readonly MeasuredRun[] = [];
   if (input.sealed !== null) {
-    const refused = await overlaySealed(
-      input.workspace,
-      input.sealed,
-      input.checkout.dir,
-      input.home,
-    ).then(
-      () => null,
-      (error: unknown) => {
-        if (error instanceof SealError) return error.message;
-        throw error;
-      },
-    );
+    const refused = await placed(input.workspace, input.sealed, input.checkout.dir, input.home);
     if (refused !== null) {
       await resetTracked(input.checkout);
       await removeWrittenSince(input.checkout, before);
@@ -187,4 +178,54 @@ export async function measureBase(input: {
     runs,
     sealedRuns,
   };
+}
+
+/**
+ * The sealed checks against the candidate, with the base's tests and test configuration put back
+ * for the run and the candidate's after it. A sealed path the candidate made a link or a file on
+ * leaves the checks unrun, and a run that rewrote the candidate's tracked files is reported.
+ */
+export async function runSealedOnCandidate(input: {
+  readonly checkout: BaseCheckout;
+  readonly sealed: SealedSet;
+  readonly context: CheckContext;
+  readonly scratch: string;
+  readonly workspace: string;
+  readonly home: string;
+  readonly candidateTree: string;
+  readonly candidateSha256: string;
+  readonly tested: readonly string[];
+}): Promise<{ readonly hidden: SealedRun | null; readonly problems: readonly string[] }> {
+  const { checkout, sealed, tested } = input;
+  const problems: string[] = [];
+  await restoreFrom(checkout, checkout.baseCommit, tested);
+  const refused = await placed(input.workspace, sealed, checkout.dir, input.home);
+  const hidden = refused === null ? await runSealed(sealed, input.context, input.scratch) : null;
+  if (refused !== null)
+    problems.push(
+      `the held-out checks could not be laid into the candidate's tree (${refused}), so they did not run`,
+    );
+  await restoreFrom(checkout, input.candidateTree, tested);
+  const after = await treeDigest(checkout.dir);
+  if (after !== input.candidateSha256)
+    problems.push(
+      `the held-out run rewrote tracked files of the candidate (tree sha256 ${after}, delivered ${input.candidateSha256}), so later measurements are not of the delivered candidate`,
+    );
+  return { hidden, problems };
+}
+
+/** Lays the sealed files in, or says why they could not be. */
+async function placed(
+  workspace: string,
+  sealed: SealedSet,
+  dir: string,
+  home: string,
+): Promise<string | null> {
+  try {
+    await overlaySealed(workspace, sealed, dir, home);
+    return null;
+  } catch (error) {
+    if (error instanceof SealError) return error.message;
+    throw error;
+  }
 }
