@@ -201,17 +201,25 @@ went through `node:assert`. Files that change what loads before the judge (`.npm
 
 ## Replaying a result
 
-`swarm-verify replay <evidence-dir> [--workspace <repo>]` reads the signed statement and patch
-from a directory `verify` wrote, runs the same base, patch, requirements and request checks
-again under the recorded execution with dependencies installed fresh from the lockfiles in the
-tree, and compares the state, the execution mode, the regression, every check's result and test
-lists, every requirement's status and the lockfile digests with what was recorded. A test
-flaky in both runs agrees; one flaky in only one run is a single divergence naming its runs and
-where the other run put it. It exits 0 when everything agrees, 1 on any divergence (each
-named), 5 when it could not run. An isolated recording replays in a container from the recorded image; a
-host recording replays on the host, and only on the platform it recorded (`environment.platform`,
-such as `darwin-arm64`). A recording on linked dependencies is refused: the installed tree it ran
-on is not reproducible.
+`swarm-verify replay <evidence-dir> (--key <pem> | --certificate-identity <id> --certificate-oidc-issuer <url>) [--allow-host] [--workspace <repo>]`
+first authenticates the bundle: it is read once with a size bound and no link followed, and its
+envelope must verify against a key you name or, keyless, through cosign against the identity and
+issuer you name. A key beside the bundle authorizes nothing by itself. Only then is the statement
+read. It runs the same base, patch, requirements and request checks again under the recorded
+execution with dependencies installed fresh from the lockfiles in the tree, judges "latest"
+constraints from the registry answers the recording kept (`inputs/latest.json`), and compares
+both runs' complete observation records (`observations.json`, every test of every check and of
+the sealed set) in both directions, together with the state, execution mode, network, image and
+dependency preparation, held-out results, every check's result, every requirement's status and
+evidence, and the lockfile digests. Toolchain, platform and dependency-tree differences are
+reported as environment drift, apart from divergences. A recording made before 3.0.0 has no
+observation record and is compared by its test lists, which hold at most 100 ids each; the
+replay says so. It exits 0 when everything agrees, 1 on any divergence (each named), 5 when it
+could not run, 6 when the bundle was not authenticated, in which case nothing in it ran. An
+isolated recording replays in a container from the recorded image; a host recording replays on
+the host only with `--allow-host`, and only on the platform it recorded
+(`environment.platform`, such as `darwin-arm64`). A recording on linked dependencies is refused:
+the installed tree it ran on is not reproducible.
 
 ## Checking a result offline
 
@@ -219,14 +227,19 @@ on is not reproducible.
 statement lists, with `--ledger <file>` that a producer's command ledger still begins with the
 records the statement bound (`producer.ledgerRecords` lines hashing to `producer.ledgerSha256`),
 and with `--report <file>` that a producer's report states the signed patch digest, state and
-requirement statuses. It re-derives the recorded state from the recorded evidence. Integrity
-failures exit 6; a signed result that is not complete exits 1.
+requirement statuses. It re-derives the recorded state from the recorded evidence by the same
+acceptance rule the verifier applies (`src/verify/acceptance.ts`, carried into `verify.mjs` by
+`scripts/sync-offline.mjs`), refuses a record it cannot judge, and fails a requirement recorded
+satisfied that its evidence does not support. Integrity failures exit 6; a signed result that
+is not complete exits 1.
 
 ## Exit codes
 
 `0` complete, `1` incomplete because something failed (a regression, a failing requirement, a
-candidate that does not apply), `2` a command line it cannot read, `3` cancelled, `4` incomplete
-because something stayed unverified or unresolved, `5` blocked.
+candidate that does not apply), `2` a command line it cannot read, `3` cancelled (nothing is
+published), `4` incomplete because something stayed unverified or unresolved, `5` blocked, `7`
+the evidence was not delivered as required (a required signature or the publication failed).
+Precedence: 2, 3, 7, then the state's own code.
 
 ## Limitations
 

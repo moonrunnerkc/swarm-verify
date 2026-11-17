@@ -2,8 +2,10 @@
 
 Every surface runs the same verifier through its command line or its API; there is no second
 implementation behind any of them. Each run writes `attestation.sigstore.json` (a DSSE envelope
-in a Sigstore bundle), `statement.json`, `change.patch` and `attestation.pub.pem` to
-`.swarm/verify/` (or `--out`), prints the result, and exits with the codes in the README.
+in a Sigstore bundle), `statement.json`, `change.patch`, `attestation.pub.pem`, its logs,
+`observations.json` and a `manifest.json` binding them all to a directory of its own
+(`.swarm/verify/<run>`, or `--out`, which must be absent or empty), prints the result, and exits
+with the codes in the README.
 
 ## Command line
 
@@ -45,8 +47,13 @@ repos:
 ## MCP
 
 `mcp.mjs` (the `swarm-verify-mcp` command) is a Model Context Protocol server over stdio with one
-tool, `verify`. It takes `workspace`, `base`, `patch` or `range`, runs `swarm-verify verify
---json` and returns the result. A client configuration:
+tool, `verify`. It takes `workspace`, `base`, `patch` or `range` and `isolation` (`isolated` by
+default, `host` only by name), runs `swarm-verify verify --json` and returns the result, its
+summary naming the state, delivery, run and manifest. It speaks protocol revisions 2025-06-18,
+2025-03-26 and 2024-11-05 (another is answered with the newest), runs two verifications at a
+time, stops one that prints more than 32 MiB, stops the one a `notifications/cancelled` names
+(nothing is published), and gives each call its own evidence directory. A cancelled call or
+failed delivery is a tool error; an incomplete task is the answer. A client configuration:
 
 ```json
 { "mcpServers": { "swarm-verify": { "command": "npx", "args": ["--yes", "--package=swarm-verify", "swarm-verify-mcp"] } } }

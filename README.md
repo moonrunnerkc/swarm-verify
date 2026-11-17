@@ -10,13 +10,14 @@ npx swarm-verify verify                           # the working tree against HEA
 npx swarm-verify verify --range main..feature     # a branch's change
 npx swarm-verify verify --patch change.diff       # a patch against HEAD (or --base)
 npx swarm-verify ci --base origin/main            # HEAD against a pull request's base
+npx swarm-verify verify --preflight               # what a run would do, running nothing of the project's
 npx swarm-verify init                             # write swarm.toml from the project's scripts
-npx swarm-verify replay <evidence-dir>            # rerun a recorded result and compare
+npx swarm-verify replay <evidence-dir> --key <trusted.pub.pem>   # authenticate, rerun and compare
 ```
 
 ## What a result says
 
-Every run returns one result (`--json` prints it as `swarm-verify.result/v1`) with these answers
+Every run returns one result (`--json` prints it as `swarm-verify.result/v2`) with these answers
 kept apart:
 
 | Field | What it says |
@@ -27,10 +28,20 @@ kept apart:
 | `checks` | every check that ran, with its authority: `pre-existing`, `user-acceptance`, `independently-generated` or `implementation-authored` |
 | `execution` | how the checks were contained; a host run says `host, not isolated` |
 | `integrity` | whether the statement was signed, and by which key |
+| `delivery` | whether the evidence reached its directory as required: `signed`, `unsigned` (only with `--allow-unsigned`) or `failed` |
+| `evidence` | the run's own directory, its `runId` and the `manifest.json` that binds every file of the run |
 
-`complete` means every required requirement is satisfied by executed evidence, nothing
-regressed or stayed unresolved, and the execution policy was met. With no requirements declared,
-the result says it covers regressions only. Unverified is never satisfied.
+`complete` means at least one check ran against a measured base and held, every required
+requirement is satisfied by executed evidence with a decisive witness its implementation did not
+choose, nothing regressed or stayed unresolved, and the execution policy was met. The rule is
+versioned (`swarm-verify.acceptance/v1`, recorded in each statement) and is the same code in the
+verifier and in `verify.mjs`. With no requirements declared, the result says it covers
+regressions only: that is not completion of requested work. Unverified is never satisfied, and
+zero collected tests, a malformed report or an unmeasured base is never a pass.
+
+When isolation is requested and the container cannot be made (no daemon, an image that will not
+pull, a refused policy), the run is `blocked` and nothing the project declares is run: no setup,
+no install, no check. Host execution happens only when it is asked for by name.
 
 Exit codes of `verify` and `ci`:
 
@@ -42,6 +53,13 @@ Exit codes of `verify` and `ci`:
 | 3 | cancelled |
 | 4 | incomplete: something stayed unverified or unresolved, and nothing failed |
 | 5 | blocked: no checks, dependencies that would not prepare, or an execution policy it cannot meet |
+| 7 | the evidence was not delivered as required: a required signature or the publication failed, whatever the state |
+
+Precedence: 2, then 3, then 7, then the state's own code. Each run is written to its own
+directory (`.swarm/verify/<run>` by default); a directory that already holds a run is never
+written over, so a failed or concurrent run can never leave another run's bundle looking like its
+own. `--preflight` prints the plan (candidate, checks and the runner that judges each, image,
+setup, stages, signer, what is missing) and exits 0, or 5 where something is missing.
 
 ## Checking a result offline
 
@@ -63,7 +81,28 @@ node verify.mjs attestation.sigstore.json --key attestation.pub.pem --patch chan
 `--integrity-only` skips the acceptance answer. A signature is tamper-evident evidence against
 the key you trust; it does not prove the code is correct, the tests comprehensive, or that
 nothing unobserved happened, and a public key shipped beside a bundle is not by itself a trusted
-identity.
+identity. `verify.mjs` also refuses a record it cannot judge (an acceptance policy it does not
+implement, a requirement ID or check name given twice) and a requirement recorded satisfied that
+its evidence does not support. cosign checks the same key-signed bundle:
+`cosign verify-blob-attestation --key attestation.pub.pem --bundle attestation.sigstore.json --type https://github.com/moonrunnerkc/swarm-verify/result/v1 --insecure-ignore-tlog change.patch`
+(the bundle carries no transparency-log entry, hence the flag).
+
+## Replaying a result
+
+`replay` runs a recorded verification again and compares every observation both ways. It first
+authenticates the bundle against the signer you trust, and nothing in the bundle (its commands,
+paths or policy) is read before that:
+
+```sh
+swarm-verify replay <evidence-dir> --key trusted.pub.pem
+swarm-verify replay <evidence-dir> --certificate-identity <id> --certificate-oidc-issuer <url>
+```
+
+A recording made on the host replays on this host only with `--allow-host`; the recording's own
+setting is not that permission. "Latest" constraints are judged from the registry answers the
+recording kept; `currentRegistries` in the API revalidates against today's registries instead.
+Exit 0 agrees, 1 diverges, 5 could not run, 6 the bundle was not authenticated. Toolchain or
+platform differences are reported as environment drift, apart from divergences.
 
 ## As a library
 
@@ -89,7 +128,7 @@ const result = await verify(
     policy: { execution: { mode: "host", network: "open", dependencies: "linked" } },
     artifacts: { directory: "/tmp/evidence" },
   },
-  { verifierVersion: "2.0.3" },
+  { verifierVersion: "3.0.0" },
 );
 ```
 
@@ -103,16 +142,24 @@ credential detector the verifier runs checks with.
 - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
   with:
     fetch-depth: 0
-- uses: moonrunnerkc/swarm-verify@v2
+- uses: moonrunnerkc/swarm-verify@v3
+  id: verify
 ```
 
 The Action builds the verifier from this repository at the ref you name and runs `ci` against
-the pull request's base. Inputs: `base`, `isolation`, `dependencies`, `requirements`, and
-`authorize-behavior-change` (default `false`), which lets a test the base passes change its
-expectation where the change witnesses the new behavior, and records that it did.
+the pull request's base. Inputs: `base`, `isolation`, `dependencies`, `requirements`, `sigstore`
+(keyless signing with the workflow's identity; the job needs `id-token: write`),
+`allow-unsigned` (default `false`: a failed signature fails the step), `upload-evidence` (default
+`true`) and `authorize-behavior-change` (default `false`), which lets a test the base passes
+change its expectation where the change witnesses the new behavior, and records that it did.
+Outputs: `state`, `delivery`, `run-id`, `evidence-directory`, `manifest`, `patch-sha256` and
+`exit-code`. Run it in a workflow that does not hand pull-request code secrets
+(`pull_request`, not `pull_request_target`).
 [docs/integrations.md](docs/integrations.md) covers other CI systems, pre-commit and MCP;
 [docs/verifying.md](docs/verifying.md) says what runs and where its reach ends.
-[docs/migration-2.md](docs/migration-2.md) lists what changed from 1.x.
+[docs/capabilities.md](docs/capabilities.md) says what is supported per ecosystem.
+[docs/migration-3.md](docs/migration-3.md) lists what changed from 2.x, and
+[docs/migration-2.md](docs/migration-2.md) what changed from 1.x.
 
 ## Releases
 

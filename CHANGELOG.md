@@ -6,6 +6,62 @@ of moonrunnerkc/swarm-verify. Versions before 1.0.0 (0.2.0, released with Swarm 
 swarm-orchestrator's `packages/swarm-verify`; 2.0.0 is the first built from this repository. A
 2.0.0 tagged there on 2026-10-29 was never published to npm, and its notes are folded in below.
 
+## 3.0.0-rc.1 - unreleased
+
+A release candidate, not published. It closes the trust-boundary defects a review of 2.1.0 found
+(2026-11-17); each fix has a regression test that failed on 2.1.0. See
+[docs/migration-3.md](docs/migration-3.md).
+
+### Security
+
+- **Isolation that cannot be had runs nothing.** An isolated run whose container could not be
+  made (no daemon, an image that would not pull, linked dependencies) recorded the failure and
+  then ran the project's setup on the host. The run is now blocked before any setup, install or
+  check, and host execution happens only where the request names it.
+- **Mutants are parsed without running the candidate's files.** The mutation pass started the
+  host's `python3` in the candidate's tree without isolation, so a candidate `ast.py` ran on the
+  host. Mutants are parsed from stdin by a `python3` found on an absolute PATH entry with
+  `-I -S -B`, outside the checkout; git, docker and cosign are resolved the same way.
+- **Replay authenticates before it reads.** Replay decoded a bundle's statement without checking
+  its signature, so a command added to a signed bundle ran. The envelope must now verify against
+  a key the caller names or, keyless, through cosign against the caller's identity and issuer;
+  a host recording replays on the host only with `--allow-host`.
+- **Trusted files are not written through the candidate's links.** The sealed overlay wrote
+  held-out files through a directory the candidate had made a symbolic link. Trusted reads and
+  writes now refuse links, traversal and absolute paths component by component, and the tree is
+  checked again after the sealed run.
+- Containers drop every capability, refuse new privileges and stop at 4096 processes.
+- A host run neither reads nor writes the cached base, and the cache key names the execution
+  policy, setup and timeout; entries are written whole.
+
+### Changed
+
+- **Delivery is its own answer.** The result (`swarm-verify.result/v2`) carries `delivery`
+  (`signed`, `unsigned`, `failed`), `evidence.runId` and `evidence.manifest`. A run is staged and
+  moved into its directory in one rename; an occupied directory is never written over. A required
+  signature that fails exits 7; `--allow-unsigned` makes it optional.
+- **One acceptance rule.** `src/verify/acceptance.ts` (`swarm-verify.acceptance/v1`, recorded in
+  each statement) decides `complete` for the verifier and, generated into it, for `verify.mjs`.
+  `complete` needs at least one check against a measured base and no test check that collected
+  nothing; `verify.mjs` no longer accepts a signed complete record with no checks.
+- **Structural claims never read uncertainty as satisfaction.** `__getattr__`, conditional and
+  type-only names, unread re-exports, directories, links and read errors leave a claim
+  unresolved and the requirement unverified.
+- **PyPI versions by PEP 440** (`@renovatebot/pep440` 5.0.1); a form PEP 440 cannot judge is
+  unverified. Every resolution of a name in a lockfile is judged.
+- **Complete observations.** Each run writes `observations.json`; replay compares it both ways,
+  with execution policy, held-out results and requirement evidence, and reports environment
+  drift apart. "Latest" registry answers are kept and reused by replay.
+- Asked-for tests count only for the requirement that maps them when several ask for tests.
+- Duplicate requirement IDs, duplicate check names and checks whose logs collide are refused.
+- `--preflight` prints what a run would do without running anything the project declares.
+- A signal cancels the run, stops its processes and containers, publishes nothing and exits 3.
+- The MCP server negotiates its protocol revision, bounds output and concurrency and honors
+  cancellation; the Action has outputs, required signing and an evidence upload.
+- The tamper evaluation classifies each case as accepted, rejected, unresolved, blocked or
+  crashed and fails on a crash or any outcome off its expectation.
+- The runtime floor is Node 22.13.
+
 ## 2.1.0 - 2026-11-05
 
 ### Changed
