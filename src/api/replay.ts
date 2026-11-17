@@ -1,20 +1,20 @@
-import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { ContainmentError, readContained } from "../fs/contained.ts";
-import { keptLockName, type PinnedLocks } from "../verify/generated-lock.ts";
+import type { Registries } from "../verify/latest-version.ts";
 import type { Statement } from "../verify/predicate.ts";
 import { defaultReruns } from "../verify/reruns.ts";
+import { placeSealed, swarmHome } from "../verify/sealed-store.ts";
+import type { SignerPolicy } from "./bundle-auth.ts";
+import { divergencesOf, environmentDrift } from "./divergences.ts";
 import {
-  placeSealed,
-  type SealedSet,
-  sealedFileLogName,
-  sealedLogName,
-  sealedSchema,
-  swarmHome,
-} from "../verify/sealed-store.ts";
-import { authenticatedStatement, type SignerPolicy } from "./bundle-auth.ts";
-import { divergencesOf } from "./divergences.ts";
+  keptLocks,
+  observationsOfBoth,
+  readBundle,
+  recordedLatest,
+  recordedSealed,
+  sha256,
+  UnreplayableBundleError,
+} from "./replay-bundle.ts";
 import { type ExecutionPolicy, requestVersion, type VerifyRequestInput } from "./request.ts";
 import type { VerifyResult } from "./result.ts";
 import { verify } from "./verify.ts";
@@ -24,91 +24,16 @@ export interface Replay {
   readonly replayed: VerifyResult;
   /** What the replay found different, one line each; empty where it agrees. */
   readonly divergences: readonly string[];
+  /** Where it ran on another toolchain, platform or dependency tree, outcomes aside. */
+  readonly environmentDrift: readonly string[];
+  /**
+   * observations: every test both runs observed, compared in full. summaries: the recording holds
+   * no complete record (made before 3.0.0), so its test lists, capped at 100 ids, were compared.
+   */
+  readonly comparedBy: "observations" | "summaries";
 }
 
-export class UnreplayableBundleError extends Error {
-  constructor(detail: string) {
-    super(`the bundle cannot be replayed: ${detail}`);
-    this.name = "UnreplayableBundleError";
-  }
-}
-
-const sha256 = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
-
-/**
- * The signed statement and patch of an evidence directory written by `verify`, the envelope
- * authenticated against the caller's signer policy before anything in it is read.
- */
-async function readBundle(
-  directory: string,
-  signer: SignerPolicy,
-  signal: AbortSignal | undefined,
-): Promise<{ readonly statement: Statement; readonly patch: string }> {
-  const { statement } = await authenticatedStatement(
-    join(directory, "attestation.sigstore.json"),
-    signer,
-    signal,
-  );
-  const patch = join(directory, "change.patch");
-  const expected = statement.subject.find((subject) => subject.name === "change.patch")?.digest
-    .sha256;
-  const bytes = await bundleFile(directory, "change.patch");
-  if (expected === undefined || bytes === null || sha256(bytes) !== expected) {
-    throw new UnreplayableBundleError("change.patch is not the patch the statement signed");
-  }
-  return { statement, patch };
-}
-
-/** A file of the evidence directory, read without following links; null where it is absent. */
-async function bundleFile(directory: string, name: string): Promise<Buffer | null> {
-  try {
-    return await readContained(directory, name);
-  } catch (error) {
-    if (error instanceof ContainmentError)
-      throw new UnreplayableBundleError(
-        `${name} is not a plain file of the bundle: ${error.message}`,
-      );
-    throw error;
-  }
-}
-
-/** The uv.lock each side's preparation generated, read from the bundle and held to its signed digest. */
-async function keptLocks(
-  directory: string,
-  recorded: Statement["predicate"],
-): Promise<PinnedLocks> {
-  const pinned: { base?: string; candidate?: string } = {};
-  for (const side of ["base", "candidate"] as const) {
-    const name = keptLockName(side);
-    const logged = recorded.logs.find((log) => log.name === name);
-    if (logged === undefined) continue;
-    const bytes = await bundleFile(directory, name);
-    if (bytes === null || sha256(bytes) !== logged.sha256)
-      throw new UnreplayableBundleError(`${name} is not the lock the statement signed`);
-    pinned[side] = bytes.toString("utf8");
-  }
-  return pinned;
-}
-
-/** The sealed set the recording judged with, read from the bundle and held to its signed digests. */
-async function recordedSealed(
-  directory: string,
-  recorded: Statement["predicate"],
-): Promise<{ readonly sealed: SealedSet; readonly contents: Map<string, string> } | null> {
-  const signed = (name: string) => recorded.logs.find((log) => log.name === name)?.sha256;
-  const read = async (name: string) => {
-    const bytes = await bundleFile(directory, name);
-    if (bytes === null || sha256(bytes) !== signed(name))
-      throw new UnreplayableBundleError(`${name} is not the sealed file the statement signed`);
-    return bytes.toString("utf8");
-  };
-  if (signed(sealedLogName) === undefined) return null;
-  const sealed = sealedSchema.parse(JSON.parse(await read(sealedLogName)));
-  const contents = new Map<string, string>();
-  for (const file of sealed.files)
-    contents.set(file.path, await read(sealedFileLogName(file.path)));
-  return { sealed, contents };
-}
+export { UnreplayableBundleError } from "./replay-bundle.ts";
 
 /** This machine as a host recording names it: `darwin-arm64`, `linux-x64`. */
 export const hostPlatform = () => `${process.platform}-${process.arch}`;
@@ -223,6 +148,13 @@ export async function replay(
     readonly signer: SignerPolicy;
     /** The caller's permission to run a host recording's commands on this host. */
     readonly allowHost?: boolean;
+    /**
+     * Judge "latest" constraints by what the registries say now, a revalidation under current
+     * inputs, instead of reproducing the recorded decision from the answers the recording read.
+     */
+    readonly currentRegistries?: boolean;
+    /** Where a revalidation looks the latest up; the public registries by default. */
+    readonly registries?: Registries;
     readonly signal?: AbortSignal;
   },
 ): Promise<Replay> {
@@ -237,6 +169,7 @@ export async function replay(
   // The recording's sealed set, placed for this checkout under a home of the replay's own: the
   // sealed store is keyed by checkout, and the recording may have sealed for another one.
   const sealed = await recordedSealed(bundle, recorded);
+  const latest = options.currentRegistries === true ? null : await recordedLatest(bundle, recorded);
   const home = resolve(options.swarmHome ?? swarmHome());
   const own = sealed === null ? null : await mkdtemp(join(home, "replay-"));
   try {
@@ -247,13 +180,22 @@ export async function replay(
       freshBase: true,
       ...(options.signal === undefined ? {} : { signal: options.signal }),
       pinnedLocks: await keptLocks(bundle, recorded),
+      ...(latest === null ? {} : { recordedLatest: latest }),
+      ...(options.registries === undefined ? {} : { registries: options.registries }),
       ...(own !== null
         ? { swarmHome: own }
         : options.swarmHome === undefined
           ? {}
           : { swarmHome: options.swarmHome }),
     });
-    return { recorded, replayed, divergences: divergencesOf(recorded, replayed) };
+    const observed = await observationsOfBoth(bundle, recorded, replayed);
+    return {
+      recorded,
+      replayed,
+      divergences: divergencesOf(recorded, replayed, observed),
+      environmentDrift: environmentDrift(recorded, replayed),
+      comparedBy: observed === null ? "summaries" : "observations",
+    };
   } finally {
     if (own !== null) await rm(own, { recursive: true, force: true });
   }

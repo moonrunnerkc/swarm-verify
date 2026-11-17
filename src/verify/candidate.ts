@@ -6,6 +6,7 @@ import { instrument } from "./coverage.ts";
 import { runSealedOnCandidate, type SealedSet } from "./held-out.ts";
 import { judgeCheck } from "./judgment.ts";
 import { mutationWitness } from "./mutation.ts";
+import { observationsLogName, observationsOf } from "./observations.ts";
 import { type ChangedArtifact, categoryOf } from "./paths.ts";
 import { type MeasuredRun, mutantOutcome, runMeasured } from "./per-test.ts";
 import type { CheckResult, Coverage, HeldOut, Mutation, RerunSnapshot } from "./predicate.ts";
@@ -255,13 +256,19 @@ export async function judgeCandidate(input: CandidateInput): Promise<CandidateJu
     if (heldOutPassRate < 1) reasons.push("a held-out check failed");
     reasons.push(...hidden.problems);
   }
+  const sealedTests =
+    hidden === null || input.sealed === null
+      ? []
+      : sealedOutcomes(input.sealed, input.sealedBase, hidden.measured);
+  const observed = observationsOf(
+    judged.map((one) => ({ result: one.run.result, outcomes: one.outcomes })),
+    sealedTests,
+  );
+  if ("overflow" in observed) problems.push(observed.overflow);
   return {
     runs,
     outcomes: judged.flatMap((one) => [...one.outcomes]),
-    sealedTests:
-      hidden === null || input.sealed === null
-        ? []
-        : sealedOutcomes(input.sealed, input.sealedBase, hidden.measured),
+    sealedTests,
     coverage,
     mutation,
     heldOut,
@@ -273,16 +280,21 @@ export async function judgeCandidate(input: CandidateInput): Promise<CandidateJu
       ...(hidden?.unchecked ?? []),
     ],
     problems,
-    logs: checks.flatMap((check, at) => {
-      const candidate = sets.candidate[at] as MeasuredRun;
-      const obligation = sets.obligation[at] as MeasuredRun;
-      const name = logName(check.name);
-      return [
-        { name: `logs/${name}.txt`, text: candidate.run.output },
-        ...(obligation === candidate
-          ? []
-          : [{ name: `logs/${name}.base-tests.txt`, text: obligation.run.output }]),
-      ];
-    }),
+    logs: [
+      ...("record" in observed
+        ? [{ name: observationsLogName, text: `${JSON.stringify(observed.record)}\n` }]
+        : []),
+      ...checks.flatMap((check, at) => {
+        const candidate = sets.candidate[at] as MeasuredRun;
+        const obligation = sets.obligation[at] as MeasuredRun;
+        const name = logName(check.name);
+        return [
+          { name: `logs/${name}.txt`, text: candidate.run.output },
+          ...(obligation === candidate
+            ? []
+            : [{ name: `logs/${name}.base-tests.txt`, text: obligation.run.output }]),
+        ];
+      }),
+    ],
   };
 }

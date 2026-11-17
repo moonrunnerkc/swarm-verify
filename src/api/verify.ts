@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import { ZodError } from "zod";
 import { commitOf, git, type ResolvedChange, resolveChange } from "../verify/change.ts";
 import type { PinnedLocks } from "../verify/generated-lock.ts";
-import type { Registries } from "../verify/latest-version.ts";
+import type { LatestTarget, Registries } from "../verify/latest-version.ts";
 import { resolveSigningKey } from "../verify/signing.ts";
 import { verifyChange } from "../verify/verify.ts";
 import { publishEvidence } from "./publish.ts";
@@ -42,6 +42,8 @@ export interface VerifyCallOptions {
   readonly registries?: Registries;
   /** The uv.lock a recording generated for each side, which a replay installs from. */
   readonly pinnedLocks?: PinnedLocks;
+  /** The registry answers a recording judged "latest" by, used instead of the registry's now. */
+  readonly recordedLatest?: ReadonlyMap<string, LatestTarget>;
 }
 
 export function parseRequest(input: VerifyRequestInput): VerifyRequest {
@@ -110,6 +112,7 @@ export async function verify(
     ...(options.freshBase === true ? { freshBase: true } : {}),
     ...(options.registries === undefined ? {} : { registries: options.registries }),
     ...(options.pinnedLocks === undefined ? {} : { pinnedLocks: options.pinnedLocks }),
+    ...(options.recordedLatest === undefined ? {} : { recordedLatest: options.recordedLatest }),
   });
   const directory = resolve(request.artifacts.directory);
   const delivery = await publishEvidence({

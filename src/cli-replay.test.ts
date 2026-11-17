@@ -52,6 +52,7 @@ describe("replay's signer on the command line", () => {
     await expect(replayCommand([bundle, "--workspace", probe.repo])).rejects.toThrow(
       /replay needs the signer you trust/,
     );
+    await mkdir(probe.home, { recursive: true });
     const other = join(probe.home, "other.pub.pem");
     await writeFile(
       other,

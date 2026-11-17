@@ -20,7 +20,7 @@ import { dependencyIdentity } from "./deps.ts";
 import { generatedLocks } from "./generated-lock.ts";
 import { alteredSealed, measureBase, readSealed, swarmHome } from "./held-out.ts";
 import { readiness } from "./isolate.ts";
-import { latestTargets, publicRegistries } from "./latest-version.ts";
+import { latestLog, latestLogName, latestTargets, publicRegistries } from "./latest-version.ts";
 import { artifactsOf } from "./paths.ts";
 import { type MeasuredRun, reportPlans } from "./per-test.ts";
 import type { CheckResult, Predicate } from "./predicate.ts";
@@ -100,10 +100,13 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
     await locks.after("base");
     if (prepared.refused !== null) blocked.push(prepared.refused);
     // Part of the dependency stage: the one stage with the network open, and recorded.
-    const latest = await latestTargets(
-      (options.requirements ?? []).flatMap((requirement) => requirement.versions),
-      options.registries ?? publicRegistries,
-    );
+    const latest =
+      options.recordedLatest ??
+      (await latestTargets(
+        (options.requirements ?? []).flatMap((requirement) => requirement.versions),
+        options.registries ?? publicRegistries,
+      ));
+    if (latest.size > 0) logs.push({ name: latestLogName, text: latestLog(latest) });
     let dependencies = await dependencyIdentity(
       checkout.dir,
       prepared.mode,

@@ -102,3 +102,33 @@ export async function latestTargets(
   }
   return targets;
 }
+
+/**
+ * The registry answers a run judged its "latest" constraints by, kept as an evidence log so the
+ * decision can be reproduced from what was read then, not from what a registry says later.
+ */
+export const latestLogName = "inputs/latest.json";
+const latestLogVersion = "swarm-verify.inputs.latest/v1";
+
+export function latestLog(targets: ReadonlyMap<string, LatestTarget>): string {
+  const latest = [...targets.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([key, target]) => ({ key, ...target }));
+  return `${JSON.stringify({ version: latestLogVersion, latest }, null, 2)}\n`;
+}
+
+/** The answers a latest log recorded, or null where it is not one this version wrote. */
+export function parseLatestLog(bytes: Buffer): Map<string, LatestTarget> | null {
+  try {
+    const parsed = JSON.parse(bytes.toString("utf8")) as {
+      version?: unknown;
+      latest?: { key: string; version: string | null; source: string; detail: string }[];
+    };
+    if (parsed.version !== latestLogVersion || !Array.isArray(parsed.latest)) return null;
+    return new Map(
+      parsed.latest.map(({ key, version, source, detail }) => [key, { version, source, detail }]),
+    );
+  } catch {
+    return null;
+  }
+}

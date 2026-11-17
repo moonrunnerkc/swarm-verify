@@ -1,7 +1,7 @@
 import type { ExecutionPolicy, Producer, Requirement, TrustedCheck } from "../api/request.ts";
 import type { ResolvedChange } from "./change.ts";
 import type { PinnedLocks } from "./generated-lock.ts";
-import type { Registries } from "./latest-version.ts";
+import type { LatestTarget, Registries } from "./latest-version.ts";
 import type { Statement } from "./predicate.ts";
 
 /** What one verification of a resolved change takes, and what it gives back. */
@@ -22,6 +22,8 @@ export interface VerifyOptions {
   readonly version: string;
   /** Where a constraint's latest version is looked up; the public registries by default. */
   readonly registries?: Registries;
+  /** Registry answers a recording read, used instead of asking the registry again. */
+  readonly recordedLatest?: ReadonlyMap<string, LatestTarget>;
   /** The uv.lock a recording generated for each side, which a replay installs from. */
   readonly pinnedLocks?: PinnedLocks;
 }

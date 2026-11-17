@@ -1,3 +1,4 @@
+import { type Observations, observationDifferences } from "../verify/observations.ts";
 import type { Statement, TestJudgment } from "../verify/predicate.ts";
 import { describeRuns } from "../verify/reruns.ts";
 import type { VerifyResult } from "./result.ts";
@@ -62,7 +63,11 @@ function flakyDivergences(
  * agrees, and flaky in one is a single divergence that says so, rather than a difference in
  * every list it moved between.
  */
-export function divergencesOf(recorded: Predicate, replayed: VerifyResult): string[] {
+export function divergencesOf(
+  recorded: Predicate,
+  replayed: VerifyResult,
+  observed: { readonly recorded: Observations; readonly replayed: Observations } | null = null,
+): string[] {
   const found: string[] = [];
   const same = (what: string, before: unknown, after: unknown) => {
     if (JSON.stringify(before) !== JSON.stringify(after)) {
@@ -71,15 +76,38 @@ export function divergencesOf(recorded: Predicate, replayed: VerifyResult): stri
   };
   same("state", recorded.state, replayed.state);
   same("execution", recorded.execution.mode, replayed.execution.mode);
+  same("execution network", recorded.execution.network, replayed.execution.network);
+  same("execution image", recorded.execution.image, replayed.execution.image);
+  same(
+    "dependency preparation",
+    recorded.execution.dependencies?.mode,
+    replayed.execution.dependencies?.mode,
+  );
+  const heldOut = (one: Predicate["heldOut"] | undefined) =>
+    one === undefined
+      ? "not recorded"
+      : one.status === "measured"
+        ? {
+            pass: one.heldOutPassRate,
+            checks: one.checks.map((check) => [check.name, check.result]),
+          }
+        : one.status;
+  same("held-out", heldOut(recorded.heldOut), heldOut(replayed.heldOut));
   same("regression", recorded.regression.status, replayed.regression.status);
   same(
     "lockfiles",
     recorded.execution.dependencies.lockfiles,
     replayed.execution.dependencies.lockfiles,
   );
+  for (const check of replayed.checks)
+    if (!recorded.checks.some((one) => one.name === check.name))
+      found.push(`check ${check.name}: not in the recording, ran in the replay`);
+  if (observed !== null)
+    found.push(...observationDifferences(observed.recorded, observed.replayed));
   for (const check of recorded.checks) {
     const again = replayed.checks.find((one) => one.name === check.name);
     same(`check ${check.name}`, check.result, again?.result ?? "not run");
+    if (observed !== null) continue;
     const flaky = flakyDivergences(check.name, check, again, recorded.policy.reruns ?? 0);
     found.push(...flaky.lines);
     for (const key of listed) {
@@ -92,6 +120,30 @@ export function divergencesOf(recorded: Predicate, replayed: VerifyResult): stri
   for (const requirement of recorded.requirements) {
     const again = replayed.requirements.find((one) => one.id === requirement.id);
     same(`requirement ${requirement.id}`, requirement.status, again?.status ?? "not judged");
+    const refs = (list: readonly { kind: string; ref: string; outcome: string }[] | undefined) =>
+      (list ?? []).map((one) => `${one.kind} ${one.ref}: ${one.outcome}`).sort();
+    same(
+      `requirement ${requirement.id} evidence`,
+      refs(requirement.evidence),
+      refs(again?.evidence),
+    );
   }
+  for (const requirement of replayed.requirements)
+    if (!recorded.requirements.some((one) => one.id === requirement.id))
+      found.push(`requirement ${requirement.id}: not in the recording, judged in the replay`);
   return found;
+}
+
+/**
+ * Where the replay ran on something other than what the recording ran on: toolchain, platform or
+ * installed dependency tree. Reported apart from divergences, since outcomes may still agree.
+ */
+export function environmentDrift(recorded: Predicate, replayed: VerifyResult): string[] {
+  const keys = ["node", "platform", "git", "dependencyTreeSha256"] as const;
+  return keys
+    .filter((key) => recorded.environment[key] !== replayed.environment[key])
+    .map(
+      (key) =>
+        `${key}: recorded ${JSON.stringify(recorded.environment[key])}, replayed ${JSON.stringify(replayed.environment[key])}`,
+    );
 }
