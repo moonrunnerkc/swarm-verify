@@ -1,7 +1,10 @@
-import { execFile } from "node:child_process";
-import { readFile, writeFile } from "node:fs/promises";
+import { lstat } from "node:fs/promises";
 import { stripTypeScriptTypes } from "node:module";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { runProcessGroup } from "../exec/run-process.ts";
+import { trustedExecutable, trustedPythonArgs } from "../exec/trusted-executable.ts";
+import { ContainmentError, readContained, writeContained } from "../fs/contained.ts";
 import type { ChangedFile } from "./checkout.ts";
 import type { CheckContext } from "./checks.ts";
 import type { MutantOutcome } from "./per-test.ts";
@@ -44,17 +47,25 @@ const operators: readonly (readonly [string, RegExp, Replacement])[] = [
 // Languages whose mutants can be syntax-checked before they run; JSX has no parser here.
 const code = /\.(?:[cm]?js|[cm]?ts|py)$/;
 
-const run = (file: string, args: readonly string[], cwd: string) =>
-  new Promise<boolean>((settle) => {
-    execFile(file, args, { cwd, timeout: 60_000, env: { PATH: process.env.PATH ?? "" } }, (error) =>
-      settle(error === null),
-    );
+/** Whether a verifier-owned parser accepts `text` on stdin, started in a directory the candidate does not own. */
+async function accepts(file: string, args: readonly string[], text: string): Promise<boolean> {
+  const ran = await runProcessGroup(file, args, {
+    stdin: text,
+    cwd: tmpdir(),
+    env: { PATH: process.env.PATH ?? "" },
+    timeoutMs: 60_000,
+    maxOutputBytes: 64 * 1024,
   });
+  return ran.startFailure === null && !ran.timedOut && ran.exitCode === 0;
+}
 
 /**
- * Whether a mutated file still parses: `node --check` for JavaScript, Node's own TypeScript
- * transform for TypeScript, and Python's `ast.parse` with the host's interpreter. Nothing is
- * executed and nothing is written.
+ * Whether a mutated file still parses: Node's own TypeScript transform for TypeScript, `node
+ * --check` for JavaScript and Python's `ast.parse` for Python, each reading the text from stdin
+ * so nothing in the candidate's tree is loaded. Python is the host's, resolved from absolute PATH
+ * entries and started isolated outside the checkout: a candidate's ast.py, json.py or
+ * sitecustomize.py is never imported. A host Python older than the project's may refuse newer
+ * syntax; the mutant is then refused, never counted as killed.
  */
 export async function parses(path: string, text: string, dir: string): Promise<boolean> {
   if (/\.[cm]?ts$/.test(path)) {
@@ -66,11 +77,38 @@ export async function parses(path: string, text: string, dir: string): Promise<b
     }
   }
   if (path.endsWith(".py")) {
-    // The host's interpreter: a checkout's .venv may hold a container's binaries.
-    const script = "import ast,sys; ast.parse(open(sys.argv[1], encoding='utf-8').read())";
-    return run("python3", ["-c", script, join(dir, path)], dir);
+    const python = await trustedExecutable("python3");
+    if (python === null) return false;
+    const script = "import ast,sys; ast.parse(sys.stdin.read())";
+    return accepts(python, [...trustedPythonArgs, "-c", script], text);
   }
-  return run(process.execPath, ["--check", join(dir, path)], dir);
+  const type = path.endsWith(".mjs")
+    ? "module"
+    : path.endsWith(".cjs")
+      ? "commonjs"
+      : await packageType(dir, path);
+  const check = (as: string) =>
+    accepts(process.execPath, [`--input-type=${as}`, "--check", "-"], text);
+  // With no declared type, Node reads a .js file as CommonJS and falls back to a module.
+  if (type === null) return (await check("commonjs")) || check("module");
+  return check(type);
+}
+
+/** The module system the nearest package.json declares for a .js file, read without following links. */
+async function packageType(dir: string, path: string): Promise<"module" | "commonjs" | null> {
+  const parts = path.split("/").slice(0, -1);
+  for (let depth = parts.length; depth >= 0; depth -= 1) {
+    const manifest = [...parts.slice(0, depth), "package.json"].join("/");
+    const bytes = await readContained(dir, manifest).catch(() => null);
+    if (bytes === null) continue;
+    try {
+      const declared = (JSON.parse(bytes.toString("utf8")) as { type?: unknown }).type;
+      return declared === "module" || declared === "commonjs" ? declared : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 /** The line with string literals and trailing comments blanked, so operators in them are skipped. */
@@ -162,8 +200,16 @@ export async function mutationWitness(
     .sort((a, b) => Number(covered(b.path, b.line)) - Number(covered(a.path, a.line)));
   let rejected = 0;
   for (const candidate of candidates) {
-    const absolute = join(context.dir, candidate.path);
-    const original = await readFile(absolute, "utf8");
+    // A changed file the candidate made a link is not followed: the mutant would land outside.
+    const original = await readContained(context.dir, candidate.path).then(
+      (bytes) => bytes?.toString("utf8") ?? null,
+      (error: unknown) => {
+        if (error instanceof ContainmentError) return null;
+        throw error;
+      },
+    );
+    if (original === null) continue;
+    const mode = (await lstat(join(context.dir, candidate.path))).mode & 0o777;
     const lines = original.split("\n");
     const python = candidate.path.endsWith(".py");
     const visible = codeLines(original, python)[candidate.line - 1] ?? "";
@@ -171,16 +217,16 @@ export async function mutationWitness(
     if (mutant === null) continue;
     lines[candidate.line - 1] = mutant.text;
     const text = lines.join("\n");
-    await writeFile(absolute, text);
+    if (!(await parses(candidate.path, text, context.dir))) {
+      rejected += 1;
+      continue;
+    }
+    await writeContained(context.dir, candidate.path, text, mode);
     try {
-      if (!(await parses(candidate.path, text, context.dir))) {
-        rejected += 1;
-        continue;
-      }
       const status = await outcome();
       return { status, ...candidate, operator: mutant.operator, syntax: "valid", rejected };
     } finally {
-      await writeFile(absolute, original);
+      await writeContained(context.dir, candidate.path, original, mode);
     }
   }
   if (rejected > 0) {
