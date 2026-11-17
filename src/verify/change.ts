@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { MissingExecutableError, trustedCommand } from "../exec/trusted-executable.ts";
 
 /** Variables that would point git at some other repository or index than the one named. */
 const repositoryOverrides = ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY"];
@@ -27,17 +28,28 @@ export function runGit(
 ): Promise<GitResult> {
   const env: Record<string, string | undefined> = { ...process.env, ...extraEnv };
   for (const name of repositoryOverrides) if (!(name in extraEnv)) delete env[name];
-  return new Promise((settle) => {
-    execFile(
-      "git",
-      ["-c", "core.hooksPath=/dev/null", "-c", "core.quotepath=false", ...args],
-      { cwd, env, encoding: "buffer", maxBuffer: 256 * 1024 * 1024 },
-      (error, stdout, stderr) => {
-        const code = error === null ? 0 : typeof error.code === "number" ? error.code : 1;
-        settle({ stdout, stderr: stderr.toString("utf8"), code });
-      },
-    );
-  });
+  return trustedCommand("git").then(
+    (file) =>
+      new Promise((settle) => {
+        if (file === null) {
+          settle({
+            stdout: Buffer.alloc(0),
+            stderr: new MissingExecutableError("git").message,
+            code: 127,
+          });
+          return;
+        }
+        execFile(
+          file,
+          ["-c", "core.hooksPath=/dev/null", "-c", "core.quotepath=false", ...args],
+          { cwd, env, encoding: "buffer", maxBuffer: 256 * 1024 * 1024 },
+          (error, stdout, stderr) => {
+            const code = error === null ? 0 : typeof error.code === "number" ? error.code : 1;
+            settle({ stdout, stderr: stderr.toString("utf8"), code });
+          },
+        );
+      }),
+  );
 }
 
 export async function git(

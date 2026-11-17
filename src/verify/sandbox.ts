@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { access } from "node:fs/promises";
 import { join } from "node:path";
 import { type ProcessRunResult, runProcessGroup } from "../exec/run-process.ts";
+import { MissingExecutableError, trustedCommand } from "../exec/trusted-executable.ts";
 import type { BoundFile } from "./container-user.ts";
 
 /**
@@ -66,11 +67,14 @@ export class SandboxUnavailableError extends Error {
   }
 }
 
-export const docker = (args: readonly string[], timeout = 600_000) =>
-  new Promise<{ readonly code: number; readonly stdout: string; readonly stderr: string }>(
+export const docker = async (args: readonly string[], timeout = 600_000) => {
+  const file = await trustedCommand("docker");
+  if (file === null)
+    return { code: 127, stdout: "", stderr: new MissingExecutableError("docker").message };
+  return new Promise<{ readonly code: number; readonly stdout: string; readonly stderr: string }>(
     (settle) => {
       execFile(
-        "docker",
+        file,
         [...args],
         { timeout, maxBuffer: 16 * 1024 * 1024 },
         (error, stdout, stderr) => {
@@ -80,6 +84,7 @@ export const docker = (args: readonly string[], timeout = 600_000) =>
       );
     },
   );
+};
 
 const pythonManifests = ["pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "uv.lock"];
 const nodeCommand =
@@ -254,7 +259,7 @@ export async function runInSandbox(
   );
   const waited = settleWait(sandbox.clock.lastEnded, Date.now(), sharedFilesystemSettleMs);
   if (waited > 0) await new Promise((settle) => setTimeout(settle, waited));
-  const ran = await runProcessGroup("docker", run.args, {
+  const ran = await runProcessGroup((await trustedCommand("docker")) ?? "docker", run.args, {
     cwd: sandbox.scratch,
     env: client,
     timeoutMs: context.timeoutMs,
