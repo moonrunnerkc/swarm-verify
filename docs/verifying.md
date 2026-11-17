@@ -143,8 +143,15 @@ The status comes from that evidence only. A named check holds when its result is
   structural claims hold (or source changed, where it names none). No failing baseline is asked for.
 - An upgrade is `satisfied` when the candidate's lockfile resolves each named package to a new
   version, the candidate's dependencies were installed fresh from it, and nothing regressed. A
-  package claim's `version` is exact (`10.1.1`) or a range written with `x` (`9.x`, `9.6.x`, or
-  `9`); a resolved version outside it fails the requirement.
+  package claim's `version`, like a version constraint's `range`, is exact (`10.1.1`), a range
+  written with `x` (`9.x`, `9.6.x`, or `9`), a caret (`^9.6.1`) or a tilde (`~9.6`); npm reads
+  it as npm does. For PyPI it is read by PEP 440: `9.x` is `==9.*`, `^9.6.1` is `>=9.6.1,<10`,
+  `~9.6` is `>=9.6,<9.7`, `1.2.3` is `==1.2.3`, and a PEP 440 specifier set (`>=1.4,<2`,
+  `~=1.4.5`) is read as written. A prerelease is within a range only where the range names one.
+  Every version the lockfile resolves the package to (package-lock.json, nested installs
+  included, or uv.lock, names compared by PEP 503) must be within it; one outside fails the
+  requirement, and one that cannot be judged (a version PEP 440 does not read, or npm range
+  grammar PEP 440 does not define, such as `>=9 <11`) leaves it `unverified` with the reason.
 - A requirement with no mapped evidence, or whose evidence was not observed or is a flaky test,
   is `unverified`; one whose evidence fails is `failed`.
 

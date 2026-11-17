@@ -61,6 +61,7 @@
     "caps": "node scripts/check-caps.mjs"
   },
   "dependencies": {
+    "@renovatebot/pep440": "5.0.1",
     "semver": "^7.8.6",
     "smol-toml": "^1.8.0",
     "typescript-compiler": "npm:typescript@6.0.3",

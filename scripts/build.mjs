@@ -20,7 +20,13 @@ const forbiddenModules =
   /(?:^|\/)(?:agent|tools|core|providers|screen|tui)\/|^cli(?:-run|-doctor)?\.js$/;
 const forbiddenImports =
   /from\s+["'](?:openai|@anthropic-ai\/[^"']*|ollama|@ai-sdk\/[^"']*|ai|ink|react|blessed)["']/;
-export const allowedDependencies = ["semver", "smol-toml", "typescript-compiler", "zod"];
+export const allowedDependencies = [
+  "@renovatebot/pep440",
+  "semver",
+  "smol-toml",
+  "typescript-compiler",
+  "zod",
+];
 
 /** Every emitted JavaScript file, relative to dist, so the closure is read off what tsc wrote. */
 export async function emittedModules(directory) {

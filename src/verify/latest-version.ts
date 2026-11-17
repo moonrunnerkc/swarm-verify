@@ -1,5 +1,6 @@
 import type { VersionConstraint } from "../api/request.ts";
-import { highestWithin, parseVersionRange } from "./version-range.ts";
+import { pypiName } from "./lock-resolutions.ts";
+import { highestWithin, parseVersionRange, unjudgeable } from "./version-range.ts";
 
 /** Where versions are looked up. The public registries unless the caller names others. */
 export interface Registries {
@@ -20,7 +21,7 @@ export interface LatestTarget {
 }
 
 export const targetKey = (constraint: VersionConstraint) =>
-  `${constraint.ecosystem}:${constraint.name}@${constraint.range}`;
+  `${constraint.ecosystem}:${constraint.ecosystem === "pypi" ? pypiName(constraint.name) : constraint.name}@${constraint.range}`;
 
 interface Listing {
   readonly url: string;
@@ -46,7 +47,7 @@ async function npmListing(name: string, registry: string): Promise<Listing> {
 }
 
 async function pypiListing(name: string, registry: string): Promise<Listing> {
-  const url = `${registry}/pypi/${encodeURIComponent(name)}/json`;
+  const url = `${registry}/pypi/${encodeURIComponent(pypiName(name))}/json`;
   const body = (await fetchJson(url, "application/json")) as {
     releases?: Record<string, readonly { yanked?: boolean }[]>;
   };
@@ -70,8 +71,13 @@ export async function latestTargets(
   for (const constraint of constraints) {
     const key = targetKey(constraint);
     if (!constraint.latest || targets.has(key)) continue;
-    const range = parseVersionRange(constraint.range);
+    const range = parseVersionRange(constraint.range, constraint.ecosystem);
     const registry = constraint.ecosystem === "npm" ? registries.npm : registries.pypi;
+    const unsupported = range === null ? null : unjudgeable(range);
+    if (unsupported !== null) {
+      targets.set(key, { version: null, source: registry, detail: unsupported });
+      continue;
+    }
     try {
       const listing =
         constraint.ecosystem === "npm"

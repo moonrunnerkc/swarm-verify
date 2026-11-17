@@ -58,7 +58,16 @@ export function unobservedAction(
     .filter((one) => one.kind === "package" && !isConstraint(one) && !undecided(one))
     .map((one) => `${one.ref}: ${one.detail}`)
     .join("; ");
+  const constraints = unobserved
+    .filter(isConstraint)
+    .map((one) => `${one.ref}: ${one.detail}`)
+    .join("; ");
   const steps = [
+    ...(constraints.length > 0
+      ? [
+          `a version constraint holds where the candidate's lockfile resolves the package, each version it resolves can be judged within the range, and any latest asked for was read from the registry (${constraints})`,
+        ]
+      : []),
     ...(packages.length > 0
       ? [
           `a package claim holds where the candidate's lockfile resolves the package to a version the base did not: drop the claim for a package that did not change, or correct it (${packages})`,

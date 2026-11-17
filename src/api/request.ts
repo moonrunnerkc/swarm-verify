@@ -81,18 +81,22 @@ const packageClaimSchema = z.strictObject({
  * A version the user's own wording constrains a dependency to ("the latest 9.x", "^9", "pin to
  * 4.1.2"). The producer's code reads it from the wording, never a model, and the verifier judges
  * the candidate's lockfile against it: within the range, and the registry's latest within it when
- * the wording asks for the latest.
+ * the wording asks for the latest. An npm range is read as npm reads it, a PyPI range by PEP 440.
  */
-export const versionConstraintSchema = z.strictObject({
-  name: z.string().min(1),
-  ecosystem: z.enum(["npm", "pypi"]),
-  range: z.string().refine((range) => parseVersionRange(range) !== null, {
-    message: "a version range: 1.2.3, 9, 9.x, 9.6.x, ^9.6.1 or ~9.6",
-  }),
-  latest: z.boolean().default(false),
-  /** The words it was read from, shown beside the result. */
-  wording: z.string().min(1),
-});
+export const versionConstraintSchema = z
+  .strictObject({
+    name: z.string().min(1),
+    ecosystem: z.enum(["npm", "pypi"]),
+    range: z.string(),
+    latest: z.boolean().default(false),
+    /** The words it was read from, shown beside the result. */
+    wording: z.string().min(1),
+  })
+  .refine((constraint) => parseVersionRange(constraint.range, constraint.ecosystem) !== null, {
+    path: ["range"],
+    message:
+      "a version range: 1.2.3, 9, 9.x, 9.6.x, ^9.6.1 or ~9.6, or for pypi a PEP 440 specifier set such as >=1.4,<2 or ~=1.4.5",
+  });
 export type VersionConstraint = z.output<typeof versionConstraintSchema>;
 
 export const requirementSchema = z.strictObject({

@@ -23,6 +23,11 @@ beforeAll(async () => {
           "9.5.0": [],
         },
       },
+      "/pypi/py-yaml/json": {
+        releases: Object.fromEntries(
+          ["1.9", "1.10rc1", "1.10", "1.10.post1", "2.0.dev1"].map((one) => [one, [{}]]),
+        ),
+      },
     };
     const body = bodies[request.url ?? ""];
     response.writeHead(body === undefined ? 404 : 200, { "content-type": "application/json" });
@@ -57,6 +62,15 @@ describe("the latest version a range admits", () => {
       targetKey(wanted),
     );
     expect(target?.version).toBe("9.2.0");
+  });
+
+  it("orders PyPI releases by PEP 440 and asks for the name as PEP 503 writes it", async () => {
+    const wanted = constraint("Py_Yaml", "pypi", ">=1");
+    const target = (await latestTargets([wanted], { npm: base, pypi: base })).get(
+      targetKey(wanted),
+    );
+    expect(target?.version).toBe("1.10.post1");
+    expect(target?.source).toBe(`${base}/pypi/py-yaml/json`);
   });
 
   it("records why no version was resolved, rather than guessing one", async () => {

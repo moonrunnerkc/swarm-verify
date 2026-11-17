@@ -35,5 +35,6 @@ describe("what the verifier's build refuses", () => {
   it("refuses runtime dependencies beyond zod and smol-toml", () => {
     expect(extraDependencies({ dependencies: { zod: "1", "smol-toml": "1" } })).toEqual([]);
     expect(extraDependencies({ dependencies: { zod: "1", openai: "1" } })).toEqual(["openai"]);
+    expect(extraDependencies({ dependencies: { "@renovatebot/pep440": "5.0.1" } })).toEqual([]);
   });
 });

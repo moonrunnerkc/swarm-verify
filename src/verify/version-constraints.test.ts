@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { requirementSchema, type VersionConstraint } from "../api/request.ts";
 import { type LatestTarget, targetKey } from "./latest-version.ts";
 import type { CheckResult } from "./predicate.ts";
-import { isConstraint } from "./requirement-evidence.ts";
+import { constraintEvidence, isConstraint } from "./requirement-evidence.ts";
 import { assessRequirements, type RequirementInputs } from "./requirements.ts";
 
 // claimcheck's task: "Bump vitest from 4.1.8 to 4.1.10 (or both Stryker packages to the latest
@@ -161,5 +161,26 @@ describe("a version the task's wording constrains", () => {
     );
     expect(outcome.status).toBe("failed");
     expect(outcome.limitation).toContain("npm:vitest within 4.1.10");
+  });
+});
+
+describe("a version constraint on a package npm installs more than once", () => {
+  it("holds only where every resolution is within it, and names each", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "nested-constraint-"));
+    await writeFile(
+      join(dir, "package-lock.json"),
+      JSON.stringify({
+        lockfileVersion: 3,
+        packages: {
+          "node_modules/@stryker-mutator/core": { version: "9.6.1" },
+          "node_modules/plugin/node_modules/@stryker-mutator/core": { version: "10.1.1" },
+        },
+      }),
+    );
+    const evidence = await constraintEvidence(dir, { ...stryker, latest: false }, undefined);
+    expect(evidence.outcome).toBe("fail");
+    expect(evidence.detail).toContain(
+      "the candidate resolves 9.6.1 and 10.1.1, 10.1.1 outside 9.x",
+    );
   });
 });

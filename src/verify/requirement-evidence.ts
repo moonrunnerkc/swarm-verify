@@ -1,37 +1,36 @@
-import { parse as parseToml } from "smol-toml";
 import type { EvidenceRef } from "../api/outcome.ts";
 import type { Requirement, VersionConstraint } from "../api/request.ts";
 import { readCandidateText } from "./candidate-read.ts";
 import type { TestOutcome } from "./compare.ts";
 import type { LatestTarget } from "./latest-version.ts";
+import { listed, type Reader, resolvedVersions } from "./lock-resolutions.ts";
 import { unresolvedClaim } from "./structure-claims.ts";
-import { parseVersionRange, satisfies } from "./version-range.ts";
+import {
+  type Ecosystem,
+  type Placement,
+  parseVersionRange,
+  place,
+  sameVersion,
+} from "./version-range.ts";
 
 type PackageClaim = Requirement["evidence"]["packages"][number];
 
 export { structureEvidence } from "./structure-claims.ts";
 
-type Reader = (path: string) => Promise<string | null>;
-
-/** The version the lockfile `read` returns resolves `name` to, or null. */
-export async function resolvedVersion(
-  read: Reader,
-  claim: Pick<PackageClaim, "name" | "ecosystem">,
-): Promise<string | null> {
-  if (claim.ecosystem === "npm") {
-    const text = await read("package-lock.json");
-    if (text === null) return null;
-    const lock = JSON.parse(text) as { packages?: Record<string, { version?: string }> };
-    return lock.packages?.[`node_modules/${claim.name}`]?.version ?? null;
-  }
-  const text = await read("uv.lock");
-  if (text === null) return null;
-  const lock = parseToml(text) as { package?: { name?: string; version?: string }[] };
-  const normalized = (name: string) => name.toLowerCase().replace(/[-_.]+/g, "-");
-  return (
-    lock.package?.find((one) => normalized(one.name ?? "") === normalized(claim.name))?.version ??
-    null
+/**
+ * Each version against a range: those outside it, and the first reason one cannot be judged. A
+ * claim that reads as no range holds nothing, so every version is outside it.
+ */
+function placed(versions: readonly string[], range: string, ecosystem: Ecosystem) {
+  const parsed = parseVersionRange(range, ecosystem);
+  const placements: Placement[] = versions.map((version) =>
+    parsed === null ? "outside" : place(version, parsed),
   );
+  const unjudged = placements.find((one) => typeof one === "object");
+  return {
+    outside: versions.filter((_, at) => placements[at] === "outside"),
+    unjudged: typeof unjudged === "object" ? unjudged.unjudged : null,
+  };
 }
 
 /** Thrown where a candidate lockfile is there and was not read: never taken for its absence. */
@@ -52,13 +51,13 @@ const candidateReader =
     throw new UnreadLockfileError(read.detail);
   };
 
-/** The version the candidate's lockfile resolves, or why its lockfile was not read. */
-async function candidateVersion(
+/** Every version the candidate's lockfile resolves, or why its lockfile was not read. */
+async function candidateVersions(
   dir: string,
-  claim: Pick<PackageClaim, "name" | "ecosystem">,
-): Promise<{ version: string | null } | { unread: string }> {
+  claim: { readonly name: string; readonly ecosystem: Ecosystem },
+): Promise<{ readonly versions: string[] } | { readonly unread: string }> {
   try {
-    return { version: await resolvedVersion(candidateReader(dir), claim) };
+    return { versions: await resolvedVersions(candidateReader(dir), claim) };
   } catch (error) {
     // A parse error's message can quote the file; only the containment refusal is named.
     if (error instanceof UnreadLockfileError) return { unread: error.message };
@@ -66,60 +65,55 @@ async function candidateVersion(
   }
 }
 
+/** How a detail says which of several resolutions fall outside a range. */
+const outsideOf = (all: readonly string[], outside: readonly string[], range: string) =>
+  all.length === 1 ? `outside ${range}` : `${listed(outside)} outside ${range}`;
+
 /**
- * An upgrade's resolved version: observed when the candidate's lockfile resolves the package to
- * the named version (or any version, when none is named) and that differs from the base's.
+ * An upgrade's resolved versions: observed when the candidate's lockfile resolves the package,
+ * every time it does, to the named version (or any version, when none is named) and that differs
+ * from the base's.
  */
 export async function packageEvidence(
   readBase: Reader,
   dir: string,
   claim: PackageClaim,
 ): Promise<EvidenceRef> {
-  const before = await resolvedVersion(readBase, claim);
-  const candidate = await candidateVersion(dir, claim);
-  if ("unread" in candidate)
-    return {
-      kind: "package",
-      ref: `${claim.ecosystem}:${claim.name}`,
-      authority: claim.authority ?? "user-acceptance",
-      outcome: unresolvedClaim,
-      detail: candidate.unread,
-    };
-  const after = candidate.version;
-  const matches = after !== null && (claim.version === undefined || within(after, claim.version));
-  const moved = after !== before;
-  const detail = `resolved ${before ?? "nothing"} at the base and ${after ?? "nothing"} in the candidate`;
-  // A version outside the claim is the candidate contradicting the requirement: a failure.
-  if (after !== null && claim.version !== undefined && !matches) {
-    return {
-      kind: "package",
-      ref: `${claim.ecosystem}:${claim.name}`,
-      authority: claim.authority ?? "user-acceptance",
-      outcome: "fail",
-      detail: `${detail}, outside ${claim.version}`,
-    };
-  }
-  return {
+  const evidence = (outcome: string, detail: string): EvidenceRef => ({
     kind: "package",
     ref: `${claim.ecosystem}:${claim.name}`,
     authority: claim.authority ?? "user-acceptance",
-    outcome: matches && moved ? "observed" : "not observed",
+    outcome,
     detail,
-  };
+  });
+  const candidate = await candidateVersions(dir, claim);
+  if ("unread" in candidate) return evidence(unresolvedClaim, candidate.unread);
+  const before = await resolvedVersions(readBase, claim);
+  const after = candidate.versions;
+  const judged = claim.version === undefined ? null : placed(after, claim.version, claim.ecosystem);
+  const moved = [...before].sort().join() !== [...after].sort().join();
+  const detail = `resolved ${listed(before)} at the base and ${listed(after)} in the candidate`;
+  // A version outside the claim is the candidate contradicting the requirement: a failure.
+  if (judged !== null && claim.version !== undefined && judged.outside.length > 0) {
+    return evidence("fail", `${detail}, ${outsideOf(after, judged.outside, claim.version)}`);
+  }
+  if (judged?.unjudged) return evidence("not observed", `${detail}; ${judged.unjudged}`);
+  return evidence(after.length > 0 && moved ? "observed" : "not observed", detail);
 }
 
 /**
- * A version the task's wording constrains, against the candidate's lockfile. Within the range
- * holds; with the latest asked for, only the registry's latest within the range holds, and a
- * latest that could not be read leaves it unobserved. Anything else is a failure: the candidate
- * resolves a version the user's words rule out, whatever the model claimed.
+ * A version the task's wording constrains, against the candidate's lockfile, which must resolve
+ * the package within the range every time it resolves it. Within the range holds; with the latest
+ * asked for, only the registry's latest within the range holds, and a latest that could not be
+ * read leaves it unobserved, as does a version that cannot be judged. Anything else is a
+ * failure: the candidate resolves a version the user's words rule out, whatever the model claimed.
  */
 export async function constraintEvidence(
   dir: string,
   constraint: VersionConstraint,
   latest: LatestTarget | undefined,
 ): Promise<EvidenceRef> {
-  const candidate = await candidateVersion(dir, constraint);
+  const candidate = await candidateVersions(dir, constraint);
   const ref = `${constraint.ecosystem}:${constraint.name} within ${constraint.latest ? "the latest " : ""}${constraint.range}`;
   const from = `from the task's wording "${constraint.wording}"`;
   const result = (outcome: string, detail: string): EvidenceRef => ({
@@ -130,37 +124,29 @@ export async function constraintEvidence(
     detail: `${detail}; ${from}`,
   });
   if ("unread" in candidate) return result(unresolvedClaim, candidate.unread);
-  const installed = candidate.version;
-  if (installed === null) {
+  const installed = candidate.versions;
+  if (installed.length === 0) {
     return result("not observed", "the candidate's lockfile does not resolve it");
   }
+  const resolves = `the candidate resolves ${listed(installed)}`;
   const looked = constraint.latest ? `; ${latest?.detail ?? "the latest was not looked up"}` : "";
-  const range = parseVersionRange(constraint.range);
-  if (range === null || !satisfies(installed, range)) {
+  const { outside, unjudged } = placed(installed, constraint.range, constraint.ecosystem);
+  if (outside.length > 0) {
     return result(
       "fail",
-      `the candidate resolves ${installed}, outside ${constraint.range}${looked}`,
+      `${resolves}, ${outsideOf(installed, outside, constraint.range)}${looked}`,
     );
   }
-  if (!constraint.latest) return result("observed", `the candidate resolves ${installed}`);
+  if (unjudged !== null) return result("not observed", `${resolves}; ${unjudged}`);
+  if (!constraint.latest) return result("observed", resolves);
   if (latest?.version === undefined || latest.version === null) {
-    return result("not observed", `the candidate resolves ${installed}${looked}`);
+    return result("not observed", `${resolves}${looked}`);
   }
-  return installed === latest.version
-    ? result("observed", `the candidate resolves ${installed}; ${latest.detail}`)
-    : result(
-        "fail",
-        `the candidate resolves ${installed}, not ${latest.version}; ${latest.detail}`,
-      );
-}
-
-/**
- * Whether `version` is within the claim, read as the version constraints are: the version itself,
- * x forms (9.x, 9.6.x, 9), a caret or a tilde. A claim that reads as no range holds nothing.
- */
-function within(version: string, claim: string): boolean {
-  const range = parseVersionRange(claim);
-  return range !== null && satisfies(version, range);
+  const target = latest.version;
+  const behind = installed.filter((one) => !sameVersion(one, target, constraint.ecosystem));
+  if (behind.length === 0) return result("observed", `${resolves}; ${latest.detail}`);
+  const which = installed.length === 1 ? resolves : `${resolves}, ${listed(behind)}`;
+  return result("fail", `${which}, not ${target}; ${latest.detail}`);
 }
 
 /** Whether a package ref is a version constraint read from the task's wording, not a claim. */

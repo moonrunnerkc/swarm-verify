@@ -1,50 +1,72 @@
 import semver from "semver";
+import { admits, comparePep440, parsePep440 } from "./pep440.ts";
+import { type PypiRange, parsePypiRange } from "./pypi-range.ts";
+
+export type Ecosystem = "npm" | "pypi";
 
 /**
- * A version range as npm reads one, by npm's own parser (semver): an exact version, `9`, `9.x`,
- * `^9.6.1`, `~9.6`, `>=1.2 <2`, `1.2.3 - 1.4`, `^1 || ^2`. A range semver cannot read is refused
- * when the request is parsed, not guessed at.
+ * A version range in its ecosystem's own terms. npm's is read by npm's own parser (semver): an
+ * exact version, `9`, `9.x`, `^9.6.1`, `~9.6`, `>=1.2 <2`, `1.2.3 - 1.4`, `^1 || ^2`. PyPI's is
+ * read by PEP 440 (see `parsePypiRange`). A range neither reads is refused when the request is
+ * parsed, not guessed at.
  */
-export interface VersionRange {
-  readonly text: string;
-  readonly range: semver.Range;
-}
+export type VersionRange =
+  | { readonly ecosystem: "npm"; readonly text: string; readonly range: semver.Range }
+  | { readonly ecosystem: "pypi"; readonly text: string; readonly range: PypiRange };
 
-export function parseVersionRange(text: string): VersionRange | null {
+export function parseVersionRange(text: string, ecosystem: Ecosystem): VersionRange | null {
   const trimmed = text.trim();
-  if (trimmed.length === 0 || semver.validRange(trimmed) === null) return null;
-  return { text: trimmed, range: new semver.Range(trimmed) };
+  if (trimmed.length === 0) return null;
+  const npmReads = semver.validRange(trimmed) !== null;
+  if (ecosystem === "npm") {
+    return npmReads ? { ecosystem, text: trimmed, range: new semver.Range(trimmed) } : null;
+  }
+  const range = parsePypiRange(trimmed, npmReads);
+  return range === null ? null : { ecosystem, text: trimmed, range };
 }
 
-/**
- * A resolved version as semver reads it: npm's own, or a plain numeric release (`2024.1`,
- * PyPI's form) padded to three numbers. A prerelease, or anything else, is never a release a
- * range admits.
- */
-function releaseOf(version: string): semver.SemVer | null {
-  const bare = version.trim().replace(/^v/, "");
-  const parsed = semver.parse(bare);
-  if (parsed !== null) return parsed.prerelease.length === 0 ? parsed : null;
-  // PyPI's releases may have more than three numbers; a range speaks of the first three.
-  const numeric = /^(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:\.\d+)*$/.exec(bare);
-  if (numeric === null) return null;
-  return semver.parse(
-    `${Number(numeric[1])}.${Number(numeric[2] ?? 0)}.${Number(numeric[3] ?? 0)}`,
-  );
-}
+/** Where a resolved version stands against a range, or why it cannot be said. */
+export type Placement = "within" | "outside" | { readonly unjudged: string };
 
-export function satisfies(version: string, range: VersionRange): boolean {
-  const release = releaseOf(version);
-  return release !== null && range.range.test(release);
+/** The reason no version can be judged against `range`, or null when one can. */
+export const unjudgeable = (range: VersionRange): string | null =>
+  range.ecosystem === "pypi" && "unsupported" in range.range ? range.range.unsupported : null;
+
+export function place(version: string, range: VersionRange): Placement {
+  if (range.ecosystem === "npm") {
+    const release = semver.parse(version.trim());
+    if (release === null) {
+      return { unjudged: `${version} is not a version npm's semver reads` };
+    }
+    return range.range.test(release) ? "within" : "outside";
+  }
+  if ("unsupported" in range.range) return { unjudged: range.range.unsupported };
+  const candidate = parsePep440(version);
+  if (candidate === null) {
+    return {
+      unjudged: `${version} is not a PEP 440 version, so it cannot be judged within ${range.text}: resolve a release PEP 440 reads, or judge it by a check`,
+    };
+  }
+  return range.range.sets.some((set) => admits(set, version, candidate)) ? "within" : "outside";
 }
 
 /** The highest release among `versions` the range admits, or null when it admits none. */
 export function highestWithin(versions: readonly string[], range: VersionRange): string | null {
-  let best: { readonly version: string; readonly release: semver.SemVer } | null = null;
-  for (const version of versions) {
-    const release = releaseOf(version);
-    if (release === null || !range.range.test(release)) continue;
-    if (best === null || semver.gt(release, best.release)) best = { version, release };
-  }
-  return best?.version ?? null;
+  const admitted = versions.filter((version) => place(version, range) === "within");
+  const order =
+    range.ecosystem === "npm"
+      ? (one: string, other: string) => semver.compare(one.trim(), other.trim())
+      : comparePep440;
+  return admitted.reduce<string | null>(
+    (best, version) => (best === null || order(version, best) > 0 ? version : best),
+    null,
+  );
+}
+
+/** Whether two resolved versions are the same release, as their ecosystem compares them. */
+export function sameVersion(one: string, other: string, ecosystem: Ecosystem): boolean {
+  if (ecosystem === "npm") return one === other;
+  return (
+    parsePep440(one) !== null && parsePep440(other) !== null && comparePep440(one, other) === 0
+  );
 }
