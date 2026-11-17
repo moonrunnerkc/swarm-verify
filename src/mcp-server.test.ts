@@ -40,10 +40,21 @@ afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
+/** The fields of a JSON-RPC answer these tests read. */
+interface Answer {
+  readonly result: {
+    readonly protocolVersion: string;
+    readonly isError: boolean;
+    readonly content: readonly { readonly text: string }[];
+    readonly structuredContent?: { readonly evidence?: { readonly runId?: string } };
+  };
+  readonly error: { readonly code: number };
+}
+
 /** The server, started on a CLI that verifies on the host, and a way to call it. */
 function started(): {
   child: ChildProcess;
-  call: (message: object) => Promise<any>;
+  call: (message: object) => Promise<Answer>;
   notify: (message: object) => void;
 } {
   const child = spawn(process.execPath, [server], {
@@ -57,8 +68,10 @@ function started(): {
     },
     stdio: ["pipe", "pipe", "inherit"],
   });
-  const pending = new Map<unknown, (value: unknown) => void>();
-  createInterface({ input: child.stdout! }).on("line", (line) => {
+  const pending = new Map<unknown, (value: Answer) => void>();
+  const { stdin, stdout } = child;
+  if (stdin === null || stdout === null) throw new Error("the server has no stdio pipes");
+  createInterface({ input: stdout }).on("line", (line) => {
     const message = JSON.parse(line);
     pending.get(message.id)?.(message);
   });
@@ -69,9 +82,9 @@ function started(): {
       new Promise((settle) => {
         next += 1;
         pending.set(next, settle);
-        child.stdin!.write(`${JSON.stringify({ jsonrpc: "2.0", id: next, ...message })}\n`);
+        stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: next, ...message })}\n`);
       }),
-    notify: (message) => child.stdin!.write(`${JSON.stringify({ jsonrpc: "2.0", ...message })}\n`),
+    notify: (message) => stdin.write(`${JSON.stringify({ jsonrpc: "2.0", ...message })}\n`),
   };
 }
 
@@ -116,10 +129,10 @@ describe("the MCP server", () => {
     notify({ method: "notifications/cancelled", params: { requestId: 1 } });
     const result = await answer;
     expect(result.result.isError).toBe(true);
-    expect(result.result.content[0].text).toMatch(/cancelled; no evidence was published/);
-    expect(
-      await readFile(join(slow, ".swarm", "verify"), "utf8").catch((error) => error.code),
-    ).toMatch(/ENOENT|EISDIR/);
+    expect(result.result.content[0]?.text).toMatch(/cancelled; no evidence was published/);
+    // Nothing was published: a cancelled run's refused checks would read as failures.
+    const runs = await readdir(join(slow, ".swarm", "verify")).catch(() => [] as string[]);
+    for (const run of runs) expect(await readdir(join(slow, ".swarm", "verify", run))).toEqual([]);
     child.kill();
   });
 });
