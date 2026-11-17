@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { predicateSchema } from "../verify/predicate.ts";
-import { evidenceFilesSchema, integritySchema } from "./outcome.ts";
+import { deliverySchema, evidenceFilesSchema, integritySchema } from "./outcome.ts";
 import { commitSchema, sha256Schema } from "./request.ts";
 
-export const resultVersion = "swarm-verify.result/v1";
+export const resultVersion = "swarm-verify.result/v2";
 
 /**
  * What a verification returns: the signed predicate, plus what cannot sit inside the thing it
@@ -19,6 +19,7 @@ export const verifyResultSchema = predicateSchema.extend({
   }),
   integrity: integritySchema,
   evidence: evidenceFilesSchema,
+  delivery: deliverySchema,
   /** What the failing checks printed, verbatim and capped. Not part of the signed statement. */
   failureOutput: z.string(),
 });

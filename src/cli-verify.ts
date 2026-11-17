@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { appendFile, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -15,6 +15,7 @@ export const sharedOptions = {
   workspace: { type: "string" },
   out: { type: "string" },
   sigstore: { type: "boolean" },
+  "allow-unsigned": { type: "boolean" },
   json: { type: "boolean" },
   isolation: { type: "string" },
   dependencies: { type: "string" },
@@ -25,6 +26,7 @@ export const sharedOptions = {
 interface SharedValues {
   readonly out?: string | undefined;
   readonly sigstore?: boolean | undefined;
+  readonly "allow-unsigned"?: boolean | undefined;
   readonly json?: boolean | undefined;
   readonly isolation?: string | undefined;
   readonly dependencies?: string | undefined;
@@ -61,7 +63,9 @@ async function run(
   candidate: VerifyRequestInput["candidate"],
   values: SharedValues,
 ): Promise<{ readonly code: number; readonly result: VerifyResult }> {
-  const out = resolve(values.out ?? join(workspace, ".swarm", "verify"));
+  // Each run its own directory: a run is never published over another.
+  const stamp = `${new Date().toISOString().replace(/[:.]/g, "-")}-${randomBytes(3).toString("hex")}`;
+  const out = resolve(values.out ?? join(workspace, ".swarm", "verify", stamp));
   // Isolated unless the host is asked for by name: a host run is reported as not isolated.
   const mode = choice(values.isolation, ["isolated", "host"] as const, "isolated", "--isolation");
   const request: VerifyRequestInput = {
@@ -94,6 +98,7 @@ async function run(
   };
   const result = await verifyRequest(request, {
     sigstore: values.sigstore === true,
+    signing: values["allow-unsigned"] === true ? "optional" : "required",
     verifierVersion: buildVersion,
   });
   if (values.json === true) {
@@ -104,8 +109,18 @@ async function run(
     if (result.evidence.bundle !== null) write(`attestation  ${result.evidence.bundle}`);
     if (result.evidence.publicKey !== null) write(`public key   ${result.evidence.publicKey}`);
     for (const problem of result.integrity.problems) write(`signing      ${problem}`);
+    write(`delivery     ${result.delivery.status} (run ${result.evidence.runId})`);
+    if (result.evidence.manifest !== null) write(`manifest     ${result.evidence.manifest}`);
   }
-  return { code: exitCodeOf(result), result };
+  return { code: commandExitCode(result), result };
+}
+
+/**
+ * The command's exit code: 7 when the evidence was not delivered as required (a required signature
+ * or the publication failed), whatever the task's state; otherwise the state's own code.
+ */
+export function commandExitCode(result: VerifyResult): number {
+  return result.delivery.status === "failed" ? 7 : exitCodeOf(result);
 }
 
 /** `verify`: the working tree, a ref range or a patch file, against a base commit. */

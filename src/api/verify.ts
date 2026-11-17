@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { readFile, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { ZodError } from "zod";
 import { commitOf, git, type ResolvedChange, resolveChange } from "../verify/change.ts";
-import { writeAttestation } from "../verify/dsse.ts";
 import type { PinnedLocks } from "../verify/generated-lock.ts";
 import type { Registries } from "../verify/latest-version.ts";
 import { resolveSigningKey } from "../verify/signing.ts";
 import { verifyChange } from "../verify/verify.ts";
+import { publishEvidence } from "./publish.ts";
 import { type VerifyRequest, type VerifyRequestInput, verifyRequestSchema } from "./request.ts";
 import { resultVersion, type VerifyResult, verifyResultSchema } from "./result.ts";
 
@@ -31,6 +31,8 @@ export interface VerifyCallOptions {
   readonly signal?: AbortSignal;
   /** Sign keylessly through cosign and Sigstore instead of with a resolved key. */
   readonly sigstore?: boolean;
+  /** Whether a run that could not be signed is delivered as failed (the default) or unsigned. */
+  readonly signing?: "required" | "optional";
   /** Where baselines and sealed checks live; SWARM_HOME or ~/.swarm by default. */
   readonly swarmHome?: string;
   /** Measure the base again rather than reuse a cached run of it, as a replay must. */
@@ -110,24 +112,16 @@ export async function verify(
     ...(options.pinnedLocks === undefined ? {} : { pinnedLocks: options.pinnedLocks }),
   });
   const directory = resolve(request.artifacts.directory);
-  const problems: string[] = [];
-  let written: Awaited<ReturnType<typeof writeAttestation>> | null = null;
-  try {
-    written = await writeAttestation(outcome.statement, outcome.patch, directory, {
-      sigstore: options.sigstore === true,
-      resolveKey: () => resolveSigningKey(),
-    });
-    if (written.notice !== null) problems.push(written.notice);
-  } catch (error) {
-    problems.push(error instanceof Error ? error.message : String(error));
-  }
-  for (const log of outcome.logs) {
-    await mkdir(dirname(join(directory, log.name)), { recursive: true, mode: 0o700 });
-    await writeFile(join(directory, log.name), log.text, { mode: 0o600 });
-  }
-  const statementText = `${JSON.stringify(outcome.statement, null, 2)}\n`;
-  const statementPath = join(directory, "statement.json");
-  await writeFile(statementPath, statementText, { mode: 0o600 });
+  const delivery = await publishEvidence({
+    directory,
+    statement: outcome.statement,
+    patch: outcome.patch,
+    logs: outcome.logs,
+    sigstore: options.sigstore === true,
+    signing: options.signing ?? "required",
+    resolveKey: () => resolveSigningKey(),
+  });
+  const written = delivery.attestation;
   const subjects = outcome.statement.subject;
   const digestOf = (name: string) =>
     subjects.find((subject) => subject.name === name)?.digest.sha256 ?? sha256("");
@@ -149,15 +143,18 @@ export async function verify(
               fingerprint: written.fingerprint,
             },
       statementSha256: sha256(JSON.stringify(outcome.statement)),
-      problems,
+      problems: [...delivery.problems],
     },
     evidence: {
       directory,
+      runId: delivery.runId,
+      manifest: delivery.manifest,
       bundle: written?.bundle ?? null,
-      statement: statementPath,
-      patch: written?.patch ?? null,
+      statement: delivery.statement,
+      patch: delivery.directory === null ? null : join(delivery.directory, "change.patch"),
       publicKey: written?.publicKey ?? null,
     },
+    delivery: { status: delivery.status, problems: [...delivery.problems] },
     failureOutput: outcome.failureText.slice(-20_000),
   });
 }

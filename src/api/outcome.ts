@@ -110,9 +110,23 @@ export type Integrity = z.infer<typeof integritySchema>;
 /** Where the written evidence is. Paths, so the result itself stays small. */
 export const evidenceFilesSchema = z.strictObject({
   directory: z.string().min(1),
+  /** This run's identity, as its manifest names it. */
+  runId: z.string().min(1),
+  /** The manifest binding every file of this run, or null where nothing was published. */
+  manifest: z.string().nullable(),
   bundle: z.string().nullable(),
   statement: z.string().nullable(),
   patch: z.string().nullable(),
   publicKey: z.string().nullable(),
 });
 export type EvidenceFiles = z.infer<typeof evidenceFilesSchema>;
+
+/**
+ * Whether the evidence reached its directory as asked, apart from the task's state: signed,
+ * unsigned where the caller made signing optional, or failed (a required signature or the
+ * publication itself).
+ */
+export const deliverySchema = z.strictObject({
+  status: z.enum(["signed", "unsigned", "failed"]),
+  problems: z.array(z.string()),
+});

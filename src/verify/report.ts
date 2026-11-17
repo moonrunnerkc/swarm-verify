@@ -15,8 +15,9 @@ export function somethingFailed(predicate: Predicate): boolean {
 
 /**
  * 0 complete; 1 incomplete because something failed; 4 incomplete because something stayed
- * unverified or unresolved; 5 blocked. 2 (unreadable command line) and 3 (cancelled) come
- * from the command line itself.
+ * unverified or unresolved; 5 blocked. 2 (unreadable command line), 3 (cancelled) and 7 (the
+ * evidence was not delivered as required) come from the command line itself, in that precedence
+ * over these.
  */
 export function exitCodeOf(predicate: Predicate): number {
   if (predicate.state === "complete") return 0;

@@ -113,3 +113,79 @@ describe("swarm verify and verify.mjs", () => {
     expect(listed).toEqual(["verify", "init", "replay", "ci"]);
   });
 });
+
+// F7 (2026-11-17 review): a keyless signature that failed still exited 0 for a complete run, and
+// left an earlier run's bundle at the expected output path.
+describe("evidence that is not delivered as required", () => {
+  const failingCosign = async () => {
+    const bin = join(root, "failing-bin");
+    await mkdir(bin, { recursive: true });
+    await writeFile(join(bin, "cosign"), "#!/bin/sh\necho 'no identity token' >&2\nexit 1\n");
+    execFileSync("chmod", ["755", join(bin, "cosign")]);
+    return { ...process.env, PATH: `${bin}:${process.env.PATH ?? ""}` };
+  };
+  const withEnv = (args: string[], env: NodeJS.ProcessEnv) =>
+    spawnSync(process.execPath, args, {
+      cwd: repo,
+      encoding: "utf8",
+      env: { ...env, SWARM_SIGNING_KEY: signingKey, SWARM_HOME: join(root, "home") },
+    });
+
+  it("exits 7 when a required signature fails, and never presents an older run as this one", async () => {
+    const target = join(root, "out-signed-then-failed");
+    const first = node([
+      cli,
+      "verify",
+      "--isolation",
+      "host",
+      "--range",
+      "main..fix",
+      "--out",
+      target,
+    ]);
+    expect(first.status).toBe(0);
+    const before = await readFile(join(target, "attestation.sigstore.json"), "utf8");
+
+    const env = await failingCosign();
+    const again = withEnv(
+      [cli, "verify", "--isolation", "host", "--range", "main..fix", "--out", target, "--sigstore"],
+      env,
+    );
+    expect(again.status).toBe(7);
+    expect(await readFile(join(target, "attestation.sigstore.json"), "utf8")).toBe(before);
+
+    const fresh = join(root, "out-sigstore-failed");
+    const failed = withEnv(
+      [cli, "verify", "--isolation", "host", "--range", "main..fix", "--out", fresh, "--sigstore"],
+      env,
+    );
+    expect(failed.status).toBe(7);
+    expect(failed.stdout).toMatch(/^delivery\s+failed/m);
+    const manifest = JSON.parse(await readFile(join(fresh, "manifest.json"), "utf8"));
+    expect(manifest.delivery).toBe("failed");
+    expect(manifest.files.map((file: { path: string }) => file.path)).not.toContain(
+      "attestation.sigstore.json",
+    );
+  });
+
+  it("exits with the task's code when unsigned evidence was asked for by name", async () => {
+    const env = await failingCosign();
+    const unsigned = withEnv(
+      [
+        cli,
+        "verify",
+        "--isolation",
+        "host",
+        "--range",
+        "main..fix",
+        "--out",
+        join(root, "out-unsigned"),
+        "--sigstore",
+        "--allow-unsigned",
+      ],
+      env,
+    );
+    expect(unsigned.stdout).toMatch(/^delivery\s+unsigned/m);
+    expect(unsigned.status).toBe(0);
+  });
+});
