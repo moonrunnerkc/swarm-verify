@@ -1,5 +1,5 @@
-# Run by hand after moving the v2 alias: proves `moonrunnerkc/swarm-verify@v2` resolves and
-# verifies a small change, outside a pull request.
+# Run by hand after moving the v3 alias: proves `moonrunnerkc/swarm-verify@v3` resolves, verifies a
+# small change outside a pull request and signs it keylessly with this workflow's identity.
 name: action-smoke
 
 on:
@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   verify:
@@ -29,7 +30,23 @@ jobs:
           printf 'export const add = (a, b) => a + b;\n' > add.js
           printf 'test("adds two numbers", () => assert.equal(add(2, 3), 5));\n' >> add.test.js
           git commit -q -am "Add two numbers"
-      - uses: moonrunnerkc/swarm-verify@v2
+      - uses: moonrunnerkc/swarm-verify@v3
+        id: verify
         with:
           base: base
           dependencies: none
+          sigstore: "true"
+      - name: Check the bundle names this workflow and the change
+        shell: bash
+        env:
+          EVIDENCE: ${{ steps.verify.outputs.evidence-directory }}
+          IDENTITY: https://github.com/${{ github.workflow_ref }}
+          STATE: ${{ steps.verify.outputs.state }}
+          DELIVERY: ${{ steps.verify.outputs.delivery }}
+        run: |
+          test "$STATE" = complete
+          test "$DELIVERY" = signed
+          cosign verify-blob-attestation --bundle "$EVIDENCE/attestation.sigstore.json" \
+            --certificate-identity "$IDENTITY" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --type https://github.com/moonrunnerkc/swarm-verify/result/v1 "$EVIDENCE/change.patch"

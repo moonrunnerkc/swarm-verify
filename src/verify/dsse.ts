@@ -3,6 +3,7 @@ import { createPublicKey, verify } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
+import { trustedCommand } from "../exec/trusted-executable.ts";
 import type { ResolvedKey, SigningKey } from "./signing.ts";
 
 export const statementType = "https://in-toto.io/Statement/v1";
@@ -81,11 +82,13 @@ export async function signWithCosign(
   const statementPath = join(scratch, "statement.json");
   await writeFile(statementPath, JSON.stringify(statement));
   const args = ["attest-blob", "--yes", "--statement", statementPath, "--bundle", bundlePath];
+  const cosign = await trustedCommand("cosign");
+  if (cosign === null)
+    throw new CosignError("cosign is not on PATH; install it or sign without --sigstore");
+  // The environment is inherited: cosign reads the CI provider's ambient OIDC token from it.
   await new Promise<void>((settle, fail) => {
-    execFile("cosign", args, { timeout: 300_000 }, (error, _stdout, stderr) => {
+    execFile(cosign, args, { timeout: 300_000 }, (error, _stdout, stderr) => {
       if (error === null) settle();
-      else if ((error as NodeJS.ErrnoException).code === "ENOENT")
-        fail(new CosignError("cosign is not on PATH; install it or sign without --sigstore"));
       else fail(new CosignError(stderr.trim() || error.message));
     });
   });

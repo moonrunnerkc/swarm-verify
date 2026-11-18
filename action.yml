@@ -57,6 +57,11 @@ runs:
     - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
       with:
         node-version: "24"
+    # Keyless signing runs cosign, which runners do not carry.
+    - if: ${{ inputs.sigstore == 'true' }}
+      uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      with:
+        cosign-release: v3.0.6
     # The Action runs the verifier built from this repository at the ref the workflow names.
     - name: Build the verifier from source
       shell: bash
