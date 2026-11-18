@@ -163,15 +163,15 @@ Outputs: `state`, `delivery`, `run-id`, `evidence-directory`, `manifest`, `patch
 
 ## Releases
 
-A full version tag (`v2.0.3`) on `main` runs the release workflow: the gates, a check that the tag
+A full version tag (`v3.0.0`) on `main` runs the release workflow: the gates, a check that the tag
 matches `package.json`, then `npm publish` through npm trusted publishing. The workflow holds no
 npm token; npm accepts the job's GitHub OIDC token and records a provenance statement naming this
 repository, the workflow and the commit. Where the version is already on the registry, it packs
 the tag instead and fails unless the pack's integrity equals the registry's. 2.0.1 was published
 from a workstation and carries no provenance; 2.0.2 is the first release published by the
-workflow. `v2` is the Action alias: it is moved to each 2.x release so
-`moonrunnerkc/swarm-verify@v2` follows the major version, and it is not a release tag; pushing it
-publishes nothing. Pin a full tag or a commit where you need the exact verifier.
+workflow. `v3` is the Action alias: it is moved to each 3.x release so
+`moonrunnerkc/swarm-verify@v3` follows the major version, and it is not a release tag; pushing it
+publishes nothing. `v2` stays at 2.1.0. Pin a full tag or a commit where you need the exact verifier.
 
 ## Ownership
 

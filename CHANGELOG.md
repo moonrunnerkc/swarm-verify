@@ -6,9 +6,9 @@ of moonrunnerkc/swarm-verify. Versions before 1.0.0 (0.2.0, released with Swarm 
 swarm-orchestrator's `packages/swarm-verify`; 2.0.0 is the first built from this repository. A
 2.0.0 tagged there on 2026-10-29 was never published to npm, and its notes are folded in below.
 
-## 3.0.0-rc.1 - unreleased
+## 3.0.0 - 2026-11-18
 
-A release candidate, not published. It closes the trust-boundary defects a review of 2.1.0 found
+It closes the trust-boundary defects a review of 2.1.0 found
 (2026-11-17); each fix has a regression test that failed on 2.1.0. See
 [docs/migration-3.md](docs/migration-3.md).
 
@@ -57,7 +57,11 @@ A release candidate, not published. It closes the trust-boundary defects a revie
 - `--preflight` prints what a run would do without running anything the project declares.
 - A signal cancels the run, stops its processes and containers, publishes nothing and exits 3.
 - The MCP server negotiates its protocol revision, bounds output and concurrency and honors
-  cancellation; the Action has outputs, required signing and an evidence upload.
+  cancellation; the Action has outputs, required signing and an evidence upload, and installs
+  cosign (v3.0.6) when `sigstore` is `true`.
+- `keyless-signing`, a workflow, signs through Sigstore with its own GitHub OIDC identity on every
+  push to main and same-repository pull request, and checks the bundle is refused for tampered
+  evidence, another issuer and other identities, by cosign and by replay.
 - The tamper evaluation classifies each case as accepted, rejected, unresolved, blocked or
   crashed and fails on a crash or any outcome off its expectation.
 - The runtime floor is Node 22.13.
