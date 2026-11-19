@@ -6,12 +6,21 @@ of moonrunnerkc/swarm-verify. Versions before 1.0.0 (0.2.0, released with Swarm 
 swarm-orchestrator's `packages/swarm-verify`; 2.0.0 is the first built from this repository. A
 2.0.0 tagged there on 2026-10-29 was never published to npm, and its notes are folded in below.
 
-## Unreleased
+A full version tag (`v3.1.0`) on `main` runs the release workflow: the gates, a check that the
+tag matches `package.json`, a sealed task judged through the packed install, then `npm publish`
+through npm trusted publishing. The workflow holds no npm token; npm accepts the job's GitHub
+OIDC token and records a provenance statement naming this repository, the workflow and the
+commit. Where the version is already on the registry, it packs the tag instead and fails unless
+the pack's integrity equals the registry's. 2.0.1 was published from a workstation and carries no
+provenance; 2.0.2 is the first release published by the workflow. `v3` is the Action alias, moved
+to each 3.x release; it is not a release tag and pushing it publishes nothing. `v2` stays at
+2.1.0.
 
-Not published: npm and the `v3` Action alias still carry 3.0.0. A minor release (3.1.0) fits:
-nothing a caller sends or reads is removed or renamed, but the three behavior changes under
-"Compatibility" can turn a run that passed on 3.0.0 into a blocked, unresolved or undelivered one,
-and the notes must say so.
+## 3.1.0 - 2026-11-19
+
+A minor release: nothing a caller sends or reads is removed or renamed, but the behavior changes
+under "Compatibility" can turn a run that passed on 3.0.0 into a blocked, unresolved or
+undelivered one.
 
 ### Security
 
@@ -34,6 +43,8 @@ and the notes must say so.
 - A docker host without swap accounting or CPU quotas blocks isolated runs that 3.0.0 ran.
 - A suite that needs more than 4096 MiB in one container now reads unresolved; raise
   `--memory-mib`.
+- Memory or CPU limits asked for together with host execution are rejected: the CLI exits 2 and
+  an API request with `mode: "host"` and `resources` does not parse. A host run is not bounded.
 - A candidate patch, test id or sealed file holding a known credential shape is no longer
   published: delivery `failed`, exit 7, even with `--allow-unsigned`.
 - Replaying a 3.0.0 recording runs under today's default bounds and reports that as environment
@@ -47,6 +58,14 @@ and the notes must say so.
   its recorded commit, takes private checkouts from `--local-root`, fails on a filter that selects
   nothing, offers `--full`, and writes a versioned run record; `scripts/corpus-coverage.mjs`
   combines records and fails on a missing or duplicated patch.
+
+### Documentation
+
+- The README is rewritten around a reproducible quickstart, the result's three separate answers
+  (task acceptance, execution assurance, evidence integrity), a keyless-signing workflow and the
+  limits of what evidence shows. The result-field and exit-code tables, offline checking and the
+  release process moved to `docs/verifying.md`, `docs/integrations.md` and this file.
+- `docs/verifying.md` says what independent evidence is and when a requirement is self-attested.
 
 ## 3.0.0 - 2026-11-18
 
