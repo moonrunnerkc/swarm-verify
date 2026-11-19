@@ -18,6 +18,22 @@ network open (and a dependency cache under the verifier's home mounted); every c
 `--network none` unless the request records that it needs a network. Linked dependencies are
 refused in isolation.
 
+Every container that runs project code (dependency setup, base and candidate checks, reruns,
+the mutant and held-out checks) is bounded: 4096 MiB of memory with no swap (`--memory` and
+`--memory-swap` equal) and 2 CPUs (a CFS quota) by default, changed with `--memory-mib` and
+`--cpus`, the Action's `memory-mib` and `cpus` inputs, or `policy.execution.resources` in the
+API. The candidate's tree cannot set them. Before the first project command, a container from
+the same image under the same flags reads its own cgroup; a daemon that refuses the bounds or
+applies less (no swap accounting, no CPU quota) leaves the run `blocked`, and nothing runs. The
+result's `execution.resources` records what was asked and what the cgroup applied. These are
+per-container bounds: concurrent containers and concurrent verifications can together use more
+of the host. A host run is not bounded and does not claim to be.
+
+A check is unmeasured, never failed, when docker reports that the kernel killed a process in its
+container at the memory limit (`State.OOMKilled`); an exit code of 137 alone is a SIGKILL from
+anywhere and is read as the exit it is. A check that runs out of memory or time cannot make a
+task complete or count as a rejected cheat.
+
 The scratch directory lives under the verifier's home (`$SWARM_HOME/work`, `~/.swarm/work` by
 default) because docker VMs on macOS (colima, Docker Desktop) share the user's home with the VM
 and not the system's temporary directory.

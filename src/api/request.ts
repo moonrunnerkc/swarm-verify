@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { defaultResources, resourcesSchema } from "../verify/resources.ts";
 import { parseVersionRange } from "../verify/version-range.ts";
 
 /** The request a caller hands the verifier. A new incompatible shape gets a new version. */
@@ -147,12 +148,29 @@ export type TrustedCheck = z.output<typeof trustedCheckSchema>;
  * isolated. Dependencies are prepared from the lockfile (or the base's declared setup command),
  * linked from the caller's installed tree (never reproducible), or not prepared at all.
  */
-export const executionPolicySchema = z.strictObject({
-  mode: z.enum(["isolated", "host"]),
-  network: z.enum(["closed", "open"]).default("closed"),
-  dependencies: z.enum(["prepare", "linked", "none"]).default("prepare"),
-  image: z.string().min(1).optional(),
-});
+export const executionPolicySchema = z
+  .strictObject({
+    mode: z.enum(["isolated", "host"]),
+    network: z.enum(["closed", "open"]).default("closed"),
+    dependencies: z.enum(["prepare", "linked", "none"]).default("prepare"),
+    image: z.string().min(1).optional(),
+    /** Per-container memory and CPU; the defaults where isolated and none given. */
+    resources: resourcesSchema.optional(),
+  })
+  .superRefine((policy, context) => {
+    if (policy.mode === "host" && policy.resources !== undefined)
+      context.addIssue({
+        code: "custom",
+        path: ["resources"],
+        message:
+          "memory and CPU limits are enforced only by the container; a host run is not bounded, so verify in isolation or leave them out",
+      });
+  })
+  .transform((policy) =>
+    policy.mode === "isolated" && policy.resources === undefined
+      ? { ...policy, resources: defaultResources }
+      : policy,
+  );
 export type ExecutionPolicy = z.output<typeof executionPolicySchema>;
 
 /** What produced the candidate, bound into the signed statement. Never used to judge it. */

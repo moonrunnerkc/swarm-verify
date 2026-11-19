@@ -3,11 +3,56 @@ import { join } from "node:path";
 import type { ExecutionPolicy } from "../api/request.ts";
 import { type ExecutionCapability, hostExecution } from "./checks.ts";
 import { accountFiles } from "./container-user.ts";
-import { imageFor, readyImage, type Sandbox, SandboxUnavailableError } from "./sandbox.ts";
+import {
+  defaultResources,
+  effectiveResources,
+  limitsProbe,
+  type ResourceRecord,
+  type Resources,
+  resourceArgs,
+} from "./resources.ts";
+import {
+  containerLimits,
+  docker,
+  imageFor,
+  readyImage,
+  type Sandbox,
+  SandboxUnavailableError,
+} from "./sandbox.ts";
 
 export type Isolated =
-  | { readonly sandbox: Sandbox; readonly imageId: string }
+  | { readonly sandbox: Sandbox; readonly imageId: string; readonly resources: ResourceRecord }
   | { readonly unavailable: string };
+
+/**
+ * The bounds a container from `image` actually gets, read from its cgroup under the same flags
+ * every check runs with. A daemon that refuses them or applies less is not isolation enough.
+ */
+export async function probeResources(image: string, limits: Resources): Promise<ResourceRecord> {
+  const ran = await docker(
+    [
+      "run",
+      "--rm",
+      "--network",
+      "none",
+      ...containerLimits,
+      ...resourceArgs(limits),
+      "--entrypoint",
+      "/bin/sh",
+      image,
+      "-c",
+      limitsProbe,
+    ],
+    120_000,
+  );
+  if (ran.code !== 0)
+    throw new SandboxUnavailableError(
+      `docker refused the resource limits (${ran.stderr.trim().slice(-300) || `exit ${ran.code}`})`,
+    );
+  const read = effectiveResources(limits, ran.stdout);
+  if ("problem" in read) throw new SandboxUnavailableError(read.problem);
+  return read.record;
+}
 
 /**
  * The container for an isolated verification, or why there is none. Linked dependencies are
@@ -29,6 +74,8 @@ export async function isolate(
   const image = policy.image ?? (await imageFor(dir, commands));
   try {
     const imageId = await readyImage(image);
+    const limits = policy.resources ?? defaultResources;
+    const resources = await probeResources(image, limits);
     const judge = join(scratch, "judge");
     const cache = join(home, "cache");
     await mkdir(judge, { recursive: true, mode: 0o700 });
@@ -38,6 +85,7 @@ export async function isolate(
     const files = await accountFiles(image, join(scratch, "account"), uid, gid);
     return {
       imageId,
+      resources,
       sandbox: {
         image,
         scratch,
@@ -47,6 +95,7 @@ export async function isolate(
         user: `${uid}:${gid}`,
         files,
         clock: { lastEnded: 0 },
+        limits,
       },
     };
   } catch (error) {
@@ -63,7 +112,11 @@ export type Readiness =
   | {
       readonly ready: true;
       readonly execution: ExecutionCapability;
-      readonly isolated: { readonly image: string; readonly imageId: string } | null;
+      readonly isolated: {
+        readonly image: string;
+        readonly imageId: string;
+        readonly resources: ResourceRecord;
+      } | null;
     }
   | { readonly ready: false; readonly reason: string };
 
@@ -81,6 +134,6 @@ export async function readiness(
   return {
     ready: true,
     execution: { kind: "isolated", sandbox: made.sandbox },
-    isolated: { image: made.sandbox.image, imageId: made.imageId },
+    isolated: { image: made.sandbox.image, imageId: made.imageId, resources: made.resources },
   };
 }

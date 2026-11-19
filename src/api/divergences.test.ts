@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TestJudgment, TestRuns } from "../verify/predicate.ts";
-import { divergencesOf } from "./divergences.ts";
+import { divergencesOf, environmentDrift } from "./divergences.ts";
 
 type Recorded = Parameters<typeof divergencesOf>[0];
 type Replayed = Parameters<typeof divergencesOf>[1];
@@ -86,5 +86,29 @@ describe("comparing a replay whose tests are flaky", () => {
     expect(divergencesOf(recorded, replayed)).toEqual([
       `check test newFailures: recorded ${JSON.stringify([bundle])}, replayed ${JSON.stringify([bundle, configuration])}`,
     ]);
+  });
+});
+
+describe("environment drift in resource bounds", () => {
+  const environment = {
+    node: "v24",
+    platform: "linux-arm64",
+    git: "2",
+    dependencyTreeSha256: null,
+  };
+  const bounded = (resources: unknown) =>
+    ({ environment, execution: { resources } }) as unknown as Recorded & Replayed;
+  const four = { requested: { memoryMiB: 4096, cpus: 2 } };
+
+  it("names a recording from before bounds existed as unbounded, never as bounded", () => {
+    expect(environmentDrift(bounded(undefined), bounded(four))).toEqual([
+      "resources: recorded not recorded (before swarm-verify 3.1.0, no limits were set), replayed memory 4096 MiB with no swap and 2 CPUs, per container",
+    ]);
+  });
+
+  it("reports nothing where the bounds agree, and a change where they do not", () => {
+    expect(environmentDrift(bounded(four), bounded(four))).toEqual([]);
+    const one = { requested: { memoryMiB: 4096, cpus: 1 } };
+    expect(environmentDrift(bounded(four), bounded(one))).toHaveLength(1);
   });
 });

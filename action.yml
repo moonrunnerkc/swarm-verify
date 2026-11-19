@@ -14,6 +14,12 @@ inputs:
   dependencies:
     description: "`prepare` installs from the lockfile (or the base's declared setup command), `none` prepares nothing."
     default: prepare
+  memory-mib:
+    description: "Memory per container in MiB, with no swap (default 4096). Isolated runs only; a host run is not bounded."
+    default: ""
+  cpus:
+    description: "CPUs per container (default 2). Isolated runs only."
+    default: ""
   requirements:
     description: Path to a JSON array of requirements in the workspace. Absent means the result covers regressions only.
     default: ""
@@ -83,6 +89,8 @@ runs:
         BEHAVIOR_CHANGE: ${{ inputs.authorize-behavior-change }}
         SIGSTORE: ${{ inputs.sigstore }}
         ALLOW_UNSIGNED: ${{ inputs.allow-unsigned }}
+        MEMORY_MIB: ${{ inputs.memory-mib }}
+        CPUS: ${{ inputs.cpus }}
       run: |
         FLAGS=()
         if [ "$BEHAVIOR_CHANGE" = "true" ]; then FLAGS+=(--authorize-behavior-change); fi
@@ -94,7 +102,8 @@ runs:
         set +e
         node "$ACTION_ROOT/dist/swarm-verify.js" ci \
           --isolation "$ISOLATION" --dependencies "$DEPENDENCIES" --out "$OUT" --json \
-          ${BASE:+--base "$BASE"} ${REQUIREMENTS:+--requirements "$REQUIREMENTS"} "${FLAGS[@]}" > "$RESULT"
+          ${BASE:+--base "$BASE"} ${REQUIREMENTS:+--requirements "$REQUIREMENTS"} \
+          ${MEMORY_MIB:+--memory-mib "$MEMORY_MIB"} ${CPUS:+--cpus "$CPUS"} "${FLAGS[@]}" > "$RESULT"
         CODE=$?
         set -e
         echo "exit-code=$CODE" >> "$GITHUB_OUTPUT"

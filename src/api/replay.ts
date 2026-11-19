@@ -70,11 +70,14 @@ export function replayExecution(
     return { mode: "host", network: execution.network, dependencies };
   }
   const image = execution.image?.split(" (")[0];
+  // A recording from before resource limits replays under today's defaults, reported as drift.
+  const resources = execution.resources?.requested;
   return {
     mode: "isolated",
     network: execution.network,
     dependencies,
     ...(image === undefined ? {} : { image }),
+    ...(resources === undefined ? {} : { resources }),
   };
 }
 

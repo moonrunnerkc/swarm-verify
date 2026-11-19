@@ -11,6 +11,7 @@ import { buildVersion } from "./build-version.ts";
 import { UsageError } from "./cli-command-definitions.ts";
 import { commitOf, git } from "./verify/change.ts";
 import { exitCodeOf, renderMarkdown, renderText } from "./verify/report.ts";
+import { defaultResources, resourcesSchema } from "./verify/resources.ts";
 
 export const sharedOptions = {
   workspace: { type: "string" },
@@ -21,6 +22,8 @@ export const sharedOptions = {
   json: { type: "boolean" },
   isolation: { type: "string" },
   dependencies: { type: "string" },
+  "memory-mib": { type: "string" },
+  cpus: { type: "string" },
   requirements: { type: "string" },
   "authorize-behavior-change": { type: "boolean" },
 } as const;
@@ -33,6 +36,8 @@ interface SharedValues {
   readonly json?: boolean | undefined;
   readonly isolation?: string | undefined;
   readonly dependencies?: string | undefined;
+  readonly "memory-mib"?: string | undefined;
+  readonly cpus?: string | undefined;
   readonly requirements?: string | undefined;
   readonly "authorize-behavior-change"?: boolean | undefined;
   readonly model?: string | undefined;
@@ -50,6 +55,26 @@ function choice<T extends string>(
   if (raw === undefined) return fallback;
   if ((allowed as readonly string[]).includes(raw)) return raw as T;
   throw new UsageError(`${flag} is ${allowed.join(" or ")}`);
+}
+
+/** --memory-mib and --cpus, where either is given; the request schema validates the values. */
+function resourcesFrom(values: SharedValues): { memoryMiB: number; cpus: number } | undefined {
+  const memory = values["memory-mib"];
+  const cpus = values.cpus;
+  if (memory === undefined && cpus === undefined) return undefined;
+  const number = (raw: string, flag: string) => {
+    if (!/^\d+(?:\.\d+)?$/.test(raw)) throw new UsageError(`${flag} is a positive number`);
+    return Number(raw);
+  };
+  const parsed = resourcesSchema.safeParse({
+    memoryMiB: memory === undefined ? defaultResources.memoryMiB : number(memory, "--memory-mib"),
+    cpus: cpus === undefined ? defaultResources.cpus : number(cpus, "--cpus"),
+  });
+  if (!parsed.success)
+    throw new UsageError(
+      "--memory-mib is a whole number from 64 to 1048576 and --cpus a number from 0.1 to 1024",
+    );
+  return parsed.data;
 }
 
 async function requirementsFrom(path: string | undefined): Promise<unknown[]> {
@@ -72,6 +97,11 @@ async function run(
   const out = resolve(values.out ?? join(workspace, ".swarm", "verify", stamp));
   // Isolated unless the host is asked for by name: a host run is reported as not isolated.
   const mode = choice(values.isolation, ["isolated", "host"] as const, "isolated", "--isolation");
+  const resources = resourcesFrom(values);
+  if (mode === "host" && resources !== undefined)
+    throw new UsageError(
+      "--memory-mib and --cpus are enforced only by the container; a host run is not bounded",
+    );
   const request: VerifyRequestInput = {
     version: requestVersion,
     repository: workspace,
@@ -92,6 +122,7 @@ async function run(
           mode === "isolated" ? "prepare" : "linked",
           "--dependencies",
         ),
+        ...(resources === undefined ? {} : { resources }),
       },
     },
     artifacts: { directory: out },
@@ -245,6 +276,7 @@ function renderPreflight(plan: Preflight): string {
         ? "host, not isolated"
         : `isolated in ${plan.execution.image} (${plan.execution.imagePresent === true ? "present" : "would be pulled"}), network ${plan.execution.network}`,
     ],
+    ["resources", plan.execution.resources],
     ["setup", plan.setup],
     ...plan.stages.map((one): [string, string] => ["stage", one]),
     ["signing", plan.signing],

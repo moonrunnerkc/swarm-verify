@@ -17,6 +17,7 @@ const sandbox: Sandbox = {
   user: "501:20",
   files: [{ src: "/s/run/account/passwd", dst: "/etc/passwd" }],
   clock: { lastEnded: 0 },
+  limits: { memoryMiB: 1024, cpus: 1.5 },
 };
 const args = (stage: "prepare" | "check", network?: "open" | "closed") =>
   containerRun(sandbox, {

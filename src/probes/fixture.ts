@@ -39,6 +39,7 @@ interface RequestExtras {
   readonly network: "open" | "closed";
   readonly reruns: number;
   readonly image: string;
+  readonly resources: { readonly memoryMiB: number; readonly cpus: number };
   /** Where baselines and sealed checks live, if not the fixture's own home. */
   readonly swarmHome: string;
 }
@@ -108,6 +109,7 @@ export async function probeFixture(
               network: extra.network ?? "open",
               dependencies: extra.dependencies ?? "linked",
               ...(extra.image === undefined ? {} : { image: extra.image }),
+              ...(extra.resources === undefined ? {} : { resources: extra.resources }),
             },
           },
           artifacts: { directory: join(out, "evidence") },

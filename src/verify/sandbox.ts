@@ -1,10 +1,13 @@
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { access } from "node:fs/promises";
 import { join } from "node:path";
 import { type ProcessRunResult, runProcessGroup } from "../exec/run-process.ts";
 import { MissingExecutableError, trustedCommand } from "../exec/trusted-executable.ts";
 import type { BoundFile } from "./container-user.ts";
+
+export { defaultImages, imageFor } from "./images.ts";
+
+import { type Resources, resourceArgs } from "./resources.ts";
 
 /**
  * The one isolated backend: docker. Every check runs in a fresh container from a pinned image
@@ -30,6 +33,8 @@ export interface Sandbox {
   readonly files: readonly BoundFile[];
   /** When the last container run ended, to space runs out where the host's files reach the VM late. */
   readonly clock: { lastEnded: number };
+  /** Memory, swap and CPU bounds for every container, probed as enforced before the first. */
+  readonly limits: Resources;
 }
 
 /**
@@ -50,13 +55,6 @@ export function settleWait(lastEnded: number, now: number, settleMs: number): nu
   const since = lastEnded === 0 ? 0 : now - lastEnded;
   return Math.max(0, settleMs - since);
 }
-
-/** Images pinned by their multi-architecture index digests, so arm64 and amd64 hosts resolve the same pin. */
-export const defaultImages = {
-  node: "node:24@sha256:e7add2a490bb17d97b485b8641bd88455fff7839ade0f5eba493c3508124d413",
-  python:
-    "ghcr.io/astral-sh/uv:python3.12-bookworm@sha256:85d4cb1afa769a7338e095b927bee941cf5ec92266c7424b3f6c0f2748567248",
-} as const;
 
 export class SandboxUnavailableError extends Error {
   constructor(detail: string) {
@@ -85,27 +83,6 @@ export const docker = async (args: readonly string[], timeout = 600_000) => {
     },
   );
 };
-
-const pythonManifests = ["pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "uv.lock"];
-const nodeCommand =
-  /(?:^|[\s;&|(])(?:node|npm|npx|pnpm|yarn|corepack|vitest|jest|mocha|tsc)(?=\s|$)/;
-
-/**
- * The image for the base's ecosystem: Node for a package.json, Python and uv for a Python
- * manifest, and otherwise whichever the checks' commands run.
- */
-export async function imageFor(dir: string, commands: readonly string[]): Promise<string> {
-  const has = (name: string) =>
-    access(join(dir, name)).then(
-      () => true,
-      () => false,
-    );
-  if (await has("package.json")) return defaultImages.node;
-  for (const name of pythonManifests) if (await has(name)) return defaultImages.python;
-  return commands.some((command) => nodeCommand.test(command))
-    ? defaultImages.node
-    : defaultImages.python;
-}
 
 /**
  * The daemon answers and the image is present, pulled here where it is not. Returns the image's
@@ -197,9 +174,9 @@ export function containerRun(
         }
       : {}),
   };
+  // Not --rm: the container is inspected for an OOM kill after it exits, then removed.
   const args = [
     "run",
-    "--rm",
     "--name",
     name,
     "--network",
@@ -207,6 +184,7 @@ export function containerRun(
     "--user",
     sandbox.user,
     ...containerLimits,
+    ...resourceArgs(sandbox.limits),
     "--workdir",
     input.cwd,
     ...mounts,
@@ -221,8 +199,8 @@ export function containerRun(
 
 /**
  * What every container gets regardless of the project: no capabilities, no privilege gained
- * through setuid, and a bound on processes, so a fork bomb stops at the bound. Memory and CPU are
- * not bounded, since test suites differ too widely; the docs say so.
+ * through setuid, and a bound on processes, so a fork bomb stops at the bound. Memory and CPU
+ * bounds are the caller's, from `Sandbox.limits`.
  */
 export const containerLimits = [
   "--cap-drop=ALL",
@@ -239,9 +217,31 @@ export async function removeContainer(name: string): Promise<void> {
 /** The docker client's own variables: where the daemon is, never anything the checks get. */
 const dockerClient = ["PATH", "HOME", "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG"];
 
+/** A container run, with whether the kernel killed a process in it for exceeding its memory. */
+export type SandboxRunResult = ProcessRunResult & {
+  /** Why the run cannot count as measured for want of resources, or null. */
+  readonly exhausted: string | null;
+  /** The container's name; it is removed before this returns. */
+  readonly container: string;
+};
+
 /**
- * One command in a fresh container. A run that times out or is cancelled has its container
- * removed, since stopping the client leaves the container running.
+ * Whether a process in the exited container was OOM-killed, from docker's own State.OOMKilled.
+ * An exit code of 137 alone is a SIGKILL from anywhere and proves nothing; a state that cannot be
+ * read leaves the kill unruled out.
+ */
+async function exhaustion(name: string, limits: Resources): Promise<string | null> {
+  const state = await docker(["inspect", "--format", "{{.State.OOMKilled}}", name], 60_000);
+  if (state.code !== 0)
+    return `its container's state could not be read after it ran, so a kill at the ${limits.memoryMiB} MiB memory limit cannot be ruled out`;
+  return state.stdout.trim() === "true"
+    ? `it reached the container's ${limits.memoryMiB} MiB memory limit and a process in it was killed`
+    : null;
+}
+
+/**
+ * One command in a fresh container, removed after it exits, times out or is cancelled (stopping
+ * the client leaves the container running).
  */
 export async function runInSandbox(
   sandbox: Sandbox,
@@ -256,7 +256,7 @@ export async function runInSandbox(
   },
   env: Readonly<Record<string, string>>,
   stage: "prepare" | "check",
-): Promise<ProcessRunResult> {
+): Promise<SandboxRunResult> {
   const run = containerRun(sandbox, {
     command,
     cwd: context.dir,
@@ -280,13 +280,17 @@ export async function runInSandbox(
     signal: context.signal,
   });
   sandbox.clock.lastEnded = Date.now();
-  if (ran.timedOut || ran.cancelled) await removeContainer(run.name);
+  const ended = !ran.timedOut && !ran.cancelled && ran.startFailure === null;
+  const exhausted = ended ? await exhaustion(run.name, sandbox.limits) : null;
+  await removeContainer(run.name);
   // 125 is docker's own: the container never started, so no check ran in it.
   if (ran.exitCode === 125 && ran.startFailure === null) {
     return {
       ...ran,
+      exhausted: null,
+      container: run.name,
       startFailure: `docker could not start the container: ${ran.stderr.trim().slice(-500)}`,
     };
   }
-  return ran;
+  return { ...ran, exhausted, container: run.name };
 }

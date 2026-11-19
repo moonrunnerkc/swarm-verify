@@ -26,7 +26,7 @@ kept apart:
 | `requirements` | each declared requirement as `satisfied`, `failed`, `unverified` or `blocked`, with the evidence that decided it |
 | `regression` | `none`, `found` or `unresolved`: the candidate against the base, test by test where a runner's report was read |
 | `checks` | every check that ran, with its authority: `pre-existing`, `user-acceptance`, `independently-generated` or `implementation-authored` |
-| `execution` | how the checks were contained; a host run says `host, not isolated` |
+| `execution` | how the checks were contained, with the per-container memory and CPU bounds the container's cgroup applied; a host run says `host, not isolated` and is not bounded |
 | `integrity` | whether the statement was signed, and by which key |
 | `delivery` | whether the evidence reached its directory as required: `signed`, `unsigned` (only with `--allow-unsigned`) or `failed` |
 | `evidence` | the run's own directory, its `runId` and the `manifest.json` that binds every file of the run |

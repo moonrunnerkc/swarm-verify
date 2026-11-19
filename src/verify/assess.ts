@@ -2,6 +2,7 @@ import type { Execution, Regression, RequirementOutcome } from "../api/outcome.t
 import type { ExecutionPolicy } from "../api/request.ts";
 import { acceptancePolicy, acceptedState, requirementSupported } from "./acceptance.ts";
 import type { Baseline, CheckResult, Coverage, HeldOut, Mutation, Predicate } from "./predicate.ts";
+import { describeResources, type ResourceRecord } from "./resources.ts";
 
 /** Sorted, then the first hundred: the same ids give the same list whatever order they came in. */
 const capped = (ids: readonly string[]) => [...ids].sort().slice(0, 100);
@@ -70,6 +71,8 @@ export interface Isolation {
   readonly image: string;
   /** The image's content digest and architecture as the daemon reports them. */
   readonly imageId: string;
+  /** The bounds every container got, as its cgroup reported them. */
+  readonly resources: ResourceRecord;
 }
 
 /**
@@ -110,7 +113,7 @@ export function executionOf(
     statement:
       isolation === null
         ? "host, not isolated"
-        : `isolated: docker ${isolation.image}, network ${network} for checks and open only while dependencies were prepared`,
+        : `isolated: docker ${isolation.image}, network ${network} for checks and open only while dependencies were prepared; ${describeResources(isolation.resources.requested)}`,
     network,
     image: isolation === null ? null : `${isolation.image} (${isolation.imageId})`,
     dependencies: {
@@ -122,6 +125,7 @@ export function executionOf(
     },
     policyMet: found.length === 0,
     problems: found,
+    resources: isolation === null ? null : isolation.resources,
   };
 }
 

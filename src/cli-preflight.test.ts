@@ -47,6 +47,7 @@ describe("verify --preflight", () => {
     expect(ran.stdout).toMatch(/^check\s+test: touch .* \(pre-existing; /m);
     expect(ran.stdout).toMatch(/^setup\s+touch /m);
     expect(ran.stdout).toMatch(/^execution\s+host, not isolated/m);
+    expect(ran.stdout).toMatch(/^resources\s+none: a host run is not bounded/m);
     expect(ran.stdout).toMatch(/^acceptance\s+swarm-verify\.acceptance\/v1/m);
     expect(await readdir(markers)).toEqual([]);
     expect(await readdir(join(repo, ".swarm")).catch(() => [])).toEqual([]);
@@ -58,5 +59,26 @@ describe("verify --preflight", () => {
     const plan = JSON.parse(ran.stdout);
     expect(plan.missing.join("\n")).toMatch(/docker daemon that answers/);
     expect(await readdir(markers)).toEqual([]);
+  });
+
+  it("shows the bounds a container from the image gets, read from its cgroup", async () => {
+    const ran = preflight(["--memory-mib", "512", "--cpus", "1", "--dependencies", "none"]);
+    expect(ran.status).toBe(0);
+    expect(ran.stdout).toMatch(
+      /^resources\s+memory 512 MiB with no swap and 1 CPU, per container; a container from the image was seen to get them/m,
+    );
+    expect(await readdir(markers)).toEqual([]);
+  });
+
+  it.each([
+    [["--memory-mib", "10"]],
+    [["--memory-mib", "lots"]],
+    [["--cpus", "0"]],
+    [["--cpus", "-1"]],
+    [["--isolation", "host", "--memory-mib", "512"]],
+  ])("refuses resource flags %j it cannot honor, with exit 2", (flags) => {
+    const ran = preflight(flags);
+    expect(ran.status).toBe(2);
+    expect(ran.stderr).toMatch(/--memory-mib|--cpus/);
   });
 });

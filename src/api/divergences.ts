@@ -1,6 +1,7 @@
 import { type Observations, observationDifferences } from "../verify/observations.ts";
 import type { Statement, TestJudgment } from "../verify/predicate.ts";
 import { describeRuns } from "../verify/reruns.ts";
+import { describeResources } from "../verify/resources.ts";
 import type { VerifyResult } from "./result.ts";
 
 type Predicate = Statement["predicate"];
@@ -140,10 +141,20 @@ export function divergencesOf(
  */
 export function environmentDrift(recorded: Predicate, replayed: VerifyResult): string[] {
   const keys = ["node", "platform", "git", "dependencyTreeSha256"] as const;
-  return keys
+  const drift = keys
     .filter((key) => recorded.environment[key] !== replayed.environment[key])
     .map(
       (key) =>
         `${key}: recorded ${JSON.stringify(recorded.environment[key])}, replayed ${JSON.stringify(replayed.environment[key])}`,
     );
+  const bounds = (one: Predicate["execution"]["resources"]) =>
+    one === undefined
+      ? "not recorded (before swarm-verify 3.1.0, no limits were set)"
+      : one === null
+        ? "none (host)"
+        : describeResources(one.requested);
+  const before = bounds(recorded.execution.resources);
+  const after = bounds(replayed.execution.resources);
+  if (before !== after) drift.push(`resources: recorded ${before}, replayed ${after}`);
+  return drift;
 }

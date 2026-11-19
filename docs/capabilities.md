@@ -33,8 +33,9 @@ mutant does not establish mutation strength.
   command runs the candidate as a black box and compares its output with expected output the
   sealed set holds; the candidate never sees the expected values and cannot write the report the
   verdict is read from.
-- Containers drop every capability, refuse new privileges and stop at 4096 processes. Memory and
-  CPU are not bounded.
+- Containers drop every capability, refuse new privileges, stop at 4096 processes and are bounded
+  to 4096 MiB of memory with no swap and 2 CPUs unless the caller sets other bounds. The bounds
+  are per container, not a cap on the host's total use across concurrent runs.
 - A host run (`--isolation host`) runs the project's commands as you, with your filesystem and
   network. It is reported as `host, not isolated`, never reuses or writes the cached base, and
   replays only with `--allow-host`.

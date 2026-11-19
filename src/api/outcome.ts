@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { resourceRecordSchema } from "../verify/resources.ts";
 import {
   checkAuthorities,
   requirementKinds,
@@ -93,6 +94,11 @@ export const executionSchema = z.strictObject({
   }),
   policyMet: z.boolean(),
   problems: z.array(z.string()),
+  /**
+   * The per-container bounds asked for and read back from the container's cgroup; null on the
+   * host, which nothing bounds. Absent from records before swarm-verify 3.1.0, which set none.
+   */
+  resources: resourceRecordSchema.nullable().optional(),
 });
 export type Execution = z.infer<typeof executionSchema>;
 

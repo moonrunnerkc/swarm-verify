@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { TrustedCheck } from "../api/request.ts";
 import type { DeclaredCheck } from "../config/swarm-toml.ts";
 import { childEnvironment } from "../exec/child-environment.ts";
-import { runProcessGroup } from "../exec/run-process.ts";
+import { type ProcessRunResult, runProcessGroup } from "../exec/run-process.ts";
 import { gitText } from "./change.ts";
 import { type CheckResult, checkResultSchema, type Predicate } from "./predicate.ts";
 import { runInSandbox, type Sandbox } from "./sandbox.ts";
@@ -57,7 +57,7 @@ export async function runCheck(
   // same size; a .pyc written by one run would be trusted by the next.
   const env = { PYTHONDONTWRITEBYTECODE: "1", ...extraEnv };
   const execution = context.execution;
-  const ran =
+  const ran: ProcessRunResult & { readonly exhausted?: string | null } =
     execution.kind === "host"
       ? await runProcessGroup("/bin/sh", ["-c", check.command], {
           cwd: context.dir,
@@ -74,19 +74,25 @@ export async function runCheck(
           stage,
         );
   const output = `${ran.stdout}${ran.stderr}`;
+  // A confirmed memory kill is resource exhaustion, not a failed assertion: never measured.
+  const exhausted = ran.exhausted ?? null;
   const notRun = ran.timedOut
     ? "it timed out"
     : ran.cancelled
       ? "it was cancelled"
-      : ran.startFailure === null
-        ? null
-        : `it never started (${ran.startFailure})`;
+      : exhausted !== null
+        ? exhausted
+        : ran.startFailure === null
+          ? null
+          : `it never started (${ran.startFailure})`;
   const failedToRun = notRun !== null;
   const note = ran.timedOut
     ? "\n[timed out]"
-    : ran.startFailure === null
-      ? ""
-      : `\n[${ran.startFailure}]`;
+    : exhausted !== null
+      ? `\n[${exhausted}]`
+      : ran.startFailure === null
+        ? ""
+        : `\n[${ran.startFailure}]`;
   return {
     notRun,
     result: {

@@ -45,6 +45,11 @@ const tool = {
         description:
           "isolated (the default) runs the checks in a container; host runs them on this machine and is reported as not isolated.",
       },
+      "memory-mib": {
+        type: "string",
+        description: "Memory per container in MiB with no swap (default 4096); isolated only.",
+      },
+      cpus: { type: "string", description: "CPUs per container (default 2); isolated only." },
     },
     additionalProperties: false,
   },
@@ -71,7 +76,7 @@ function release() {
 /** One `swarm-verify verify --json`, stopped when the client cancels the request or it prints too much. */
 async function runVerify(input, requestId) {
   const args = [cli, "verify", "--json"];
-  for (const name of ["workspace", "base", "patch", "range", "isolation"]) {
+  for (const name of ["workspace", "base", "patch", "range", "isolation", "memory-mib", "cpus"]) {
     if (typeof input[name] === "string") args.push(`--${name}`, input[name]);
   }
   await turn();

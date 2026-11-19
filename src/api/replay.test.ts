@@ -65,4 +65,15 @@ describe("the execution a replay runs under", () => {
       expect(replaying).toThrow(/verified with linked dependencies/);
     }
   });
+
+  it("replays under the recorded bounds, and leaves a recording without any to today's defaults", () => {
+    const bounds = { memoryMiB: 1024, cpus: 1 };
+    const record = recorded("isolated", "prepared", "linux-arm64");
+    const bounded = {
+      ...record,
+      execution: { ...record.execution, resources: { requested: bounds } },
+    } as unknown as Recorded;
+    expect(replayExecution(bounded).resources).toEqual(bounds);
+    expect(replayExecution(record).resources).toBeUndefined();
+  });
 });

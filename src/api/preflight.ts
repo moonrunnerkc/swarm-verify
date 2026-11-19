@@ -5,9 +5,11 @@ import { trustedCommand } from "../exec/trusted-executable.ts";
 import { acceptancePolicy } from "../verify/acceptance.ts";
 import { cloneBase } from "../verify/checkout.ts";
 import { allChecks } from "../verify/checks.ts";
+import { probeResources } from "../verify/isolate.ts";
 import { reportPlans } from "../verify/per-test.ts";
 import { lockfileInstall } from "../verify/prepare.ts";
-import { docker, imageFor } from "../verify/sandbox.ts";
+import { describeResources } from "../verify/resources.ts";
+import { docker, imageFor, SandboxUnavailableError } from "../verify/sandbox.ts";
 import { readSealed, swarmHome } from "../verify/sealed-store.ts";
 import { signingKeyVariable } from "../verify/signing.ts";
 import type { VerifyRequestInput } from "./request.ts";
@@ -39,6 +41,8 @@ export interface Preflight {
     readonly network: "open" | "closed";
     readonly image: string | null;
     readonly imagePresent: boolean | null;
+    /** The per-container bounds, and whether a container from the image was seen to get them. */
+    readonly resources: string;
   };
   /** The command dependencies would be prepared with, or why none. */
   readonly setup: string;
@@ -79,6 +83,20 @@ export async function preflight(
         missing.push(`a docker daemon that answers (${server.stderr.trim() || "no answer"})`);
       else imagePresent = (await docker(["image", "inspect", image], 30_000)).code === 0;
     }
+    // Only the image's own shell reads its cgroup: nothing of the project's runs.
+    let resources = "none: a host run is not bounded";
+    if (policy.resources !== undefined) {
+      resources = `${describeResources(policy.resources)}; enforcement is read from the container's cgroup when the run starts`;
+      if (image !== null && imagePresent === true) {
+        try {
+          await probeResources(image, policy.resources);
+          resources = `${describeResources(policy.resources)}; a container from the image was seen to get them`;
+        } catch (error) {
+          if (!(error instanceof SandboxUnavailableError)) throw error;
+          missing.push(error.message);
+        }
+      }
+    }
     if (isolated && policy.dependencies === "linked")
       missing.push("prepared dependencies: linked dependencies cannot be used in isolation");
     const install =
@@ -113,7 +131,7 @@ export async function preflight(
         runner: plans[at]?.runner ?? null,
       })),
       heldOut: { sealed: sealed !== null, checks: sealed?.checks.length ?? 0 },
-      execution: { mode: policy.mode, network: policy.network, image, imagePresent },
+      execution: { mode: policy.mode, network: policy.network, image, imagePresent, resources },
       setup: install ?? "none: no dependencies are prepared",
       stages,
       signing:
