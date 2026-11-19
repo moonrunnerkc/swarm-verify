@@ -19,6 +19,7 @@
  * the plan or the filters are wrong. Execution and agreement are recorded apart (corpus-plan.mjs).
  */
 import { execFileSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
@@ -58,6 +59,12 @@ const { selected, unmatched } = select(plan, {
   patches: list(values.patches),
 });
 const git = (args, cwd) => execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
+// Taken before anything runs: the CLI was built from this tree as it stood then.
+const startedAt = {
+  commit: git(["rev-parse", "HEAD"], root),
+  dirty: git(["status", "--porcelain"], root) !== "",
+  cliSha256: existsSync(cli) ? createHash("sha256").update(readFileSync(cli)).digest("hex") : null,
+};
 const sh = (command, cwd, env = {}) =>
   spawnSync("/bin/sh", ["-c", command], { cwd, encoding: "utf8", env: { ...process.env, ...env } });
 
@@ -232,7 +239,7 @@ const summary = {
   noVerdict: tally("no verdict"),
   notRun: tally("not run"),
 };
-const head = git(["rev-parse", "HEAD"], root);
+const moved = git(["rev-parse", "HEAD"], root);
 const runRecord = {
   version: runRecordVersion,
   scope:
@@ -240,14 +247,19 @@ const runRecord = {
       ? { kind: "full" }
       : { kind: "selected", only: list(values.only), patches: list(values.patches) },
   verifier: {
-    commit: head,
-    dirty: git(["status", "--porcelain"], root) !== "",
+    ...startedAt,
     cli,
     version: spawnSync(process.execPath, [cli, "--version"], { encoding: "utf8" }).stdout.trim(),
   },
   runtime: { node: process.version, platform: `${process.platform}-${process.arch}` },
   source: values.source,
-  problems: [...problems, ...unmatched.map((name) => `${name} selects nothing`)],
+  problems: [
+    ...problems,
+    ...unmatched.map((name) => `${name} selects nothing`),
+    ...(moved === startedAt.commit
+      ? []
+      : [`the checkout moved from ${startedAt.commit} to ${moved} during the run`]),
+  ],
   entries,
   summary,
   results,
