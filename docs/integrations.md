@@ -5,7 +5,7 @@ implementation behind any of them. Each run writes `attestation.sigstore.json` (
 in a Sigstore bundle), `statement.json`, `change.patch`, `attestation.pub.pem`, its logs,
 `observations.json` and a `manifest.json` binding them all to a directory of its own
 (`.swarm/verify/<run>`, or `--out`, which must be absent or empty), prints the result, and exits
-with the codes in the README.
+with the codes in [verifying.md](verifying.md#exit-codes).
 
 ## Command line
 
@@ -21,7 +21,11 @@ npx swarm-verify verify --requirements reqs.json # judge declared requirements t
 `action.yml` at this repository's root builds the verifier from source and runs `ci`, which
 verifies `HEAD` against the merge base with the pull request's base branch and adds the result
 to the job summary. Check out the full history so the base is present; see
-[examples/swarm-verification.yml](../examples/swarm-verification.yml).
+[examples/swarm-verification.yml](../examples/swarm-verification.yml) and the inputs in
+[action.yml](../action.yml). `v3` is the Action alias: it is moved to each 3.x release so
+`moonrunnerkc/swarm-verify@v3` follows the major version. It is not a release tag, and pushing it
+publishes nothing. `v2` stays at 2.1.0. Pin a full tag or a commit where you need the exact
+verifier.
 
 ## Any other CI system
 
@@ -73,5 +77,16 @@ A coding agent runs the same command through the command tool it already has. A 
   }
 }
 ```
+
+## API
+
+The package exports the verifier as a Node API: `verify`, `replay`, `snapshotWorkingTree`, the
+request and result schemas (`verifyRequestSchema`, `verifyResultSchema`) and their version
+constants. A request names the repository, the base commit, the candidate (a commit, or a patch
+file with its sha256), the requirements, any trusted checks it supplies, the execution policy
+(including `resources` for isolated runs) and the evidence directory. The README has a runnable
+example. `swarm-verify/execution` exports the child-environment builder, the process-group runner
+and the credential detector the verifier runs checks with. Modules under `src/verify` are
+internal and may change in any release.
 
 Swarm Orchestrator calls the API directly, on an immutable snapshot of its managed workspace.

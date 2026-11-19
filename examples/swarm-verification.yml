@@ -1,15 +1,20 @@
-# One job, one Action. The checkout needs full history so the base commit is present.
+# The README's workflow: each pull request verified against its base branch in a container and
+# signed keylessly with this workflow's identity. The checkout needs full history so the base
+# commit is present. `v3` follows the latest 3.x release; pin a full tag or commit SHA where
+# immutability matters.
 name: swarm-verify
 on:
   pull_request:
 permissions:
   contents: read
+  id-token: write # keyless signing
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          fetch-depth: 0
-      # `v3` is the major; pin a full commit SHA where immutability matters.
+          fetch-depth: 0 # the base commit must be present
       - uses: moonrunnerkc/swarm-verify@v3
+        with:
+          sigstore: "true"

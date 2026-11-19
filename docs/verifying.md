@@ -79,6 +79,36 @@ policy is not met, and the result is not complete.
 10. The base's tests are put back, the sealed files copied in, and the held-out checks run with the
     judge loaded.
 
+## What a result says
+
+Every run returns one result (`--json` prints it as `swarm-verify.result/v2`) with these answers
+kept apart:
+
+| Field | What it says |
+| --- | --- |
+| `state` | `complete`, `incomplete` or `blocked` |
+| `requirements` | each declared requirement as `satisfied`, `failed`, `unverified` or `blocked`, with the evidence that decided it |
+| `regression` | `none`, `found` or `unresolved`: the candidate against the base, test by test where a runner's report was read |
+| `checks` | every check that ran, with its authority: `pre-existing`, `user-acceptance`, `independently-generated` or `implementation-authored` |
+| `execution` | how the checks were contained, with the per-container memory and CPU bounds the container's cgroup applied; a host run says `host, not isolated` and is not bounded |
+| `integrity` | whether the statement was signed, and by which key |
+| `delivery` | whether the evidence reached its directory as required: `signed`, `unsigned` (only with `--allow-unsigned`) or `failed` |
+| `evidence` | the run's own directory, its `runId` and the `manifest.json` that binds every file of the run |
+
+`complete` means at least one check ran against a measured base and held, every required
+requirement is satisfied by executed evidence with a decisive witness its implementation did not
+choose, nothing regressed or stayed unresolved, and the execution policy was met. The rule is
+versioned (`swarm-verify.acceptance/v1`, recorded in each statement) and is the same code in the
+verifier and in `verify.mjs`. With no requirements declared, the result says it covers
+regressions only: that is not completion of requested work. Unverified is never satisfied, and
+zero collected tests, a malformed report or an unmeasured base is never a pass.
+
+Each run is written to its own directory (`.swarm/verify/<run>` by default, or `--out`, which
+must be absent or empty); a directory that already holds a run is never written over, so a
+failed or concurrent run can never leave another run's bundle looking like its own.
+`--preflight` prints the plan (candidate, checks and the runner that judges each, image, setup,
+stages, signer, bounds, what is missing) and exits 0, or 5 where something is missing.
+
 ## Reading a check test by test
 
 Six runners are read test by test. `node --test` gets its junit reporter through `NODE_OPTIONS`,
@@ -176,6 +206,12 @@ is `none`, and the execution policy was met; `blocked` when no check is declared
 would not prepare, or the policy cannot be met; otherwise `incomplete`. A request with no
 requirements is `regression-only` and says so.
 
+A decisive witness counts only where the change's own author did not choose it: a pre-existing
+test, a check the request supplies (`user-acceptance` or `independently-generated`), or a sealed
+held-out check (`swarm-verify init --seal <glob>`). A requirement whose every decisive witness is
+`implementation-authored` (tests or claims the change itself added) is `unverified` with the
+witness recorded as `self-attested`, and the result names the missing independent evidence.
+
 ## Mutation
 
 One mutant of a changed source line runs against the test checks, preferring covered lines.
@@ -268,13 +304,42 @@ acceptance rule the verifier applies (`src/verify/acceptance.ts`, carried into `
 satisfied that its evidence does not support. Integrity failures exit 6; a signed result that
 is not complete exits 1.
 
+```sh
+node verify.mjs attestation.sigstore.json --key attestation.pub.pem --patch change.patch
+```
+
+`--integrity-only` skips the acceptance answer. cosign checks the same key-signed bundle:
+`cosign verify-blob-attestation --key attestation.pub.pem --bundle attestation.sigstore.json --type https://github.com/moonrunnerkc/swarm-verify/result/v1 --insecure-ignore-tlog change.patch`
+(the bundle carries no transparency-log entry, hence the flag). A keylessly signed bundle is
+checked with `--certificate-identity` and `--certificate-oidc-issuer` instead of `--key`.
+
 ## Exit codes
 
-`0` complete, `1` incomplete because something failed (a regression, a failing requirement, a
-candidate that does not apply), `2` a command line it cannot read, `3` cancelled (nothing is
-published), `4` incomplete because something stayed unverified or unresolved, `5` blocked, `7`
-the evidence was not delivered as required (a required signature or the publication failed).
-Precedence: 2, 3, 7, then the state's own code.
+`verify` and `ci`:
+
+| Code | Meaning |
+| --- | --- |
+| 0 | complete |
+| 1 | incomplete: something failed (a regression, a failing requirement, a change that does not apply) |
+| 2 | a command line it cannot read |
+| 3 | cancelled; nothing is published |
+| 4 | incomplete: something stayed unverified or unresolved, and nothing failed |
+| 5 | blocked: no checks, dependencies that would not prepare, or an execution policy it cannot meet |
+| 7 | the evidence was not delivered as required: a required signature or the publication failed, whatever the state |
+
+Precedence: 2, then 3, then 7, then the state's own code.
+
+`verify.mjs`:
+
+| Code | Meaning |
+| --- | --- |
+| 0 | integrity holds and the task is accepted |
+| 1 | integrity holds and the task is not accepted |
+| 2 | a command line it cannot read |
+| 6 | integrity fails, including a recorded state the recorded evidence does not support |
+
+`replay`: 0 everything agrees, 1 a divergence, 5 it could not run, 6 the bundle was not
+authenticated (nothing in it ran).
 
 ## Limitations
 

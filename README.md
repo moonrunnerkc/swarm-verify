@@ -1,183 +1,315 @@
 # Swarm Verify
 
-Measure a candidate change against a project's own checks and declared requirements, in a clean
-checkout of its base, test by test, and sign what was measured as an in-toto Statement in a DSSE
-envelope. It works on a change from any source: the Swarm Orchestrator coding agent, another
-agent, or a person. It needs no model and imports none.
+[![npm](https://img.shields.io/npm/v/swarm-verify)](https://www.npmjs.com/package/swarm-verify)
+[![ci](https://github.com/moonrunnerkc/swarm-verify/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/moonrunnerkc/swarm-verify/actions/workflows/ci.yml)
+
+Swarm Verify checks a software change against the project's own tests and the requirements you
+declare for it, and records signed evidence of what it measured. It is for teams and tools that
+need to know whether a change from a person or a coding agent did what was asked without breaking
+anything, and to keep a record that anyone can check later.
+
+Each run applies the change to a clean checkout of its base commit, runs the project's checks at
+the base and on the change, compares them test by test, and decides each requirement from that
+executed evidence. The result says whether the task is `complete`, `incomplete` or `blocked`,
+why, and how the checks were contained. The evidence is a signed, tamper-evident bundle that can
+be validated offline and replayed.
+
+Swarm Verify is a standalone verifier with a CLI, a Node API, a GitHub Action and an MCP server.
+It is not a coding agent, it uses no language model, and it does not prove a change correct: it
+reports what the project's checks showed.
+
+## What you can use it for
+
+- Check a branch, commit range or patch before you merge it, including changes written by an agent.
+- Gate pull requests in CI on regressions and declared requirements.
+- Keep signed evidence of what was run, where and with what result, and validate it offline.
+- Replay a recorded verification later and see whether the same checks still agree.
+
+## Prerequisites
+
+- **Node.js 22.13.0 or newer.** CI installs the packed package on exactly 22.13.0; 22.12.0 cannot
+  load it.
+- **Git**, and a repository whose base commit is present locally.
+- **Docker**, for the default isolated mode. The daemon must enforce memory, swap and CPU limits;
+  a daemon that cannot is reported as `blocked` and nothing runs.
+- **Platforms:** tested on Linux x64 (GitHub-hosted Ubuntu runners) and on macOS arm64 with
+  Docker in a VM (colima). Windows is not tested.
+- **Signing** needs no setup for a local run: the key in `SWARM_SIGNING_KEY` signs, otherwise one
+  kept in the macOS keychain or the Linux Secret Service, otherwise a new key for that run.
+  Keyless signing in GitHub Actions needs `id-token: write`; the Action installs cosign.
+
+Host execution (`--isolation host`) runs the checks directly on your machine as your user. It
+exists for projects that cannot run in a container. It is never used unless you ask for it, it
+is reported as `host, not isolated`, and it has no memory or CPU bounds.
+
+## Quickstart
+
+This builds a small repository with a known bug and a fix, then verifies the fix. It needs Node,
+Git and a running Docker daemon. The first run pulls a pinned `node:24` image.
+
+1. Create the base commit. It holds the bug and a test that reports it:
 
 ```sh
-npx swarm-verify verify                           # the working tree against HEAD
-npx swarm-verify verify --range main..feature     # a branch's change
-npx swarm-verify verify --patch change.diff       # a patch against HEAD (or --base)
-npx swarm-verify ci --base origin/main            # HEAD against a pull request's base
-npx swarm-verify verify --preflight               # what a run would do, running nothing of the project's
-npx swarm-verify init                             # write swarm.toml from the project's scripts
-npx swarm-verify replay <evidence-dir> --key <trusted.pub.pem>   # authenticate, rerun and compare
+mkdir swarm-quickstart && cd swarm-quickstart
+git init -q -b main
+git config user.name "Quickstart"
+git config user.email "quickstart@example.invalid"
+cat > package.json <<'JSON'
+{ "name": "quickstart", "private": true, "type": "module", "scripts": { "test": "node --test" } }
+JSON
+cat > add.js <<'JS'
+export const add = (a, b) => a - b;
+JS
+cat > add.test.js <<'JS'
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { add } from "./add.js";
+test("adds zero", () => assert.equal(add(2, 0), 2));
+test("adds two numbers", () => assert.equal(add(2, 3), 5));
+JS
+git add . && git commit -q -m "Report the add() bug with a failing test"
 ```
 
-## What a result says
-
-Every run returns one result (`--json` prints it as `swarm-verify.result/v2`) with these answers
-kept apart:
-
-| Field | What it says |
-| --- | --- |
-| `state` | `complete`, `incomplete` or `blocked` |
-| `requirements` | each declared requirement as `satisfied`, `failed`, `unverified` or `blocked`, with the evidence that decided it |
-| `regression` | `none`, `found` or `unresolved`: the candidate against the base, test by test where a runner's report was read |
-| `checks` | every check that ran, with its authority: `pre-existing`, `user-acceptance`, `independently-generated` or `implementation-authored` |
-| `execution` | how the checks were contained, with the per-container memory and CPU bounds the container's cgroup applied; a host run says `host, not isolated` and is not bounded |
-| `integrity` | whether the statement was signed, and by which key |
-| `delivery` | whether the evidence reached its directory as required: `signed`, `unsigned` (only with `--allow-unsigned`) or `failed` |
-| `evidence` | the run's own directory, its `runId` and the `manifest.json` that binds every file of the run |
-
-`complete` means at least one check ran against a measured base and held, every required
-requirement is satisfied by executed evidence with a decisive witness its implementation did not
-choose, nothing regressed or stayed unresolved, and the execution policy was met. The rule is
-versioned (`swarm-verify.acceptance/v1`, recorded in each statement) and is the same code in the
-verifier and in `verify.mjs`. With no requirements declared, the result says it covers
-regressions only: that is not completion of requested work. Unverified is never satisfied, and
-zero collected tests, a malformed report or an unmeasured base is never a pass.
-
-When isolation is requested and the container cannot be made (no daemon, an image that will not
-pull, a refused policy), the run is `blocked` and nothing the project declares is run: no setup,
-no install, no check. Host execution happens only when it is asked for by name.
-
-Exit codes of `verify` and `ci`:
-
-| Code | Meaning |
-| --- | --- |
-| 0 | complete |
-| 1 | incomplete: something failed (a regression, a failing requirement, a change that does not apply) |
-| 2 | a command line it cannot read |
-| 3 | cancelled |
-| 4 | incomplete: something stayed unverified or unresolved, and nothing failed |
-| 5 | blocked: no checks, dependencies that would not prepare, or an execution policy it cannot meet |
-| 7 | the evidence was not delivered as required: a required signature or the publication failed, whatever the state |
-
-Precedence: 2, then 3, then 7, then the state's own code. Each run is written to its own
-directory (`.swarm/verify/<run>` by default); a directory that already holds a run is never
-written over, so a failed or concurrent run can never leave another run's bundle looking like its
-own. `--preflight` prints the plan (candidate, checks and the runner that judges each, image,
-setup, stages, signer, what is missing) and exits 0, or 5 where something is missing.
-
-## Checking a result offline
-
-`verify.mjs` ships with the package and needs nothing but Node. It checks the signature, the
-subject digests of the files you name, and re-derives the recorded state from the recorded
-evidence. Integrity and acceptance are separate answers:
+2. Commit the candidate change on a branch:
 
 ```sh
-node verify.mjs attestation.sigstore.json --key attestation.pub.pem --patch change.patch
+git switch -q -c fix
+cat > add.js <<'JS'
+export const add = (a, b) => a + b;
+JS
+git commit -q -am "Fix add()"
 ```
 
-| Code | Meaning |
-| --- | --- |
-| 0 | integrity holds and the task is accepted |
-| 1 | integrity holds and the task is not accepted |
-| 6 | integrity fails, including a recorded state the recorded evidence does not support |
-| 2 | a command line it cannot read |
-
-`--integrity-only` skips the acceptance answer. A signature is tamper-evident evidence against
-the key you trust; it does not prove the code is correct, the tests comprehensive, or that
-nothing unobserved happened, and a public key shipped beside a bundle is not by itself a trusted
-identity. `verify.mjs` also refuses a record it cannot judge (an acceptance policy it does not
-implement, a requirement ID or check name given twice) and a requirement recorded satisfied that
-its evidence does not support. cosign checks the same key-signed bundle:
-`cosign verify-blob-attestation --key attestation.pub.pem --bundle attestation.sigstore.json --type https://github.com/moonrunnerkc/swarm-verify/result/v1 --insecure-ignore-tlog change.patch`
-(the bundle carries no transparency-log entry, hence the flag).
-
-## Replaying a result
-
-`replay` runs a recorded verification again and compares every observation both ways. It first
-authenticates the bundle against the signer you trust, and nothing in the bundle (its commands,
-paths or policy) is read before that:
+3. Declare what the change must do, outside the repository, so the change cannot edit it:
 
 ```sh
-swarm-verify replay <evidence-dir> --key trusted.pub.pem
-swarm-verify replay <evidence-dir> --certificate-identity <id> --certificate-oidc-issuer <url>
+cat > ../requirements.json <<'JSON'
+[
+  {
+    "id": "R1",
+    "text": "add(a, b) returns the sum of a and b",
+    "source": "user",
+    "kind": "fix",
+    "evidence": { "tests": [{ "name": "adds two numbers" }] }
+  }
+]
+JSON
 ```
 
-A recording made on the host replays on this host only with `--allow-host`; the recording's own
-setting is not that permission. "Latest" constraints are judged from the registry answers the
-recording kept; `currentRegistries` in the API revalidates against today's registries instead.
-Exit 0 agrees, 1 diverges, 5 could not run, 6 the bundle was not authenticated. Toolchain or
-platform differences are reported as environment drift, apart from divergences.
+4. Verify the change from `main` to `fix`. The project has no dependencies to install:
 
-## As a library
+```sh
+npx --yes swarm-verify@3.1.0 verify --range main..fix --requirements ../requirements.json \
+  --dependencies none --out ../evidence
+```
 
-```ts
-import { requestVersion, snapshotWorkingTree, verify } from "swarm-verify";
+The verifier clones `main` into a temporary checkout, runs `npm run test` there in a container
+with the network closed, applies the change, runs the test again, and compares the two runs. The
+evidence goes to `../evidence`, which must not exist yet or be empty. An abridged excerpt of a
+real run, with long lines shortened (your commit and run IDs will differ):
 
-const candidate = await snapshotWorkingTree(repo, "HEAD", "/tmp/candidate.patch");
+```text
+state        complete
+requirement  R1 satisfied (add(a, b) returns the sum of a and b)
+regression   none
+check        test: pass (npm run test, pre-existing)
+baseline     0 of 1 check(s) pass at the base commit
+mutation     killed: + to - at add.js:1
+execution    isolated: docker node:24@sha256:e7add2a4..., network closed for checks and open only
+             while dependencies were prepared; memory 4096 MiB with no swap and 2 CPUs, per container
+delivery     signed (run 2026-11-19T19-15-09-542Z-2e29d614654e)
+```
+
+The command exits 0 because the task is complete. R1 is satisfied because a test that existed
+before the change failed at the base and passes with it.
+
+5. Check the evidence. `replay` authenticates the bundle against a public key you trust, then
+runs the verification again and compares every result:
+
+```sh
+npx --yes swarm-verify@3.1.0 replay ../evidence --key ../evidence/attestation.pub.pem
+```
+
+Here you can trust `attestation.pub.pem` because your own machine just produced it. Evidence from
+someone else is only as trustworthy as the key or signing identity you already trust for them.
+To validate the signature, the file digests and the recorded state without running anything,
+use `verify.mjs` from an installed copy of the package:
+
+```sh
+npm install --prefix ../tools swarm-verify@3.1.0
+node ../tools/node_modules/swarm-verify/verify.mjs ../evidence/attestation.sigstore.json \
+  --key ../evidence/attestation.pub.pem --patch ../evidence/change.patch --evidence ../evidence
+```
+
+For your own project, run `npx swarm-verify init` to write a `swarm.toml` from its scripts, then
+`npx swarm-verify verify --range <base>..<branch>`. `verify --preflight` shows what a run would
+do without running any of the project's commands.
+
+## Reading the result
+
+A result keeps three answers apart:
+
+- **Task acceptance** (`state`). `complete` means at least one check ran against a measured base
+  and passed, nothing regressed or stayed unresolved, the execution policy was met, and every
+  required requirement is `satisfied`. `incomplete` means something failed or could not be
+  established. `blocked` means the run could not happen as asked: no checks, dependencies that
+  would not install, or isolation or resource limits that could not be enforced.
+- **Execution assurance** (`execution`). Whether the checks ran in an isolated container or on
+  the host, with which image, network and per-container memory and CPU bounds.
+- **Evidence integrity** (`integrity`, `delivery`). Whether the statement was signed and by
+  which key, and whether the evidence was written as required: `signed`, `unsigned` (only with
+  `--allow-unsigned`) or `failed`.
+
+A requirement is `satisfied` only on executed evidence that the change itself did not choose: a
+pre-existing test, a check you supply, or a sealed held-out check. A requirement witnessed only
+by tests the change added is `unverified`, as is one whose evidence did not run; one whose
+evidence ran and failed is `failed`. A check whose output cannot be parsed, or that ran out of
+memory, is unresolved, never a pass. A run with no requirements declared covers regressions only
+and says so; it is not evidence that requested work was done.
+
+A delivery failure (exit 7) means the evidence was not published as required, whatever the task
+state: a required signature failed, or credential-shaped content remained in evidence that is
+kept exactly as measured.
+
+Exit codes of `verify` and `ci`: `0` complete, `1` incomplete with a failure, `4` incomplete with
+something unverified or unresolved, `5` blocked, `7` evidence not delivered, `2` unreadable
+command line, `3` cancelled. The codes for `verify.mjs` and `replay` are listed with the
+[full result reference](https://github.com/moonrunnerkc/swarm-verify/blob/main/docs/verifying.md#exit-codes).
+
+## GitHub Actions
+
+A workflow that verifies each pull request against its base branch and signs the evidence
+keylessly with the workflow's own identity:
+
+```yaml
+name: swarm-verify
+on:
+  pull_request:
+permissions:
+  contents: read
+  id-token: write # keyless signing
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0 # the base commit must be present
+      - uses: moonrunnerkc/swarm-verify@v3
+        with:
+          sigstore: "true"
+```
+
+The Action builds the verifier from this repository at the ref you name, runs `ci` against the
+pull request's base in a container, installs dependencies from the lockfile, writes the result
+to the job summary and uploads the evidence as a workflow artifact. The step fails on any exit
+code but 0. Useful inputs:
+
+| Input | Default | Purpose |
+| --- | --- | --- |
+| `requirements` | none | JSON array of requirements; without one the run covers regressions only |
+| `memory-mib`, `cpus` | `4096`, `2` | per-container bounds |
+| `isolation` | `isolated` | `host` runs on the runner, unbounded and reported as not isolated |
+| `dependencies` | `prepare` | `none` installs nothing |
+| `allow-unsigned` | `false` | accept evidence whose signature failed, delivered as `unsigned` |
+
+Pull request code runs in the job, so use the `pull_request` event, not `pull_request_target`,
+and give the job no secrets it does not need. A `requirements` file read from the checkout comes
+from the pull request, so review changes to it like any other change. Keyless signing needs an
+OIDC token for the job: where the job cannot obtain one, signing fails and the step exits 7
+unless `allow-unsigned` is `"true"`. Without `sigstore`, the run is signed with a key you pass
+from a secret in the `SWARM_SIGNING_KEY` environment variable, or else with a key made for that
+run, which identifies no one. `v3` follows the latest 3.x release; pin a full tag or commit SHA
+where you need an exact verifier. All inputs and outputs are in
+[`action.yml`](https://github.com/moonrunnerkc/swarm-verify/blob/main/action.yml).
+
+## From code
+
+The package exports the same verifier as a Node API. Run this beside `swarm-quickstart` and
+`requirements.json` from the quickstart, after `npm install swarm-verify@3.1.0`:
+
+```js
+// verify-fix.mjs
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { requestVersion, verifierVersion, verify } from "swarm-verify";
+
+const repository = resolve("swarm-quickstart");
+const commit = (ref) =>
+  execFileSync("git", ["rev-parse", ref], { cwd: repository, encoding: "utf8" }).trim();
+
 const result = await verify(
   {
     version: requestVersion,
-    repository: repo,
-    base: { commit: candidate.baseCommit },
-    candidate: { kind: "patch", path: candidate.path, sha256: candidate.sha256 },
-    requirements: [
-      {
-        id: "R1",
-        text: "half(n) returns n / 2",
-        source: "user",
-        kind: "fix",
-        evidence: { tests: [{ name: "half positive" }] },
-      },
-    ],
-    policy: { execution: { mode: "host", network: "open", dependencies: "linked" } },
-    artifacts: { directory: "/tmp/evidence" },
+    repository,
+    base: { commit: commit("main") },
+    candidate: { kind: "commit", commit: commit("fix") },
+    requirements: JSON.parse(readFileSync("requirements.json", "utf8")),
+    policy: { execution: { mode: "isolated", dependencies: "none" } },
+    artifacts: { directory: resolve("api-evidence") },
   },
-  { verifierVersion: "3.0.0" },
+  { verifierVersion },
 );
+console.log(result.state, result.delivery.status);
 ```
 
-The request and result schemas are exported (`verifyRequestSchema`, `verifyResultSchema`).
-`swarm-verify/execution` exports the child-environment builder, the process-group runner and the
-credential detector the verifier runs checks with.
+`node verify-fix.mjs` prints `complete signed`. The request and result schemas are exported as
+`verifyRequestSchema` and `verifyResultSchema`.
 
-## GitHub Action
+## Limits and trust
 
-```yaml
-- uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-  with:
-    fetch-depth: 0
-- uses: moonrunnerkc/swarm-verify@v3
-  id: verify
-```
+- Evidence is tamper-evident, not tamper-proof. A valid signature shows that the evidence has not
+  changed since a key or identity signed it. It does not show that the code is correct, that the
+  tests are complete, or that nothing unobserved happened.
+- Trust in a signer comes from your own policy. A public key shipped beside a bundle identifies
+  no one unless you already trust that key from elsewhere.
+- Logs are redacted before they are hashed and signed. Redaction catches known credential
+  formats and values assigned to credential-like names; a secret in any other form passes
+  through, so keep real credentials out of what checks print.
+- Memory and CPU bounds apply to each container separately. Concurrent containers and
+  concurrent runs can together use more of the host.
+- Code under test runs in the same process as its test framework and can interfere with it.
+  Sealed held-out checks and checks you supply reduce what a change can influence.
 
-The Action builds the verifier from this repository at the ref you name and runs `ci` against
-the pull request's base. Inputs: `base`, `isolation`, `dependencies`, `requirements`, `sigstore`
-(keyless signing with the workflow's identity; the job needs `id-token: write`),
-`allow-unsigned` (default `false`: a failed signature fails the step), `memory-mib` and `cpus`
-(per-container bounds, default 4096 and 2), `upload-evidence` (default
-`true`) and `authorize-behavior-change` (default `false`), which lets a test the base passes
-change its expectation where the change witnesses the new behavior, and records that it did.
-Outputs: `state`, `delivery`, `run-id`, `evidence-directory`, `manifest`, `patch-sha256` and
-`exit-code`. Run it in a workflow that does not hand pull-request code secrets
-(`pull_request`, not `pull_request_target`).
-[docs/integrations.md](docs/integrations.md) covers other CI systems, pre-commit and MCP;
-[docs/verifying.md](docs/verifying.md) says what runs and where its reach ends.
-[docs/capabilities.md](docs/capabilities.md) says what is supported per ecosystem.
-[docs/migration-3.md](docs/migration-3.md) lists what changed from 2.x, and
-[docs/migration-2.md](docs/migration-2.md) what changed from 1.x.
+[What runs and where its reach ends](https://github.com/moonrunnerkc/swarm-verify/blob/main/docs/verifying.md#limitations)
+covers the rest.
 
-## Releases
+## Changes in 3.1
 
-A full version tag (`v3.0.0`) on `main` runs the release workflow: the gates, a check that the tag
-matches `package.json`, then `npm publish` through npm trusted publishing. The workflow holds no
-npm token; npm accepts the job's GitHub OIDC token and records a provenance statement naming this
-repository, the workflow and the commit. Where the version is already on the registry, it packs
-the tag instead and fails unless the pack's integrity equals the registry's. 2.0.1 was published
-from a workstation and carries no provenance; 2.0.2 is the first release published by the
-workflow. `v3` is the Action alias: it is moved to each 3.x release so
-`moonrunnerkc/swarm-verify@v3` follows the major version, and it is not a release tag; pushing it
-publishes nothing. `v2` stays at 2.1.0. Pin a full tag or a commit where you need the exact verifier.
+- Isolated containers are bounded by default to 4096 MiB of memory, no swap and 2 CPUs. Set
+  `--memory-mib` and `--cpus`, the Action's `memory-mib` and `cpus`, or
+  `policy.execution.resources` to change them.
+- Limits that cannot be enforced block the run before anything executes. A check killed at the
+  memory limit is left unmeasured, so the run is not complete.
+- Memory and CPU settings together with host execution are rejected.
+- Credential-shaped content left in evidence that must be kept as measured, such as the patch or a
+  test name, stops publication (exit 7), including with `--allow-unsigned`.
+- A recording made by 3.0.0 replays under the current default bounds, and the difference is
+  reported as environment drift.
 
-## Ownership
+Details and the full history are in the
+[changelog](https://github.com/moonrunnerkc/swarm-verify/blob/main/CHANGELOG.md).
 
-This repository owns the verifier: source, tests, build, releases and the Action. Swarm
-Orchestrator, the coding agent, consumes it at an exact version through the API above. Report a
-defect at [this repository's issues](https://github.com/moonrunnerkc/swarm-verify/issues).
+## Documentation
 
-Node 22.13 or newer and git. ISC licensed; see [LICENSE](LICENSE).
+- [Verifying a change](https://github.com/moonrunnerkc/swarm-verify/blob/main/docs/verifying.md):
+  what runs, result fields, requirements, redaction, replay, offline checks, exit codes, limits.
+- [Integrations](https://github.com/moonrunnerkc/swarm-verify/blob/main/docs/integrations.md):
+  the command line, other CI systems, pre-commit, MCP, agent hooks and the API.
+- [Capabilities](https://github.com/moonrunnerkc/swarm-verify/blob/main/docs/capabilities.md):
+  what is supported for Node, Python, Go and other projects.
+- [Moving from 2.x to 3.0](https://github.com/moonrunnerkc/swarm-verify/blob/main/docs/migration-3.md)
+  and [from 1.x to 2.0](https://github.com/moonrunnerkc/swarm-verify/blob/main/docs/migration-2.md).
+- [Design decisions](https://github.com/moonrunnerkc/swarm-verify/blob/main/docs/DECISIONS.md).
+
+## Support and contributing
+
+Report defects and ask questions in
+[GitHub issues](https://github.com/moonrunnerkc/swarm-verify/issues). The rules every change to
+this repository follows are in
+[AGENTS.md](https://github.com/moonrunnerkc/swarm-verify/blob/main/AGENTS.md).
+
+## License
+
+ISC. See [LICENSE](https://github.com/moonrunnerkc/swarm-verify/blob/main/LICENSE).

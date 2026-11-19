@@ -12,7 +12,7 @@ Action tag does not move. Nothing below changes a 1.x release.
 | `swarm-verify ci --patch <file>` | `swarm-verify verify --patch <file> [--base <ref>]` |
 | `swarm-verify ci --branch <ref>` | `swarm-verify verify --range <base>..<ref>` |
 | `swarm-verify ci --pr <owner/repo#n>` | `swarm-verify ci --base <ref>` inside the pull request's checkout |
-| `--goal-contract <file>` | `--requirements <file>`: a JSON array of requirements (see the README) |
+| `--goal-contract <file>` | `--requirements <file>`: a JSON array of requirements (see [verifying.md](verifying.md#requirements)) |
 | `--challenges off\|report\|required` | removed; requirement evidence is judged from executed checks |
 | `swarm-verify verify <bundle> [--signer <fp>]` | `node verify.mjs <attestation> --key <public.pem>` |
 | `swarm-verify verdict <verdict.json>` | removed with the Action-signed verdict document |
