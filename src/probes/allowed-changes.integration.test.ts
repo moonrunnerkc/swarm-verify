@@ -3,6 +3,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { Requirement } from "../api/request.ts";
+import { redactionPolicy } from "../evidence/redact.ts";
 import { acceptancePolicy } from "../verify/acceptance.ts";
 import { checksOffline, halfTest, probeFixture, requirement } from "./fixture.ts";
 
@@ -180,6 +181,7 @@ describe("an approved behavior change", () => {
       behaviorChange: "none",
       reruns: 3,
       acceptance: acceptancePolicy,
+      redaction: { policy: redactionPolicy, markers: {} },
     });
     const allowed = await probe.verify(rounds, { behaviorChange: "authorized" });
     expect(allowed.checks[0]?.tests?.superseded).toEqual(["test/half.test.mjs::half"]);
@@ -189,6 +191,7 @@ describe("an approved behavior change", () => {
       behaviorChange: "authorized",
       reruns: 3,
       acceptance: acceptancePolicy,
+      redaction: { policy: redactionPolicy, markers: {} },
     });
     checksOffline(allowed);
   });

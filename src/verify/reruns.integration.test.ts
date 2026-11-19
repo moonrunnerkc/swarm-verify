@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { redactionPolicy } from "../evidence/redact.ts";
 import { halfTest, probeFixture, requirement } from "../probes/fixture.ts";
 import { acceptancePolicy } from "./acceptance.ts";
 import { writeAttestation } from "./dsse.ts";
@@ -150,6 +151,7 @@ describe("a test that fails on every run", () => {
       behaviorChange: "none",
       reruns: 1,
       acceptance: acceptancePolicy,
+      redaction: { policy: redactionPolicy, markers: {} },
     });
     expect(result.checks[0]?.tests?.reruns?.[0]?.results).toEqual(["fail", "fail"]);
   });

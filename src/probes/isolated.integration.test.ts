@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { replay } from "../api/replay.ts";
+import { redactionPolicy } from "../evidence/redact.ts";
 import { acceptancePolicy } from "../verify/acceptance.ts";
 import { seal } from "../verify/held-out.ts";
 import { fixtureSigner, halfTest, probeFixture, requirement } from "./fixture.ts";
@@ -213,6 +214,7 @@ describe("replaying an authorized behavior change", () => {
       behaviorChange: "authorized",
       reruns: 3,
       acceptance: acceptancePolicy,
+      redaction: { policy: redactionPolicy, markers: {} },
     });
     expect(replayed.replayed.execution).toMatchObject({ mode: "isolated", network: "closed" });
     // A replay measures the base again rather than reading the run it is checking.

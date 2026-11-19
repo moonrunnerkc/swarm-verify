@@ -1,0 +1,65 @@
+# The Action at this commit (not a released alias), on a fixture whose checks print synthetic
+# credentials loaded from a project file: the evidence directory the Action uploads must carry
+# none of them, and the memory and CPU inputs must reach the containers.
+name: action-local
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          path: action
+      - name: Write a fixture repository whose checks print synthetic credentials
+        shell: bash
+        run: |
+          git init -q -b main .
+          echo "action/" >> .git/info/exclude
+          git config user.name fixture
+          git config user.email fixture@example.invalid
+          # Built from pieces so no credential-shaped string is committed anywhere.
+          node action/scripts/synthetic-credentials.mjs > creds.json
+          cat > package.json <<'JSON'
+          { "name": "fixture", "version": "1.0.0", "private": true, "type": "module",
+            "scripts": { "test": "node --test" } }
+          JSON
+          printf 'export const add = (a, b) => a - b;\n' > add.js
+          cat > add.test.js <<'JS'
+          import { test } from "node:test";
+          import assert from "node:assert/strict";
+          import { readFileSync } from "node:fs";
+          import { add } from "./add.js";
+          const creds = JSON.parse(readFileSync("creds.json", "utf8"));
+          test("adds zero", () => {
+            console.log("loaded", creds.github, creds.aws, `password=${creds.password}`);
+            console.error(creds.privateKey);
+            assert.equal(add(2, 0), 2);
+          });
+          JS
+          git add . && git commit -q -m base
+          git branch base
+          printf 'export const add = (a, b) => a + b;\n' > add.js
+          git commit -q -am "Add two numbers"
+      - uses: ./action
+        id: verify
+        with:
+          base: base
+          dependencies: none
+          memory-mib: "1024"
+          cpus: "1"
+      - name: Check the uploaded evidence carries no fixture credential and the bounds applied
+        shell: bash
+        env:
+          EVIDENCE: ${{ steps.verify.outputs.evidence-directory }}
+          STATE: ${{ steps.verify.outputs.state }}
+          DELIVERY: ${{ steps.verify.outputs.delivery }}
+        run: node action/scripts/check-uploaded-evidence.mjs "$EVIDENCE" creds.json

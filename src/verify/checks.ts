@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import type { TrustedCheck } from "../api/request.ts";
 import type { DeclaredCheck } from "../config/swarm-toml.ts";
+import { redactText } from "../evidence/redact.ts";
 import { childEnvironment } from "../exec/child-environment.ts";
 import { type ProcessRunResult, runProcessGroup } from "../exec/run-process.ts";
 import { gitText } from "./change.ts";
@@ -73,7 +74,10 @@ export async function runCheck(
           env,
           stage,
         );
-  const output = `${ran.stdout}${ran.stderr}`;
+  // Semantics come from what the check printed; only redacted text is hashed, kept or shown.
+  // Each stream apart, since the cap cuts each from its head.
+  const printed = `${ran.stdout}${ran.stderr}`;
+  const output = `${redactText(ran.stdout).text}${redactText(ran.stderr).text}`;
   // A confirmed memory kill is resource exhaustion, not a failed assertion: never measured.
   const exhausted = ran.exhausted ?? null;
   const notRun = ran.timedOut
@@ -84,7 +88,7 @@ export async function runCheck(
         ? exhausted
         : ran.startFailure === null
           ? null
-          : `it never started (${ran.startFailure})`;
+          : `it never started (${redactText(ran.startFailure).text})`;
   const failedToRun = notRun !== null;
   const note = ran.timedOut
     ? "\n[timed out]"
@@ -92,7 +96,7 @@ export async function runCheck(
       ? `\n[${exhausted}]`
       : ran.startFailure === null
         ? ""
-        : `\n[${ran.startFailure}]`;
+        : `\n[${redactText(ran.startFailure).text}]`;
   return {
     notRun,
     result: {
@@ -102,7 +106,7 @@ export async function runCheck(
       authority: check.authority ?? "pre-existing",
       result: failedToRun ? "error" : ran.exitCode === 0 ? "pass" : "fail",
       exitCode: failedToRun ? null : ran.exitCode,
-      collected: check.kind === "test" ? collectedFromOutput(output) : null,
+      collected: check.kind === "test" ? collectedFromOutput(printed) : null,
       durationMs: Date.now() - started,
       outputSha256: createHash("sha256").update(output).digest("hex"),
     },

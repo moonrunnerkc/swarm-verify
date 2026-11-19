@@ -215,6 +215,25 @@ predicate records how many processes of the held-out checks loaded the judge and
 went through `node:assert`. Files that change what loads before the judge (`.npmrc`,
 `.yarnrc`, `sitecustomize.py`, `usercustomize.py`, `*.pth`) are reported as config artifacts.
 
+## What evidence keeps of what a check printed
+
+A check's output is redacted as it is captured, before it is hashed, cut into tails and reasons,
+written as a log or signed: values in shapes that name themselves (private key blocks, including
+one cut off by the 4 MiB output cap, and GitHub, AWS, Google, Slack, OpenAI and Anthropic keys,
+bearer tokens and JWTs) and values assigned to a credential name (`API_KEY=`, `"password": `),
+using the names `src/evidence/credential-names.ts` defines, which exempt metrics by name. Each
+becomes `[redacted:<label>]`. The test outcomes are read from what was printed before redaction,
+so redaction never turns a failure into a pass or moves a test. The statement records the rules
+(`policy.redaction.policy`, `swarm-verify.redaction/v1`) and how many markers the logs carry, never
+a value or anything derived from one.
+
+What is published as measured is never edited: the candidate's patch, test ids, sealed sources,
+lockfiles. Where one of them still holds a value in a known shape, nothing is published: the
+delivery fails (exit 7) whether signing was required or optional, the problem names where and
+which shape, and the result keeps the candidate's patch digest. This is known-pattern scrubbing:
+a credential in a shape or under a name nobody listed passes through, so keep real credentials out
+of what checks print.
+
 ## Replaying a result
 
 `swarm-verify replay <evidence-dir> (--key <pem> | --certificate-identity <id> --certificate-oidc-issuer <url>) [--allow-host] [--workspace <repo>]`

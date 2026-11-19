@@ -224,6 +224,13 @@ export const predicateSchema = z.object({
     reruns: z.number().int().nonnegative().optional(),
     /** The acceptance semantics the state was derived under; absent before swarm-verify 3.0.0. */
     acceptance: z.string().min(1).optional(),
+    /** The redaction rules diagnostics were captured under and the markers the logs carry. */
+    redaction: z
+      .strictObject({
+        policy: z.string().min(1),
+        markers: z.record(z.string(), z.int().nonnegative()),
+      })
+      .optional(),
   }),
   unmeasured: z.array(z.string()),
   /** The log files written beside the statement (each check's full output), by digest. */

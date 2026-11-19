@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { detectChecks } from "../config/detect.ts";
 import { readSwarmToml } from "../config/swarm-toml.ts";
+import { redactionRecord } from "../evidence/redact.ts";
 import {
   blockedRun,
   executionOf,
@@ -264,6 +265,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       policy: {
         behaviorChange: options.behaviorChange ?? "none",
         reruns: options.reruns ?? defaultReruns,
+        redaction: redactionRecord(logs.map(({ text }) => text)),
       },
       unmeasured: unmeasuredOf({
         checks: runs,

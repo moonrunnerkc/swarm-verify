@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { lstat, mkdir, mkdtemp, readdir, readFile, rename, rm } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
+import { secretShapes } from "../evidence/redact.ts";
 import { writeContained } from "../fs/contained.ts";
 import { type WrittenAttestation, writeAttestation } from "../verify/dsse.ts";
 import type { ResolvedKey } from "../verify/signing.ts";
@@ -49,6 +50,23 @@ async function vacant(path: string): Promise<boolean> {
 }
 
 /**
+ * Where text in a known credential shape is still in what would be published. Diagnostics were
+ * redacted when captured, so a hit is evidence published as measured (the patch, test ids, sealed
+ * sources, lockfiles), which is never edited. Labels only, never the values.
+ */
+function credentialShapes(input: PublishInput): string | null {
+  const where: string[] = [];
+  const look = (what: string, text: string) => {
+    const found = secretShapes(text);
+    if (found.length > 0) where.push(`${what} (${found.join(", ")})`);
+  };
+  look("the candidate's patch", input.patch.toString("utf8"));
+  look("the statement", JSON.stringify(input.statement));
+  for (const log of input.logs) look(log.name, log.text);
+  return where.length === 0 ? null : where.join("; ");
+}
+
+/**
  * Writes one run's evidence into a staging directory beside the target, binds every file in a
  * manifest, and moves the whole directory into place with one rename. A target that already holds
  * a run is never written to, so a failed or concurrent run cannot leave another run's files
@@ -70,6 +88,19 @@ export async function publishEvidence(input: PublishInput): Promise<Delivery> {
   if (!(await vacant(target)))
     return refused(
       `${target} already holds evidence, and a run is never published over another; give each run its own directory`,
+    );
+  // A scan that fails publishes nothing rather than unscanned evidence.
+  let shapes: string | null;
+  try {
+    shapes = credentialShapes(input);
+  } catch (error) {
+    return refused(
+      `the evidence could not be scanned for credentials (${error instanceof Error ? error.message : String(error)}); nothing was published`,
+    );
+  }
+  if (shapes !== null)
+    return refused(
+      `the evidence carries text in the shape of a credential where it is kept as measured and never edited: ${shapes}; nothing was published, and the candidate's identity stands in the result`,
     );
   await mkdir(dirname(target), { recursive: true, mode: 0o700 });
   const staging = await mkdtemp(join(dirname(target), `.${basename(target)}.staging-`));
