@@ -149,7 +149,8 @@ credential detector the verifier runs checks with.
 The Action builds the verifier from this repository at the ref you name and runs `ci` against
 the pull request's base. Inputs: `base`, `isolation`, `dependencies`, `requirements`, `sigstore`
 (keyless signing with the workflow's identity; the job needs `id-token: write`),
-`allow-unsigned` (default `false`: a failed signature fails the step), `upload-evidence` (default
+`allow-unsigned` (default `false`: a failed signature fails the step), `memory-mib` and `cpus`
+(per-container bounds, default 4096 and 2), `upload-evidence` (default
 `true`) and `authorize-behavior-change` (default `false`), which lets a test the base passes
 change its expectation where the change witnesses the new behavior, and records that it did.
 Outputs: `state`, `delivery`, `run-id`, `evidence-directory`, `manifest`, `patch-sha256` and

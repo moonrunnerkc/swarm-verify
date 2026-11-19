@@ -96,7 +96,7 @@ export const executionSchema = z.strictObject({
   problems: z.array(z.string()),
   /**
    * The per-container bounds asked for and read back from the container's cgroup; null on the
-   * host, which nothing bounds. Absent from records before swarm-verify 3.1.0, which set none.
+   * host, which nothing bounds. Absent from records made before resource limits existed (3.0.0 and older).
    */
   resources: resourceRecordSchema.nullable().optional(),
 });

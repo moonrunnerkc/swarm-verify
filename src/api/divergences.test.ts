@@ -102,7 +102,7 @@ describe("environment drift in resource bounds", () => {
 
   it("names a recording from before bounds existed as unbounded, never as bounded", () => {
     expect(environmentDrift(bounded(undefined), bounded(four))).toEqual([
-      "resources: recorded not recorded (before swarm-verify 3.1.0, no limits were set), replayed memory 4096 MiB with no swap and 2 CPUs, per container",
+      "resources: recorded none recorded (made before resource limits existed, so unbounded), replayed memory 4096 MiB with no swap and 2 CPUs, per container",
     ]);
   });
 

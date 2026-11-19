@@ -25,8 +25,24 @@ not choose (swarm-verify CHANGELOG, Unreleased): a status recorded under 2.0.x o
 itself added is not carried over. Requirement statuses are kept only where the patch was judged
 under the entry's own record.
 
-`e-dossier` needs ironroot cloned beside it (`sibling` in its entry.json); depose entries run on
-the host because the image has no Go (`hostReason`).
+`e-dossier` needs ironroot cloned beside it (`sibling` in its entry.json, at `sibling.commit`);
+depose entries run on the host because the image has no Go (`hostReason`).
+
+## Running it
+
+`node scripts/corpus.mjs --full --local-root <dir>` runs every planned patch, the private
+`e-dossier` included, cloned from `<dir>/dossier` and `<dir>/ironroot` (each checkout's origin
+must be the entry's repository; every clone is checked out at its pinned commit and checked). It
+exits 0 only when every patch reached a verdict and none differs. `--only` and `--patches` select
+a scope, recorded as selected, and a name that selects nothing fails the run. `--out` writes a
+`swarm-verify.corpus-run/v1` record: scope, verifier commit, runtime, revisions, patch digests,
+execution policy and each outcome, with no logs.
+
+CI runs each public patch in its own job, uploads its record, and `scripts/corpus-coverage.mjs
+--require public` combines them; locally, `--require all` combines CI's public records with a
+local run of the private entry. Coverage counts execution apart from agreement: a patch whose
+expectation fixes nothing (`observed-only`) ran and judged nothing, and a partially specified one
+agrees only on what it fixes.
 
 | Entry | Repository | Base | Isolation | Patches (expected state) | Source |
 | --- | --- | --- | --- | --- | --- |

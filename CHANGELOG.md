@@ -6,6 +6,48 @@ of moonrunnerkc/swarm-verify. Versions before 1.0.0 (0.2.0, released with Swarm 
 swarm-orchestrator's `packages/swarm-verify`; 2.0.0 is the first built from this repository. A
 2.0.0 tagged there on 2026-10-29 was never published to npm, and its notes are folded in below.
 
+## Unreleased
+
+Not published: npm and the `v3` Action alias still carry 3.0.0. A minor release (3.1.0) fits:
+nothing a caller sends or reads is removed or renamed, but the three behavior changes under
+"Compatibility" can turn a run that passed on 3.0.0 into a blocked, unresolved or undelivered one,
+and the notes must say so.
+
+### Security
+
+- **Containers are bounded.** Every container that runs project code gets 4096 MiB of memory
+  with no swap and 2 CPUs unless the caller sets `policy.execution.resources`, `--memory-mib` and
+  `--cpus`, or the Action's `memory-mib` and `cpus`; the candidate cannot. A container under the
+  same flags reads its own cgroup first, and a daemon that refuses or under-applies a bound blocks
+  the run. `execution.resources` records what was asked and what the cgroup applied; a host run
+  is unbounded and says so. A process killed at the memory limit (docker's `State.OOMKilled`)
+  leaves its check unmeasured, never failed or passed; exit 137 alone is not read as one.
+- **Evidence logs are redacted before they are hashed, signed or published.** Known credential
+  shapes and values assigned to credential names (`src/evidence/credential-names.ts`) are
+  replaced as output is captured, so every digest binds the redacted bytes. Evidence kept as
+  measured (the patch, test ids, sealed sources, lockfiles) is never edited; where it holds a
+  known shape, nothing is published and the delivery fails. Known-pattern scrubbing, not secret
+  removal.
+
+### Compatibility
+
+- A docker host without swap accounting or CPU quotas blocks isolated runs that 3.0.0 ran.
+- A suite that needs more than 4096 MiB in one container now reads unresolved; raise
+  `--memory-mib`.
+- A candidate patch, test id or sealed file holding a known credential shape is no longer
+  published: delivery `failed`, exit 7, even with `--allow-unsigned`.
+- Replaying a 3.0.0 recording runs under today's default bounds and reports that as environment
+  drift, never as a bound the recording had.
+
+### Changed
+
+- CI runs the packed package as a consumer on exactly Node 22.13.0, the declared minimum, and
+  checks that 22.12.0 cannot load it (`scripts/consumer-smoke.mjs`).
+- The corpus runner pins each clone (and e-dossier's sibling, now read from `sibling.commit`) to
+  its recorded commit, takes private checkouts from `--local-root`, fails on a filter that selects
+  nothing, offers `--full`, and writes a versioned run record; `scripts/corpus-coverage.mjs`
+  combines records and fails on a missing or duplicated patch.
+
 ## 3.0.0 - 2026-11-18
 
 It closes the trust-boundary defects a review of 2.1.0 found

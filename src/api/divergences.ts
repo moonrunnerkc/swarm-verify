@@ -149,7 +149,7 @@ export function environmentDrift(recorded: Predicate, replayed: VerifyResult): s
     );
   const bounds = (one: Predicate["execution"]["resources"]) =>
     one === undefined
-      ? "not recorded (before swarm-verify 3.1.0, no limits were set)"
+      ? "none recorded (made before resource limits existed, so unbounded)"
       : one === null
         ? "none (host)"
         : describeResources(one.requested);
