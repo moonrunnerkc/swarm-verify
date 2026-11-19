@@ -24,6 +24,46 @@ jobs:
       # One command, the same one a release runs: it includes installing the packed tarball.
       - run: npm run gates
 
+  # The packed package on exactly the Node version package.json declares as its minimum: packed
+  # through the normal process on the development runtime, then installed and exercised by a
+  # plain-Node consumer script (scripts/consumer-smoke.mjs) on 22.13.0. 22.12.0 is checked to
+  # refuse it, so the minimum is measured, not read off a changelog.
+  consumer-minimum:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Pack through the normal process
+        run: |
+          mkdir -p "$RUNNER_TEMP/packs"
+          npm pack --pack-destination "$RUNNER_TEMP/packs"
+          sha256sum "$RUNNER_TEMP"/packs/*.tgz
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.13.0"
+      - name: Run the packed package as a consumer on Node 22.13.0
+        run: |
+          test "$(node --version)" = v22.13.0
+          node scripts/consumer-smoke.mjs "$RUNNER_TEMP"/packs/swarm-verify-*.tgz --expect-node v22.13.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.12.0"
+      - name: Below the minimum the package does not load
+        run: |
+          test "$(node --version)" = v22.12.0
+          mkdir -p "$RUNNER_TEMP/below" && cd "$RUNNER_TEMP/below"
+          echo '{ "name": "below", "private": true, "type": "module" }' > package.json
+          npm install --no-audit --no-fund "$RUNNER_TEMP"/packs/swarm-verify-*.tgz
+          if node -e 'await import("swarm-verify")' 2> load.err; then
+            echo "swarm-verify loaded on 22.12.0; the declared minimum is not the measured one" >&2
+            exit 1
+          fi
+          grep "does not provide an export named 'stripTypeScriptTypes'" load.err
+
   # Every real repository the verifier has judged, at its base, with the patches judged on it and
   # the statuses they are expected to read (corpus/README.md). One job a patch (t6's eight in one
   # job outlasted its five hours); host where the container cannot build the base, as the entry says.
