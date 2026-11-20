@@ -1,0 +1,258 @@
+{
+  "case": "cmp-feature-pubprep",
+  "ranAt": {
+    "started": "2026-11-20T01:47:13Z",
+    "finished": "2026-11-20T01:49:04Z"
+  },
+  "verifier": {
+    "package": "swarm-verify",
+    "version": "3.1.0",
+    "source": "npm registry, installed into a fresh directory",
+    "integrity": "sha512-xpAfXmNioZQVadKqldljIjLX6cAtLAqxqU08CFZ1Nu6Qt6Ha7saJBd0UZsTUksue5oTb/u2XnHcrhU95e8DlGw==",
+    "tarballSha256": "1579e12a2cbcc50474e5e7fd029d727406a3b9662d3536fa79071578a2a21a8b",
+    "cliSha256": "3193b12d806b6e79b50155cc3d517c26cf826620963f762cf15a1401094ef3cd",
+    "release": {
+      "tag": "v3.1.0",
+      "tagObject": "4589d6355e33fcabe9bb2ef8afc2e7066008602a",
+      "commit": "b0887244e4ad9e1dfdb25e5241b871564b395fa9",
+      "npmGitHead": "b0887244e4ad9e1dfdb25e5241b871564b395fa9",
+      "npmProvenanceCommit": "b0887244e4ad9e1dfdb25e5241b871564b395fa9",
+      "actionAliasV3": "b0887244e4ad9e1dfdb25e5241b871564b395fa9"
+    }
+  },
+  "fixtures": {
+    "repository": "moonrunnerkc/swarm-verify",
+    "commit": "b0887244e4ad9e1dfdb25e5241b871564b395fa9",
+    "dirty": false
+  },
+  "subject": {
+    "repository": "moonrunnerkc/pubprep",
+    "base": "99d8d054753b4e8979431eb58792895c754fbdc9",
+    "checkedOut": "99d8d054753b4e8979431eb58792895c754fbdc9"
+  },
+  "acceptance": {
+    "requirements": "corpus/cmp-feature-pubprep/requirements.json",
+    "requirementsSha256": "2caf57d37f0acbf415fd58cb679e102c7a65768ea432b2ff3021e917523b80cc",
+    "heldOutTest": "corpus/cmp-feature-pubprep/held-out/test/reviewers.held-out.test.ts",
+    "heldOutTestSha256": "7fabee0266a3d73213ac5c6d618ed8e359d0b7f6a906d88bfd882fb6f63d7050",
+    "declaredChecks": "corpus/cmp-feature-pubprep/swarm.toml",
+    "isolation": "isolated",
+    "dependencies": "prepare"
+  },
+  "host": {
+    "platform": "darwin-arm64",
+    "node": "v24.15.0",
+    "docker": "29.5.2 (colima, linux/arm64)"
+  },
+  "runner": {
+    "command": "node fixtures/scripts/corpus.mjs --only cmp-feature-pubprep --patches swarm,reference-2 --cli <installed 3.1.0 CLI> --work <dir> --out <file>",
+    "exitCode": 0,
+    "exitMeaning": "both observations matched the recorded expectations; it does not mean both candidates were accepted",
+    "seconds": 106,
+    "secondsWithCloneAndInstall": 108,
+    "summary": {
+      "planned": 2,
+      "executed": 2,
+      "agrees": 2,
+      "differs": 0,
+      "observedOnly": 0,
+      "setupFailed": 0,
+      "noVerdict": 0,
+      "notRun": 0
+    },
+    "hostSteps": [
+      "git clone of the subject at its base",
+      "npm ci --no-audit --no-fund",
+      "init --seal: the held-out check at the base (fails) and on corpus/cmp-feature-pubprep/patches/reference.patch (passes)"
+    ],
+    "sealingValidation": "held-out check held-out fails at the base and passes on the reference patch"
+  },
+  "candidates": [
+    {
+      "patch": "swarm",
+      "patchFile": "corpus/cmp-feature-pubprep/patches/swarm.patch",
+      "patchSha256": "c0c3b1e8047d4d423a1ed0ae5c325cdc2948b947555cbb45cf71bf8fce625b27",
+      "state": "incomplete",
+      "reasons": [
+        "a held-out check failed"
+      ],
+      "requirements": {
+        "R1": {
+          "status": "failed",
+          "witness": "independent",
+          "limitation": "failing: test/reviewers.held-out.test.ts::parseArgs --reviewers, held out > maps short names to agent names in canonical order"
+        }
+      },
+      "heldOut": {
+        "check": "held-out",
+        "command": "npx vitest run test/reviewers.held-out.test.ts",
+        "authority": "user-acceptance",
+        "result": "fail",
+        "collected": 10,
+        "exitCode": 1,
+        "testsPreserved": 3,
+        "testsFixed": 6,
+        "testsFailing": 1,
+        "failing": [
+          "test/reviewers.held-out.test.ts::parseArgs --reviewers, held out > maps short names to agent names in canonical order"
+        ]
+      },
+      "projectChecks": [
+        {
+          "name": "test",
+          "command": "npm run test",
+          "authority": "pre-existing",
+          "result": "pass",
+          "collectedAtBase": 98,
+          "collectedWithCandidate": 102,
+          "preserved": 98,
+          "added": 4,
+          "addedFailing": 0,
+          "newFailures": 0
+        },
+        {
+          "name": "typecheck",
+          "command": "npm run typecheck",
+          "authority": "pre-existing",
+          "result": "pass"
+        },
+        {
+          "name": "build",
+          "command": "npm run build",
+          "authority": "pre-existing",
+          "result": "pass"
+        }
+      ],
+      "regression": "none",
+      "execution": {
+        "mode": "isolated",
+        "network": "closed",
+        "image": "node:24@sha256:e7add2a490bb17d97b485b8641bd88455fff7839ade0f5eba493c3508124d413 (sha256:e7add2a490bb17d97b485b8641bd88455fff7839ade0f5eba493c3508124d413 arm64)",
+        "dependencies": "prepared",
+        "policyMet": true,
+        "resources": {
+          "memoryBytes": 4294967296,
+          "swapBytes": 0,
+          "cpus": 2,
+          "cgroup": "v2"
+        }
+      },
+      "baselineCached": true,
+      "verify": {
+        "exitCode": 1,
+        "seconds": 46
+      },
+      "delivery": "signed",
+      "runId": "2026-11-20T01-49-01-018Z-0d82cc3823f9",
+      "bundle": {
+        "directory": "evidence/swarm",
+        "manifestSha256": "9bc45d675092095e0a8220bcfd7fc6c7eb5b4addb15e208d8cd64c95368c6604",
+        "statementSha256": "cf19dd03e4a66ca01c506686ff3b00ddbb5ecf9db06fd38320f2e93aaf3219ee",
+        "attestationSha256": "6e54344afde55627644e6837078945b2af737990813230b9ac641f3407e50efe",
+        "signerPublicKeySha256": "179a04c5809d0ac64be44e025803c11faf51b8f2dfa2acd6253abafb7933fc43",
+        "signerKey": "generated for this run and discarded; identifies no one"
+      },
+      "offlineValidation": {
+        "tool": "verify.mjs from swarm-verify@3.1.0",
+        "exitCode": 1,
+        "meaning": "integrity holds, task not accepted"
+      }
+    },
+    {
+      "patch": "reference-2",
+      "patchFile": "corpus/cmp-feature-pubprep/patches/reference-2.patch",
+      "patchSha256": "48dc690cfcf9bcbc9920b05bd42b0cabf15a12b2245a3bb6689493629dc960d7",
+      "state": "complete",
+      "reasons": [],
+      "requirements": {
+        "R1": {
+          "status": "satisfied",
+          "witness": "independent",
+          "limitation": null
+        }
+      },
+      "heldOut": {
+        "check": "held-out",
+        "command": "npx vitest run test/reviewers.held-out.test.ts",
+        "authority": "user-acceptance",
+        "result": "pass",
+        "collected": 10,
+        "exitCode": 0,
+        "testsPreserved": 3,
+        "testsFixed": 7,
+        "testsFailing": 0,
+        "failing": []
+      },
+      "projectChecks": [
+        {
+          "name": "test",
+          "command": "npm run test",
+          "authority": "pre-existing",
+          "result": "pass",
+          "collectedAtBase": 98,
+          "collectedWithCandidate": 99,
+          "preserved": 98,
+          "added": 1,
+          "addedFailing": 0,
+          "newFailures": 0
+        },
+        {
+          "name": "typecheck",
+          "command": "npm run typecheck",
+          "authority": "pre-existing",
+          "result": "pass"
+        },
+        {
+          "name": "build",
+          "command": "npm run build",
+          "authority": "pre-existing",
+          "result": "pass"
+        }
+      ],
+      "regression": "none",
+      "execution": {
+        "mode": "isolated",
+        "network": "closed",
+        "image": "node:24@sha256:e7add2a490bb17d97b485b8641bd88455fff7839ade0f5eba493c3508124d413 (sha256:e7add2a490bb17d97b485b8641bd88455fff7839ade0f5eba493c3508124d413 arm64)",
+        "dependencies": "prepared",
+        "policyMet": true,
+        "resources": {
+          "memoryBytes": 4294967296,
+          "swapBytes": 0,
+          "cpus": 2,
+          "cgroup": "v2"
+        }
+      },
+      "baselineCached": false,
+      "verify": {
+        "exitCode": 0,
+        "seconds": 56
+      },
+      "delivery": "signed",
+      "runId": "2026-11-20T01-48-15-382Z-7b75dfefbe99",
+      "bundle": {
+        "directory": "evidence/reference-2",
+        "manifestSha256": "52e71f28711a487abf73b825ff2f965e436965c18ca12c511422a41c16eebf94",
+        "statementSha256": "92018672fd008bb74dc48ec625d1b7171c3b180cfc932f432be5642ef9796d2e",
+        "attestationSha256": "9f174214c342cee35349c50e957ab8ea54247d851cfd518b8df3656d2fd2047d",
+        "signerPublicKeySha256": "179a04c5809d0ac64be44e025803c11faf51b8f2dfa2acd6253abafb7933fc43",
+        "signerKey": "generated for this run and discarded; identifies no one"
+      },
+      "offlineValidation": {
+        "tool": "verify.mjs from swarm-verify@3.1.0",
+        "exitCode": 0,
+        "meaning": "integrity holds, task accepted"
+      }
+    }
+  ],
+  "directHeldOutRun": {
+    "output": "held-out-direct.txt",
+    "exitCode": 1,
+    "where": "docker, the same pinned node:24 image, outside the verifier, network open for npm ci",
+    "tests": {
+      "failed": 1,
+      "passed": 9,
+      "collected": 10
+    }
+  }
+}

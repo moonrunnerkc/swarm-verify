@@ -1,0 +1,74 @@
+{
+  "version": "swarm-verify.manifest/v1",
+  "runId": "2026-11-20T01-48-15-382Z-7b75dfefbe99",
+  "delivery": "signed",
+  "statementSha256": "14b2aa6c922c59f0396607732910b55926355aa5bc8968b82fe7dd002da9a249",
+  "files": [
+    {
+      "path": "attestation.pub.pem",
+      "sha256": "c9d65b27c41202a5bc73707f500a4238aeb2f229962c222e4ede2a9860d00891",
+      "bytes": 113
+    },
+    {
+      "path": "attestation.sigstore.json",
+      "sha256": "9f174214c342cee35349c50e957ab8ea54247d851cfd518b8df3656d2fd2047d",
+      "bytes": 36137
+    },
+    {
+      "path": "change.patch",
+      "sha256": "48dc690cfcf9bcbc9920b05bd42b0cabf15a12b2245a3bb6689493629dc960d7",
+      "bytes": 7459
+    },
+    {
+      "path": "logs/build.base-tests.txt",
+      "sha256": "8d04e5c3aa7f22ed93fae0bd7f93cfa65fba4e9aaaaeb76b6e03e59c7420f6fb",
+      "bytes": 71
+    },
+    {
+      "path": "logs/build.txt",
+      "sha256": "8d04e5c3aa7f22ed93fae0bd7f93cfa65fba4e9aaaaeb76b6e03e59c7420f6fb",
+      "bytes": 71
+    },
+    {
+      "path": "logs/test.base-tests.txt",
+      "sha256": "aa48cd52bf47541319b91029388923d3d774157ca996f3ae6a510f7c17a32f2a",
+      "bytes": 1606
+    },
+    {
+      "path": "logs/test.txt",
+      "sha256": "444946502544078897d183fed6caf4420322f5003481120f879caed087ace209",
+      "bytes": 1605
+    },
+    {
+      "path": "logs/typecheck.base-tests.txt",
+      "sha256": "b6652eb70d76698652f8b1a399f51d25ecd0298f54db900b7b0ae7f8a459a2b8",
+      "bytes": 60
+    },
+    {
+      "path": "logs/typecheck.txt",
+      "sha256": "b6652eb70d76698652f8b1a399f51d25ecd0298f54db900b7b0ae7f8a459a2b8",
+      "bytes": 60
+    },
+    {
+      "path": "observations.json",
+      "sha256": "ece9b2f1079ab45a97174406f833a0a74d9dfbeceba6d390180dbbdd88ecc690",
+      "bytes": 28559
+    },
+    {
+      "path": "sealed/files/test/reviewers.held-out.test.ts",
+      "sha256": "7fabee0266a3d73213ac5c6d618ed8e359d0b7f6a906d88bfd882fb6f63d7050",
+      "bytes": 4549
+    },
+    {
+      "path": "sealed/sealed.json",
+      "sha256": "753fa93cb0d5a9818bfa899e02906e134b1b61907137a52b190ef73b25176a20",
+      "bytes": 410
+    },
+    {
+      "path": "statement.json",
+      "sha256": "92018672fd008bb74dc48ec625d1b7171c3b180cfc932f432be5642ef9796d2e",
+      "bytes": 39155
+    }
+  ],
+  "problems": []
+}

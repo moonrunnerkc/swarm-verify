@@ -1,0 +1,4 @@
+cmp-feature-pubprep: sealed: held-out check held-out fails at the base and passes on the reference patch | sealed 1 file(s) matching test/**/*.held-out.test.ts into /Users/brad/pubprep-case/work/cmp-feature-pubprep/home/sealed/e1ddaf9217802e691fc0458b1f0adbaa |   held-out check held-out: npx vitest run test/reviewers.held-out.test.ts | They were removed from the workspace; commit that removal if they were tracked.
+cmp-feature-pubprep: reference-2: agrees: complete {"R1":"satisfied"} held-out pass
+cmp-feature-pubprep: swarm: agrees: incomplete {"R1":"failed"} held-out fail
+corpus: {"planned":2,"executed":2,"agrees":2,"differs":0,"observedOnly":0,"setupFailed":0,"noVerdict":0,"notRun":0}
