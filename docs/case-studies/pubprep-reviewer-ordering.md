@@ -128,8 +128,8 @@ inside the verifier's container; they are not a GitHub CI run of pubprep.
 ## Recorded then, reproduced now
 
 The case comes from Swarm Orchestrator's 2026-11-04 comparison
-([summary](https://github.com/moonrunnerkc/swarm-orchestrator/blob/5d89342f919ac5faa1e3a98f705ea26854597478/docs/acceptance/2026-11-04-comparison/README.md),
-[criteria](https://github.com/moonrunnerkc/swarm-orchestrator/blob/5d89342f919ac5faa1e3a98f705ea26854597478/docs/acceptance/2026-11-04-comparison/feature-pubprep/criteria.md)).
+([summary](https://github.com/moonrunnerkc/swarm-orchestrator/blob/3e2192c276d8f54cc209ad3fca784957456a4647/docs/acceptance/2026-11-04-comparison/README.md),
+[criteria](https://github.com/moonrunnerkc/swarm-orchestrator/blob/3e2192c276d8f54cc209ad3fca784957456a4647/docs/acceptance/2026-11-04-comparison/feature-pubprep/criteria.md)).
 That record says, and this page does not independently prove, that the requirement and held-out
 test were committed
 ([90afcf5](https://github.com/moonrunnerkc/swarm-orchestrator/commit/90afcf52b2bb54930bed7befb3dac2de6d7452e0))
