@@ -18,6 +18,9 @@ Swarm Verify is a standalone verifier with a CLI, a Node API, a GitHub Action an
 It is not a coding agent, it uses no language model, and it does not prove a change correct: it
 reports what the project's checks showed.
 
+**[See a real missed requirement](docs/case-studies/pubprep-reviewer-ordering.md)**: a patch that
+passed the project's own tests, typecheck and build, and still got one requested behavior wrong.
+
 ## What you can use it for
 
 - Check a branch, commit range or patch before you merge it, including changes written by an agent.

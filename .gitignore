@@ -13,6 +13,8 @@ coverage/
 *.key
 *.p12
 *.pfx
+# A published evidence bundle's public key; never a private one
+!docs/case-studies/**/attestation.pub.pem
 
 # Local run state, scratch space and assistant worktrees
 .swarm/

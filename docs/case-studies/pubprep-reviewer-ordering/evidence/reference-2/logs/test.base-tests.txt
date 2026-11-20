@@ -1,0 +1,33 @@
+
+> pubprep@0.1.0 test
+> vitest run --reporter=default --reporter=json --outputFile.json=/Users/brad/pubprep-case/work/cmp-feature-pubprep/home/work/swarm-verify-9qiLE5/reports/obligation-test.report
+
+
+[7m[1m[36m RUN [39m[22m[27m [36mv1.6.1[39m [90m/Users/brad/pubprep-case/work/cmp-feature-pubprep/home/work/swarm-verify-9qiLE5/tree[39m
+
+CONV report
+x
+x
+CONV
+CONV
+CONV
+x
+CONV
+x
+x
+x
+ [32m✓[39m test/orchestrate.test.ts [2m ([22m[2m14 tests[22m[2m)[22m[90m 206[2mms[22m[39m
+ [32m✓[39m test/cli-main.test.ts [2m ([22m[2m20 tests[22m[2m)[22m[90m 162[2mms[22m[39m
+ [32m✓[39m test/publish-pr.test.ts [2m ([22m[2m10 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/prereqs.test.ts [2m ([22m[2m14 tests[22m[2m)[22m[90m 45[2mms[22m[39m
+ [32m✓[39m test/env.test.ts [2m ([22m[2m11 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/publish-gate.test.ts [2m ([22m[2m7 tests[22m[2m)[22m[33m 467[2mms[22m[39m
+ [32m✓[39m test/paths.test.ts [2m ([22m[2m8 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/cli.test.ts [2m ([22m[2m14 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m8 passed[39m[22m[90m (8)[39m
+[2m      Tests [22m [1m[32m98 passed[39m[22m[90m (98)[39m
+[2m   Start at [22m 01:47:44
+[2m   Duration [22m 2.11s[2m (transform 93ms, setup 0ms, collect 183ms, tests 888ms, environment 0ms, prepare 482ms)[22m
+
+JSON report written to /Users/brad/pubprep-case/work/cmp-feature-pubprep/home/work/swarm-verify-9qiLE5/reports/obligation-test.report

@@ -1,0 +1,18 @@
+{
+  "glob": "test/**/*.held-out.test.ts",
+  "authority": "user-acceptance",
+  "checks": [
+    {
+      "name": "held-out",
+      "command": "npx vitest run test/reviewers.held-out.test.ts",
+      "kind": "test",
+      "requirements": []
+    }
+  ],
+  "files": [
+    {
+      "path": "test/reviewers.held-out.test.ts",
+      "sha256": "7fabee0266a3d73213ac5c6d618ed8e359d0b7f6a906d88bfd882fb6f63d7050"
+    }
+  ]
+}

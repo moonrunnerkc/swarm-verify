@@ -1,0 +1,36 @@
+
+ RUN  v1.6.1 /w
+
+ ❯ test/reviewers.held-out.test.ts  (10 tests | 1 failed) 39ms
+   ❯ test/reviewers.held-out.test.ts > parseArgs --reviewers, held out > maps short names to agent names in canonical order
+     → expected [ 'security-reviewer', …(1) ] to deeply equal [ 'tech-debt-reviewer', …(1) ]
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/reviewers.held-out.test.ts > parseArgs --reviewers, held out > maps short names to agent names in canonical order
+AssertionError: expected [ 'security-reviewer', …(1) ] to deeply equal [ 'tech-debt-reviewer', …(1) ]
+
+- Expected
++ Received
+
+  Array [
+-   "tech-debt-reviewer",
+    "security-reviewer",
++   "tech-debt-reviewer",
+  ]
+
+ ❯ test/reviewers.held-out.test.ts:29:72
+     27| 
+     28|   it("maps short names to agent names in canonical order", () => {
+     29|     expect(parseArgs(["--reviewers", "security,tech-debt"]).reviewers)…
+       |                                                                        ^
+     30|       "tech-debt-reviewer",
+     31|       "security-reviewer",
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 9 passed (10)
+   Start at  01:49:03
+   Duration  235ms (transform 49ms, setup 0ms, collect 69ms, tests 39ms, environment 0ms, prepare 56ms)
+
