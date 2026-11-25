@@ -7,4 +7,23 @@ describe("the regression across checks", () => {
   it("is unresolved, never none, when no check ran against the candidate", () => {
     expect(regressionOf([]).status).toBe("unresolved");
   });
+
+  // depose (2026-11-06): typecheck fails at both commits with the same diagnostics.
+  it("names a check without tests whose failure is all inherited, and is none", () => {
+    const typecheck = {
+      name: "typecheck",
+      command: "pnpm run typecheck",
+      kind: "other" as const,
+      authority: "pre-existing" as const,
+      result: "inherited-failures" as const,
+      collected: null,
+      exitCode: 2,
+      durationMs: 1,
+      outputSha256: "0".repeat(64),
+    };
+    expect(regressionOf([typecheck])).toMatchObject({
+      status: "none",
+      inherited: ["check typecheck"],
+    });
+  });
 });

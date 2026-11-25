@@ -153,7 +153,8 @@ A check's result is `pass`, `inherited-failures` (nothing new fails, inherited f
 `fail`, `error` (it could not run with the candidate), `no-tests` (it collected none, read from
 the report or from the summary its runner printed; exit code zero is not test success), or
 `unresolved`: a report did not parse, no collected test passes against the candidate, or the
-check has no report read and fails at both commits. Unresolved never claims inheritance.
+check has no report read and fails at both commits with no diagnostics to compare. Unresolved
+never claims inheritance.
 
 A failing run decides some verdicts by itself: a new failure, a rewritten expectation, a failing
 added test, a fix (failing at the base), a witness (failing against the base's source). Each such
@@ -174,7 +175,15 @@ A check without a report read is judged by its exit code and the count its runne
 | pass | pass | `pass` |
 | pass | fail | `fail`: a regression |
 | fail | pass | `pass` |
-| fail | fail | `unresolved` |
+| fail | fail | by the diagnostics both runs printed, below; `unresolved` where either printed none |
+
+A check such as `typecheck` or `build` that fails at both commits is compared by the compiler
+diagnostics each run printed: the `tsc` forms and `path:line[:col]: error: message`, each read as
+file, code and message with the line and column dropped, and counted, so a repeat is one more.
+Where the candidate adds none the check is `inherited-failures` and the regression lists it as
+`check <name>`; where it adds any the check is `fail` and names them. Where either run printed
+none that could be read, or its output was cut at the 4 MiB kept, it stays `unresolved`. A base
+run reused from the cache is compared by the diagnostics kept with it.
 
 ## Requirements
 

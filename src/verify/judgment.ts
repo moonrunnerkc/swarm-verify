@@ -6,6 +6,7 @@ import {
   type TestFileChanges,
   type TestOutcome,
 } from "./compare.ts";
+import { addedDiagnostics } from "./diagnostics.ts";
 import type { MeasuredRun } from "./per-test.ts";
 import type { CheckResult, TestJudgment, TestRuns } from "./predicate.ts";
 import { describeRuns, withReruns } from "./reruns.ts";
@@ -111,7 +112,38 @@ function byExitCode(input: JudgmentInput, tampered: string | null): CheckJudgmen
       unmeasured: null,
     };
   }
-  // Failing at both, with no per-test report, says nothing about whether anything new broke.
+  // Failing at both, the compiler's diagnostics tell the base's failure from a new one.
+  const before = input.base.run.diagnostics;
+  const after = head.diagnostics;
+  if (before !== null && after !== null) {
+    const added = addedDiagnostics(before, after);
+    if (added.length > 0) {
+      reasons.push(
+        `check ${name}: ${added.length} diagnostic(s) the candidate adds: ${listed(added)}`,
+      );
+      return {
+        run: withResult(head, "fail"),
+        outcomes: [],
+        reasons,
+        failure: output,
+        inherited: null,
+        unmeasured: null,
+      };
+    }
+    reasons.push(
+      `check ${name}: ${after.length} diagnostic(s) it printed at the base commit it still prints, and the candidate adds none, compared by file, code and message`,
+    );
+    return {
+      run: withResult(head, "inherited-failures"),
+      outcomes: [],
+      reasons,
+      failure: null,
+      inherited: output,
+      unmeasured: null,
+    };
+  }
+  // Failing at both, with no per-test report and no diagnostics, says nothing about whether
+  // anything new broke.
   const why =
     "it fails at the base commit and with the candidate, and no per-test report tells a new failure from an old one";
   return {

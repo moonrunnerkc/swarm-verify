@@ -48,6 +48,7 @@ const checkRun = (exitCode: number | null, notRun: string | null = null): CheckR
   output: "1 failed, 3 passed",
   outputTail: "1 failed, 3 passed",
   notRun,
+  diagnostics: null,
 });
 const evidence = (report: TestReport | null, extra: Partial<TestEvidence> = {}): TestEvidence => ({
   runner: "pytest",

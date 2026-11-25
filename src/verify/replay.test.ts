@@ -32,6 +32,7 @@ const run = (exitCode: number): CheckRun => ({
   output: "",
   outputTail: "",
   notRun: null,
+  diagnostics: null,
 });
 const evidence = (value: TestReport, runner: TestEvidence["runner"]): TestEvidence => ({
   runner,

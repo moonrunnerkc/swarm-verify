@@ -16,6 +16,19 @@ provenance; 2.0.2 is the first release published by the workflow. `v3` is the Ac
 to each 3.x release; it is not a release tag and pushing it publishes nothing. `v2` stays at
 2.1.0.
 
+## Unreleased
+
+### Fixed
+
+- **A check with no per-test report that fails at the base and with the candidate is compared by
+  its compiler diagnostics.** It was always `unresolved`, so a repository whose `typecheck` or
+  `build` fails at the base could never have a change judged complete. Each run's diagnostics
+  (`tsc` and `path:line[:col]: error: message` forms) are read as file, code and message, without
+  line and column, and compared as a multiset: none added is `inherited-failures`, listed in the
+  regression as `check <name>`; any added is `fail` and names them; none readable, or output cut
+  at the cap, stays `unresolved`. The base cache keeps each check's diagnostics, so a run on a
+  cached base and its replay agree. No schema changes.
+
 ## 3.1.0 - 2026-11-19
 
 A minor release: nothing a caller sends or reads is removed or renamed, but the behavior changes

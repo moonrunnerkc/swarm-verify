@@ -9,9 +9,9 @@ const capped = (ids: readonly string[]) => [...ids].sort().slice(0, 100);
 
 /**
  * The candidate against the base across every check. A check judged test by test contributes
- * its test ids; a check judged by exit code contributes its name. A check that measured nothing
- * (no tests, or no comparison) leaves the regression unresolved rather than absent, and so does
- * a flaky test: its check is unresolved, and the test is named here.
+ * its test ids; a check judged by exit code or by its diagnostics contributes its name. A check
+ * that measured nothing (no tests, or no comparison) leaves the regression unresolved rather
+ * than absent, and so does a flaky test: its check is unresolved, and the test is named here.
  */
 export function regressionOf(checks: readonly CheckResult[]): Regression {
   const newFailures: string[] = [];
@@ -26,7 +26,7 @@ export function regressionOf(checks: readonly CheckResult[]): Regression {
       inherited.push(...tests.inherited);
       removed.push(...tests.removed);
       flaky.push(...tests.flaky);
-    }
+    } else if (check.result === "inherited-failures") inherited.push(`check ${check.name}`);
     if (check.result === "fail" || check.result === "error") {
       const counted =
         tests !== undefined &&

@@ -83,10 +83,12 @@ export const checkResultSchema = z.object({
   command: z.string().min(1),
   kind: z.enum(["test", "other"]),
   authority: z.enum(checkAuthorities),
-  // inherited-failures: nothing new fails, and tests that failed at the base still fail.
+  // inherited-failures: nothing new fails, and tests that failed at the base still fail (or, for
+  // a check with no report, the compiler diagnostics it printed at the base are all it prints).
   // no-tests: the run collected no test, which never counts as passing. unresolved: the base and
   // the candidate could not be compared (a report that did not parse, or a check judged only by
-  // its exit code that fails at both), so nothing is claimed as inherited.
+  // its exit code that fails at both with no diagnostic to compare), so nothing is claimed as
+  // inherited.
   result: z.enum(["pass", "fail", "error", "no-tests", "inherited-failures", "unresolved"]),
   /** Tests the run collected, from the runner's report or its printed summary; null where unknown. */
   collected: z.number().int().nonnegative().nullable(),
