@@ -35,6 +35,12 @@ to each 3.x release; it is not a release tag and pushing it publishes nothing. `
   their file-level failure was read as a new failure. Both variants now run first, each followed
   by removing what it wrote outside git, and the candidate runs last, so the mutation pass and
   the held-out checks follow the candidate's own checks.
+- **A test file that could not load at the base is judged by its own tests once it loads.** A
+  runner reports such a file as one failing entry; once the file loads, that entry is gone and
+  was read as a new failure "passing at the base commit", and the file's failing tests as
+  failures the candidate added. The whole-file entry is now fixed where every test in the file
+  passes and inherited otherwise, and the base's tests in it that fail are inherited. A failing
+  test only the candidate's version of the file holds still blocks.
 
 ## 3.1.0 - 2026-11-19
 

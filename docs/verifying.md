@@ -134,6 +134,7 @@ Each base test is judged by its original version against the candidate:
 | fail | pass | fixed |
 | fail | fail | inherited: reported, does not block |
 | pass | fail, skipped or missing | new failure: blocks |
+| its file could not load | the file loads | the whole-file failure is fixed where every test in the file passes, inherited otherwise; the base's tests in it that fail are inherited, and a failing test only the candidate's version of the file holds blocks |
 | present | its file deleted by the candidate | removed: blocks |
 | any | fails, but the candidate's rewrite of it passes | expectation changed: blocks, unless the task authorized a behavior change and the rewrite fails against the base's source (superseded) |
 
