@@ -68,13 +68,15 @@ policy is not met, and the result is not complete.
 5. The candidate is applied with `git apply --index`. Every changed path is a candidate artifact:
    source, tests, manifests, lockfiles, configuration and CI files may change together. When the
    candidate changes its lockfile or manifest, its dependencies are prepared again from its own.
-6. The checks run on the candidate (the **candidate run**), with V8 or coverage.py measuring the
-   changed lines.
-7. Where the candidate modified or deleted test files, the checks run again with the base's
-   versions of those files restored (the **obligation run**): the original regression
-   obligations judge the new source.
-8. Where the candidate added or rewrote test files, the checks run with the base's source and the
+6. Where the candidate modified or deleted test files, the checks run with the base's versions
+   of those files restored (the **obligation run**): the original regression obligations judge
+   the new source.
+7. Where the candidate added or rewrote test files, the checks run with the base's source and the
    candidate's tests (the **witness run**), to see which new tests fail before the change.
+8. The checks run on the candidate (the **candidate run**), with V8 or coverage.py measuring the
+   changed lines. It runs last, and each of these three runs starts from the untracked paths the
+   base's run started from: what an earlier run's checks wrote outside git (build output, caches)
+   is removed first, so no run's tests load what another run built.
 9. One mutant of a changed line, syntax-checked first, runs against the test checks.
 10. The base's tests are put back, the sealed files copied in, and the held-out checks run with the
     judge loaded.

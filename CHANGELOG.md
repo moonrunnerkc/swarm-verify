@@ -28,6 +28,13 @@ to each 3.x release; it is not a release tag and pushing it publishes nothing. `
   regression as `check <name>`; any added is `fail` and names them; none readable, or output cut
   at the cap, stays `unresolved`. The base cache keeps each check's diagnostics, so a run on a
   cached base and its replay agree. No schema changes.
+- **Every run of a candidate starts from the untracked paths the base's run started from.** The
+  base's tests against the candidate's source, and the candidate's tests against the base's
+  source, ran after the candidate's checks in one checkout and read the untracked output those
+  left: a `build` check's `dist/` let test files that cannot load at the base load there, and
+  their file-level failure was read as a new failure. Both variants now run first, each followed
+  by removing what it wrote outside git, and the candidate runs last, so the mutation pass and
+  the held-out checks follow the candidate's own checks.
 
 ## 3.1.0 - 2026-11-19
 

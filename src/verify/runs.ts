@@ -1,5 +1,11 @@
 import type { DeclaredCheck } from "../config/swarm-toml.ts";
-import { type BaseCheckout, restoreFrom, treeDigest } from "./checkout.ts";
+import {
+  type BaseCheckout,
+  removeWrittenSince,
+  restoreFrom,
+  treeDigest,
+  untrackedPaths,
+} from "./checkout.ts";
 import type { CheckContext } from "./checks.ts";
 import type { TestFileChanges } from "./compare.ts";
 import { type MeasuredRun, runMeasured, type Wrap } from "./per-test.ts";
@@ -56,24 +62,31 @@ async function runAll(
 }
 
 /**
- * The candidate as delivered, then the base's tests against it where the candidate rewrote,
- * moved and edited, or removed some, then the candidate's tests against the base's source where it added or rewrote
- * some. Every variant is laid out from git objects in the one checkout and put back afterwards,
- * so the candidate tree is what remains for the mutation pass and the held-out checks.
+ * The base's tests against the candidate's source where the candidate rewrote, moved and edited,
+ * or removed some, then the candidate's tests against the base's source where it added or rewrote
+ * some, then the candidate as delivered. Every variant is laid out from git objects in the one
+ * checkout and put back afterwards, and starts from the untracked paths the base's run started
+ * from: the base's tests once ran on the build output the candidate's checks had just written, and
+ * files that could not load at the base loaded there (fix-depose-09b01c1, 2026-11-07). The
+ * candidate runs last, so what it leaves is what the mutation pass and the held-out checks run
+ * on, as the base's held-out run follows the base's checks.
  */
 export async function measureCandidate(input: RunInput): Promise<CandidateRuns> {
   const { checkout, changes, candidateTree } = input;
   const rewrites: string[] = [];
-  const candidate = await runAll(input, "candidate", input.wrap, rewrites);
+  const untracked = await untrackedPaths(checkout);
+  const variant = async (label: string, paths: readonly string[], from: string) => {
+    await restoreFrom(checkout, from, paths);
+    const runs = await runAll(input, label, null, rewrites);
+    await restoreFrom(checkout, candidateTree, paths);
+    await removeWrittenSince(checkout, untracked);
+    return runs;
+  };
   // A file moved and edited is judged at its old path, so its moved copy is out of that run.
   const edited = [...changes.movedAndEdited];
   const rewritten = [...changes.modified, ...changes.deleted, ...edited.flat()];
-  let obligation: readonly MeasuredRun[] = candidate;
-  if (rewritten.length > 0) {
-    await restoreFrom(checkout, checkout.baseCommit, rewritten);
-    obligation = await runAll(input, "obligation", null, rewrites);
-    await restoreFrom(checkout, candidateTree, rewritten);
-  }
+  const obligation =
+    rewritten.length > 0 ? await variant("obligation", rewritten, checkout.baseCommit) : null;
   const authored = [
     ...changes.added,
     ...changes.modified,
@@ -81,14 +94,13 @@ export async function measureCandidate(input: RunInput): Promise<CandidateRuns> 
     ...changes.movedAndEdited.values(),
     ...changes.relocated,
   ];
-  let witness: readonly (MeasuredRun | null)[] = input.checks.map(() => null);
-  if (authored.length > 0 && input.otherPaths.length === 0) {
-    // Only tests changed, so the base's source is the candidate's: the candidate run is the witness.
-    witness = candidate;
-  } else if (authored.length > 0) {
-    await restoreFrom(checkout, checkout.baseCommit, input.otherPaths);
-    witness = await runAll(input, "witness", null, rewrites);
-    await restoreFrom(checkout, candidateTree, input.otherPaths);
-  }
-  return { candidate, obligation, witness, rewrites };
+  // Where only tests changed, the base's source is the candidate's: the candidate run is the witness.
+  const ownWitness = authored.length > 0 && input.otherPaths.length > 0;
+  const witnessRuns = ownWitness
+    ? await variant("witness", input.otherPaths, checkout.baseCommit)
+    : null;
+  const candidate = await runAll(input, "candidate", input.wrap, rewrites);
+  const witness: readonly (MeasuredRun | null)[] =
+    witnessRuns ?? (authored.length > 0 ? candidate : input.checks.map(() => null));
+  return { candidate, obligation: obligation ?? candidate, witness, rewrites };
 }
