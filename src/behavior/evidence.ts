@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { redactText } from "../evidence/redact.ts";
 import type { Classification, TestOutcome } from "../verify/compare.ts";
 import { type BehaviorCheck, behaviorCheckSchema, caseId } from "./spec.ts";
 import type { BehaviorRun } from "./target.ts";
@@ -66,7 +67,9 @@ export function behaviorEvidence(
     const cases = check.cases.map((one) => {
       const was = statusIn(base[at], one.name);
       const now = statusIn(after, one.name);
-      const detail = after?.cases.find((found) => found.name === one.name)?.detail ?? "";
+      // What the target answered is the candidate's text: redacted like any captured output.
+      const said = after?.cases.find((found) => found.name === one.name)?.detail ?? "";
+      const detail = redactText(said).text;
       const id = caseId(check.name, one.name);
       outcomes.push({
         id,
