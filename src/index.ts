@@ -60,6 +60,7 @@ export {
   caseId,
   targetSchema as behaviorTargetSchema,
 } from "./behavior/spec.ts";
+export { httpSurface } from "./behavior/surface.ts";
 export { buildVersion as verifierVersion } from "./build-version.ts";
 export { declaredChecks } from "./config/declared.ts";
 export type { DeclaredCheck } from "./config/swarm-toml.ts";
@@ -70,6 +71,8 @@ export {
   conventionViolations,
   measureConventions,
 } from "./conventions/measure.ts";
+export type { ConventionProposal } from "./conventions/propose.ts";
+export { conventionProposal } from "./conventions/propose.ts";
 export type { ConventionRule, ConventionSet } from "./conventions/rules.ts";
 export {
   conventionRules,
