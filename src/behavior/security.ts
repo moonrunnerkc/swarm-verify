@@ -1,5 +1,11 @@
 import { z } from "zod";
-import type { BehaviorCaseInput, BehaviorStepInput } from "./spec.ts";
+import { type Requirement, requirementSchema } from "../api/request.ts";
+import {
+  type BehaviorCaseInput,
+  type BehaviorCheckInput,
+  type BehaviorStepInput,
+  targetSchema,
+} from "./spec.ts";
 
 const headers = z.record(z.string(), z.string());
 const call = z.strictObject({
@@ -176,4 +182,74 @@ export function securityCases(input: SecurityBindingInput): BehaviorCaseInput[] 
       steps: [before, step(of("burst"), repeated, { times: concurrent }), after],
     },
   ];
+}
+
+/** The security checks this version can make, for JavaScript and TypeScript Node web APIs. */
+export const securityClasses = ["ownership", "single-use-token", "duplicate-operation"] as const;
+export type SecurityClass = (typeof securityClasses)[number];
+
+/** How a project binds the checks to itself: how its server starts, and one binding per check. */
+export const securityFileSchema = z.strictObject({
+  target: targetSchema,
+  checks: z.array(securityBindingSchema).min(1),
+});
+export type SecurityFile = z.output<typeof securityFileSchema>;
+
+const obligations: Readonly<Record<SecurityClass, string>> = {
+  ownership:
+    "Only its owner can reach the resource the task serves: another user, another role and an unauthenticated request are refused by the server, and the owner is still served",
+  "single-use-token":
+    "A token the task issues is honored once and only while it is valid: an expired, unknown or already used one is refused, and of several redemptions at once exactly one succeeds",
+  "duplicate-operation":
+    "The operation the task adds takes effect once: a replayed or concurrent duplicate request does not apply it again, and a legitimate first request still succeeds",
+};
+
+const requested = (binding: SecurityBinding): string => {
+  const call =
+    binding.class === "ownership"
+      ? binding.resource
+      : binding.class === "single-use-token"
+        ? binding.redeem
+        : binding.operation;
+  return `${call.method} ${call.path}`;
+};
+
+/**
+ * A security obligation as a requirement of its own, for a producer to fix before its first
+ * edit. It names the request its check sends, so a change can serve that path, and none of the
+ * check's credentials.
+ */
+export function securityRequirement(
+  id: string,
+  name: SecurityClass,
+  binding: SecurityBinding | null,
+): Requirement {
+  return requirementSchema.parse({
+    id,
+    text: `${obligations[name]}${binding === null ? "" : ` (its check sends ${requested(binding)} and requests like it straight to the server)`}`,
+    source: "security",
+    kind: "other",
+  });
+}
+
+/** The behavior checks a binding file makes, each bound to the requirement of its class. */
+export function securityChecks(
+  file: SecurityFile,
+  authority: BehaviorCheckInput["authority"],
+  ids: ReadonlyMap<SecurityClass, string>,
+): BehaviorCheckInput[] {
+  return file.checks.flatMap((binding, at) => {
+    const id = ids.get(binding.class);
+    if (id === undefined) return [];
+    return [
+      {
+        name: `security-${binding.class}-${at + 1}`,
+        class: binding.class,
+        authority,
+        requirements: [id],
+        target: file.target,
+        cases: securityCases(binding),
+      },
+    ];
+  });
 }

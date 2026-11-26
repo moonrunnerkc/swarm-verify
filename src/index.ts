@@ -51,8 +51,20 @@ export {
   verify,
 } from "./api/verify.ts";
 export type { BehaviorRecord } from "./behavior/evidence.ts";
-export type { SecurityBinding, SecurityBindingInput } from "./behavior/security.ts";
-export { securityBindingSchema, securityCases } from "./behavior/security.ts";
+export type {
+  SecurityBinding,
+  SecurityBindingInput,
+  SecurityClass,
+  SecurityFile,
+} from "./behavior/security.ts";
+export {
+  securityBindingSchema,
+  securityCases,
+  securityChecks,
+  securityClasses,
+  securityFileSchema,
+  securityRequirement,
+} from "./behavior/security.ts";
 export type { BehaviorCheck, BehaviorCheckInput, BehaviorClass } from "./behavior/spec.ts";
 export {
   behaviorCheckSchema,

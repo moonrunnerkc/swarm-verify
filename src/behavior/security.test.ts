@@ -1,7 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { correct, type Defenses, fixtureApp } from "./fixture-app.ts";
 import { runScenario } from "./scenario.ts";
-import { type SecurityBindingInput, securityCases } from "./security.ts";
+import {
+  type SecurityBindingInput,
+  securityCases,
+  securityChecks,
+  securityFileSchema,
+  securityRequirement,
+} from "./security.ts";
 import { behaviorCheckSchema } from "./spec.ts";
 import { scenarioOf } from "./target.ts";
 
@@ -159,5 +165,27 @@ describe("a behavior check", () => {
       ready: false,
       cases: [],
     });
+  });
+});
+
+describe("a project's binding file", () => {
+  const file = securityFileSchema.parse({
+    target: { start: "node server.mjs", port: 3000 },
+    checks: [ownership, payment],
+  });
+
+  it("makes one check per binding, bound to the requirement of its class", () => {
+    const made = securityChecks(file, "user-acceptance", new Map([["ownership", "R2"]]));
+    expect(made.map((one) => [one.name, one.class, one.requirements])).toEqual([
+      ["security-ownership-1", "ownership", ["R2"]],
+    ]);
+    expect(behaviorCheckSchema.safeParse(made[0]).success).toBe(true);
+  });
+
+  it("words the obligation as a requirement that names the request and none of the credentials", () => {
+    const made = securityRequirement("R2", "ownership", file.checks[0] ?? null);
+    expect(made).toMatchObject({ id: "R2", source: "security", kind: "other", required: true });
+    expect(made.text).toContain("its check sends GET /invoices/1");
+    expect(made.text).not.toContain("ada");
   });
 });
