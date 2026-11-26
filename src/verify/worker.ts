@@ -20,8 +20,14 @@ export interface WorkerPolicy {
   readonly workspace: string;
   /** A private HOME for the commands, outside the workspace, writable. */
   readonly home: string;
-  /** Paths the commands may read and never write: the workspace's git directory, its alternates. */
+  /** Paths the commands may read and never write, such as the object stores a clone borrows from. */
   readonly readOnly: readonly string[];
+  /**
+   * Directories the commands see in place of others: `src` mounted writable at `dst`. A copy of
+   * the workspace's git directory goes here, so git works for the commands and nothing they
+   * write to it (a hook, a config) is ever read by the caller's own git.
+   */
+  readonly standIns?: readonly { readonly src: string; readonly dst: string }[];
   /** A dependency cache, mounted only while dependencies are fetched. */
   readonly cache: string;
   /** Where the container's account files are written; outside the workspace. */
@@ -79,7 +85,7 @@ export async function openWorker(
       image,
       scratch: policy.workspace,
       readOnly: policy.readOnly,
-      writable: [policy.home],
+      writable: [policy.home, ...(policy.standIns ?? [])],
       hidden: [],
       cache: policy.cache,
       user: `${uid}:${gid}`,

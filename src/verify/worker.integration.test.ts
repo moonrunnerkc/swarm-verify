@@ -14,6 +14,7 @@ const parent = join(homedir(), ".swarm", "test-work", `worker-${process.pid}`);
 const workspace = join(parent, "workspace");
 const home = join(parent, "home");
 const secrets = join(parent, "trusted");
+const ownGit = join(parent, "worker-git");
 const secret = "synthetic-signing-key-7f3a";
 let worker: Worker;
 
@@ -26,11 +27,13 @@ beforeAll(async () => {
   await writeFile(join(secrets, "acceptance.json"), '{"required":true}\n');
   await writeFile(join(workspace, "package.json"), '{"name":"w","private":true}\n');
   execFileSync("git", ["init", "--quiet"], { cwd: workspace });
+  execFileSync("cp", ["-R", join(workspace, ".git"), ownGit]);
   process.env.SYNTHETIC_PROVIDER_KEY = secret;
   const opened = await openWorker({
     workspace,
     home,
-    readOnly: [join(workspace, ".git")],
+    readOnly: [],
+    standIns: [{ src: ownGit, dst: join(workspace, ".git") }],
     cache: join(parent, "cache"),
     accounts: join(parent, "accounts"),
     resources: { memoryMiB: 256, cpus: 1 },
@@ -83,17 +86,23 @@ describe("the worker boundary", () => {
     expect(await readFile(key, "utf8")).toBe(secret);
   });
 
-  it("cannot write the workspace's git directory, which the supervisor reads", async () => {
+  it("uses git on a copy of the git directory, and never writes the one the supervisor reads", async () => {
     const before = await readFile(join(workspace, ".git", "config"), "utf8");
-    const direct = await run("printf '[core]\\n\\tfsmonitor = /bin/false\\n' >> .git/config");
-    const indirect = await run(
+    const config = await run("printf '[core]\\n\\tfsmonitor = /bin/false\\n' >> .git/config");
+    const hook = await run(
       "node -e \"require('fs').writeFileSync('.git/hooks/pre-commit', '#!/bin/sh\\nexit 1\\n')\"",
     );
-    expect(direct.exitCode).not.toBe(0);
-    expect(indirect.exitCode).not.toBe(0);
+    const moved = await run(
+      "git add package.json && git mv package.json manifest.json && git status --short",
+    );
+    expect([config.exitCode, hook.exitCode, moved.exitCode]).toEqual([0, 0, 0]);
+    expect(moved.stdout).toContain("manifest.json");
+    // What the commands wrote is in their copy; the supervisor's git directory is as it was.
+    expect(await readFile(join(ownGit, "config"), "utf8")).toContain("fsmonitor");
     expect(await readFile(join(workspace, ".git", "config"), "utf8")).toBe(before);
     expect(existsSync(join(workspace, ".git", "hooks", "pre-commit"))).toBe(false);
-    expect((await run("git status --short")).exitCode).toBe(0);
+    expect(existsSync(join(workspace, ".git", "index"))).toBe(false);
+    await run("git mv manifest.json package.json");
   });
 
   it("has no network, in the command or a child of it, until the dependency stage is asked for", async () => {

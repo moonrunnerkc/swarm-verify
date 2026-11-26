@@ -26,8 +26,8 @@ export interface Sandbox {
   readonly scratch: string;
   /** Directories the checks may read and never write, mounted over what scratch holds there. */
   readonly readOnly: readonly string[];
-  /** Further directories mounted read-write at their own paths, such as a private HOME. */
-  readonly writable?: readonly string[];
+  /** Further directories mounted read-write: at their own paths, or a stand-in over another. */
+  readonly writable?: readonly (string | BoundFile)[];
   /** Directories mounted empty over what is under them. */
   readonly hidden: readonly string[];
   /** A dependency cache under the verifier's home, mounted only while dependencies are prepared. */
@@ -141,7 +141,12 @@ export function containerRun(
   const name = `swarm-verify-${randomBytes(6).toString("hex")}`;
   const mounts = [
     ["--mount", `type=bind,src=${sandbox.scratch},dst=${sandbox.scratch}`],
-    ...(sandbox.writable ?? []).map((path) => ["--mount", `type=bind,src=${path},dst=${path}`]),
+    ...(sandbox.writable ?? []).map((one) => [
+      "--mount",
+      typeof one === "string"
+        ? `type=bind,src=${one},dst=${one}`
+        : `type=bind,src=${one.src},dst=${one.dst}`,
+    ]),
     ...sandbox.readOnly.map((path) => ["--mount", `type=bind,src=${path},dst=${path},readonly`]),
     ...sandbox.hidden.map((path) => ["--mount", `type=tmpfs,dst=${path}`]),
     ...sandbox.files.map((file) => [
