@@ -1,5 +1,6 @@
 import type { EvidenceRef, Regression, RequirementOutcome } from "../api/outcome.ts";
 import type { Requirement } from "../api/request.ts";
+import { conventionEvidence } from "../conventions/evidence.ts";
 import type { TestOutcome } from "./compare.ts";
 import type { LatestTarget } from "./latest-version.ts";
 import { targetKey } from "./latest-version.ts";
@@ -34,6 +35,11 @@ export interface RequirementInputs {
   readonly dir: string;
   readonly readBase: (path: string) => Promise<string | null>;
   readonly changed: boolean;
+  /** The paths the candidate adds, changes or deletes, for the conventions it is held to. */
+  readonly changedFiles?: readonly {
+    readonly path: string;
+    readonly status: "added" | "modified" | "deleted";
+  }[];
   readonly regression: Regression;
   /** Whether the candidate's dependencies were installed fresh from its own lockfile. */
   readonly freshDependencies: boolean;
@@ -234,7 +240,7 @@ export async function assessRequirements(
     (one) => one.testsAsked && (one.kind === "fix" || one.kind === "feature"),
   ).length;
   for (const requirement of requirements) {
-    const { tests, checks, structure, packages } = requirement.evidence;
+    const { tests, checks, structure, packages, conventions } = requirement.evidence;
     const bound = (inputs.sealedTests ?? []).filter((one) =>
       (one.requirements ?? []).includes(requirement.id),
     );
@@ -260,6 +266,9 @@ export async function assessRequirements(
       ...(await Promise.all(
         packages.map((claim) => packageEvidence(inputs.readBase, inputs.dir, claim)),
       )),
+      ...(conventions === undefined
+        ? []
+        : await conventionEvidence(conventions, { ...inputs, changed: inputs.changedFiles ?? [] })),
       ...(await Promise.all(
         requirement.versions.map((constraint) =>
           constraintEvidence(inputs.dir, constraint, inputs.latest.get(targetKey(constraint))),
