@@ -6,8 +6,10 @@ import { MissingExecutableError, trustedCommand } from "../exec/trusted-executab
 import type { BoundFile } from "./container-user.ts";
 
 export { defaultImages, imageFor } from "./images.ts";
+export { settleWait, sharedFilesystemSettleMs } from "./settle.ts";
 
 import { type Resources, resourceArgs } from "./resources.ts";
+import { settleWait, sharedFilesystemSettleMs } from "./settle.ts";
 
 /**
  * The one isolated backend: docker. Every check runs in a fresh container from a pinned image
@@ -22,8 +24,10 @@ export interface Sandbox {
   readonly image: string;
   /** The verification's scratch directory, mounted read-write at the same path. */
   readonly scratch: string;
-  /** Directories under scratch the checks may read and never write. */
+  /** Directories the checks may read and never write, mounted over what scratch holds there. */
   readonly readOnly: readonly string[];
+  /** Further directories mounted read-write at their own paths, such as a private HOME. */
+  readonly writable?: readonly string[];
   /** Directories mounted empty over what is under them. */
   readonly hidden: readonly string[];
   /** A dependency cache under the verifier's home, mounted only while dependencies are prepared. */
@@ -37,31 +41,15 @@ export interface Sandbox {
   readonly limits: Resources;
 }
 
-/**
- * Where docker runs in a VM (macOS, Windows), the VM's shared filesystem keeps a file's entry for
- * about a second: a file the host replaced, created or removed just before a container starts
- * reads as its old self or as missing (measured on colima with virtiofs: stale up to 0.8 s after
- * the change, never at 1.0 s or later). Every host-side change to the checkout happens between
- * container runs, so the next run starts no sooner than this after the last one ended.
- */
-export const sharedFilesystemSettleMs = process.platform === "linux" ? 0 : 1500;
-
-/**
- * How long to wait before a container run: the settle time less what passed since the last run
- * ended. A sandbox's first run (no run yet, `lastEnded` 0) waits all of it, since the host has
- * just written the checkout and the run's home.
- */
-export function settleWait(lastEnded: number, now: number, settleMs: number): number {
-  const since = lastEnded === 0 ? 0 : now - lastEnded;
-  return Math.max(0, settleMs - since);
-}
-
 export class SandboxUnavailableError extends Error {
+  /** Why there is no container and how to get one, without the verifier's own way around it. */
+  readonly detail: string;
   constructor(detail: string) {
     super(
       `isolated execution is not available: ${detail}. Start docker (for colima, \`colima start\`), or verify on the host with --isolation host, which the result reports as not isolated`,
     );
     this.name = "SandboxUnavailableError";
+    this.detail = `isolated execution is not available: ${detail}. Start docker (for colima, \`colima start\`)`;
   }
 }
 
@@ -146,11 +134,14 @@ export function containerRun(
     readonly stage: "prepare" | "check";
     /** Whether a check may reach the network; preparation always may. */
     readonly network?: "open" | "closed";
+    /** Start it and return at once: a target that keeps running, with only its own loopback. */
+    readonly detached?: boolean;
   },
 ): ContainerRun {
   const name = `swarm-verify-${randomBytes(6).toString("hex")}`;
   const mounts = [
     ["--mount", `type=bind,src=${sandbox.scratch},dst=${sandbox.scratch}`],
+    ...(sandbox.writable ?? []).map((path) => ["--mount", `type=bind,src=${path},dst=${path}`]),
     ...sandbox.readOnly.map((path) => ["--mount", `type=bind,src=${path},dst=${path},readonly`]),
     ...sandbox.hidden.map((path) => ["--mount", `type=tmpfs,dst=${path}`]),
     ...sandbox.files.map((file) => [
@@ -179,6 +170,7 @@ export function containerRun(
     "run",
     "--name",
     name,
+    ...(input.detached === true ? ["--detach"] : []),
     "--network",
     input.stage === "prepare" || input.network === "open" ? "bridge" : "none",
     "--user",
