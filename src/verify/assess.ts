@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { Execution, Regression, RequirementOutcome } from "../api/outcome.ts";
 import type { ExecutionPolicy } from "../api/request.ts";
 import { acceptancePolicy, acceptedState, requirementSupported } from "./acceptance.ts";
@@ -231,3 +232,13 @@ export function notYetMeasured(sealed: boolean): {
     mutation: skipped("the checks did not run"),
   };
 }
+
+/** The tree digest of nothing, for a change that never produced a tree. */
+export const emptyTree = createHash("sha256").update("").digest("hex");
+
+/** Each log file by name and digest, as the statement lists them. */
+export const logDigests = (logs: readonly { readonly name: string; readonly text: string }[]) =>
+  logs.map(({ name, text }) => ({
+    name,
+    sha256: createHash("sha256").update(text).digest("hex"),
+  }));

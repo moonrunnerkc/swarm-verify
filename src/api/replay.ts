@@ -123,6 +123,7 @@ export function replayRequest(
             ? ("independently-generated" as const)
             : ("user-acceptance" as const),
       })),
+    behavior: recorded.behavior.map((one) => one.check),
     policy: {
       behaviorChange: recorded.policy.behaviorChange,
       // A recording made before reruns existed is replayed with them: the replay is the check.

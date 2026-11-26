@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { behaviorCheckSchema } from "../behavior/spec.ts";
+import { conventionSetSchema } from "../conventions/rules.ts";
 import { defaultResources, resourcesSchema } from "../verify/resources.ts";
 import { parseVersionRange } from "../verify/version-range.ts";
 
@@ -10,7 +12,18 @@ export const commitSchema = z
   .string()
   .regex(/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/, "a full lowercase commit id");
 
-export const requirementSources = ["user", "repository-instruction", "inferred"] as const;
+/**
+ * Where a requirement comes from. user: the task's own words. profile: the coding conventions
+ * the user approved. security: an obligation the producer's code derived for what the task
+ * touches. A producer keeps them apart so a derived requirement is never read as the user's.
+ */
+export const requirementSources = [
+  "user",
+  "repository-instruction",
+  "inferred",
+  "profile",
+  "security",
+] as const;
 export const requirementKinds = ["fix", "feature", "refactor", "upgrade", "other"] as const;
 /**
  * Who stands behind a check. Pre-existing checks are the base commit's own; user acceptance
@@ -114,6 +127,11 @@ export const requirementSchema = z.strictObject({
       checks: z.array(z.string().min(1)).default([]),
       structure: z.array(structureClaimSchema).default([]),
       packages: z.array(packageClaimSchema).default([]),
+      /**
+       * Coding conventions the files the candidate adds or changes must not break more often
+       * than the base's versions did, each measured from the syntax tree.
+       */
+      conventions: conventionSetSchema.optional(),
     })
     .default({ tests: [], checks: [], structure: [], packages: [] }),
   versions: z.array(versionConstraintSchema).default([]),
@@ -183,6 +201,8 @@ export const producerSchema = z.strictObject({
   ledgerSha256: sha256Schema.optional(),
   ledgerRecords: z.number().int().nonnegative().optional(),
   reportSha256: sha256Schema.optional(),
+  /** The approved coding-conventions profile the producer worked under, as it was snapshotted. */
+  profile: z.strictObject({ version: z.string().min(1), sha256: sha256Schema }).optional(),
   instructions: z
     .array(z.strictObject({ path: z.string().min(1), sha256: sha256Schema }))
     .default([]),
@@ -202,6 +222,8 @@ export const verifyRequestSchema = z
     ]),
     requirements: z.array(requirementSchema).default([]),
     checks: z.array(trustedCheckSchema).default([]),
+    /** Checks of the running application, driven from outside it. */
+    behavior: z.array(behaviorCheckSchema).default([]),
     policy: z.strictObject({
       /** Whether the task authorizes changing what existing tests expect. */
       behaviorChange: z.enum(["none", "authorized"]).default("none"),
@@ -225,6 +247,20 @@ export const verifyRequestSchema = z
         path: ["requirements"],
         message: `requirement ${id} appears more than once`,
       });
+    for (const name of twice(request.behavior.map((one) => one.name)))
+      context.addIssue({
+        code: "custom",
+        path: ["behavior"],
+        message: `behavior check ${name} appears more than once`,
+      });
+    const known = new Set(request.requirements.map((one) => one.id));
+    for (const check of request.behavior)
+      for (const id of check.requirements.filter((one) => !known.has(one)))
+        context.addIssue({
+          code: "custom",
+          path: ["behavior"],
+          message: `behavior check ${check.name} names ${id}, which the request does not hold`,
+        });
     for (const name of twice(request.checks.map((one) => one.name)))
       context.addIssue({
         code: "custom",

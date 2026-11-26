@@ -1,4 +1,5 @@
 import type { ExecutionPolicy, Producer, Requirement, TrustedCheck } from "../api/request.ts";
+import type { BehaviorCheck } from "../behavior/spec.ts";
 import type { ResolvedChange } from "./change.ts";
 import type { PinnedLocks } from "./generated-lock.ts";
 import type { LatestTarget, Registries } from "./latest-version.ts";
@@ -10,6 +11,8 @@ export interface VerifyOptions {
   readonly change: ResolvedChange;
   readonly requirements?: readonly Requirement[];
   readonly trustedChecks?: readonly TrustedCheck[];
+  /** Checks of the running application, driven from outside it. */
+  readonly behavior?: readonly BehaviorCheck[];
   readonly policy: ExecutionPolicy;
   readonly behaviorChange?: "none" | "authorized";
   /** Reruns of a test whose failing first run decides its verdict; three where unset. */

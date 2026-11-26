@@ -1,0 +1,179 @@
+import { z } from "zod";
+import type { BehaviorCaseInput, BehaviorStepInput } from "./spec.ts";
+
+const headers = z.record(z.string(), z.string());
+const call = z.strictObject({
+  method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).default("GET"),
+  path: z.string().startsWith("/"),
+  headers: headers.default({}),
+  body: z.unknown().optional(),
+});
+type Call = z.output<typeof call>;
+
+/** Statuses that say no without saying the server broke. */
+const refusals = [400, 401, 403, 404, 409, 410, 422];
+
+/**
+ * What a project must say about itself for one of the supported security checks to be made for
+ * it: which request, as whom. The cases are the same for every project; only these differ.
+ */
+export const securityBindingSchema = z.discriminatedUnion("class", [
+  z.strictObject({
+    class: z.literal("ownership"),
+    /** A request for one resource, without credentials. */
+    resource: call,
+    /** Headers that authenticate the resource's owner, another user, and a user of another role. */
+    owner: headers,
+    other: headers,
+    otherRole: headers.optional(),
+    success: z.array(z.int()).min(1).default([200]),
+    /** Text only the owner's response holds; another user's response must not hold it. */
+    ownerSees: z.array(z.string().min(1)).default([]),
+  }),
+  z.strictObject({
+    class: z.literal("single-use-token"),
+    /** The request that issues a token, and where the token is in its JSON response. */
+    issue: call,
+    tokenAt: z.string().min(1),
+    /** The request that redeems it; `{{token}}` stands for the token. */
+    redeem: call,
+    success: z.array(z.int()).min(1).default([200]),
+    /** How long after issue a token must be refused, where the target is started with a short life. */
+    expiresAfterMs: z.int().min(1).max(30_000).optional(),
+    concurrent: z.int().min(2).max(20).default(5),
+  }),
+  z.strictObject({
+    class: z.literal("duplicate-operation"),
+    /** The operation; `{{run}}` differs between cases, for an idempotency key or a fresh resource. */
+    operation: call,
+    /** A request that reads a number the operation changes, and where it is in the JSON response. */
+    observe: call,
+    valueAt: z.string().min(1),
+    /** How much one application of the operation changes that number. */
+    by: z.number(),
+    success: z.array(z.int()).min(1).default([200, 201]),
+    concurrent: z.int().min(2).max(20).default(5),
+  }),
+]);
+export type SecurityBinding = z.output<typeof securityBindingSchema>;
+export type SecurityBindingInput = z.input<typeof securityBindingSchema>;
+
+const step = (
+  request: Call,
+  expect: BehaviorStepInput["expect"],
+  more: Partial<BehaviorStepInput> = {},
+): BehaviorStepInput => ({ request, expect, ...more });
+
+const withHeaders = (request: Call, extra: Readonly<Record<string, string>>): Call => ({
+  ...request,
+  headers: { ...request.headers, ...extra },
+});
+
+/** `{{name}}` replaced through a request, where the value is known before the case runs. */
+function bound(request: Call, name: string, value: string): Call {
+  const put = (text: string) => text.replaceAll(`{{${name}}}`, value);
+  return z.parse(call, JSON.parse(put(JSON.stringify(request))));
+}
+
+/**
+ * The cases of one supported security check for a project's binding. Every set holds a
+ * legitimate use that must succeed beside the uses that must be refused, so neither refusing
+ * everything nor allowing everything passes. Each request goes straight to the server: a
+ * restriction that lives only in a user interface is not there.
+ */
+export function securityCases(input: SecurityBindingInput): BehaviorCaseInput[] {
+  const binding = securityBindingSchema.parse(input);
+  if (binding.class === "ownership") {
+    const { resource, success, ownerSees } = binding;
+    const refused = (name: string, as: Readonly<Record<string, string>>, status: number[]) => ({
+      name,
+      role: "refused" as const,
+      steps: [step(withHeaders(resource, as), { status, bodyExcludes: ownerSees })],
+    });
+    return [
+      {
+        name: "the owner is served",
+        role: "allowed",
+        steps: [
+          step(withHeaders(resource, binding.owner), { status: success, bodyIncludes: ownerSees }),
+        ],
+      },
+      refused("another user is refused", binding.other, [403, 404]),
+      refused("an unauthenticated request is refused", {}, [401, 403]),
+      ...(binding.otherRole === undefined
+        ? []
+        : [refused("a user of another role is refused", binding.otherRole, [403, 404])]),
+    ];
+  }
+  if (binding.class === "single-use-token") {
+    const { issue, redeem, success, concurrent } = binding;
+    const issued = step(issue, { status: [200, 201] }, { capture: { token: binding.tokenAt } });
+    return [
+      {
+        name: "a valid token is redeemed",
+        role: "allowed",
+        steps: [issued, step(redeem, { status: success })],
+      },
+      {
+        name: "a redeemed token is refused",
+        role: "refused",
+        steps: [issued, step(redeem, { status: success }), step(redeem, { status: refusals })],
+      },
+      {
+        name: "a token that was never issued is refused",
+        role: "refused",
+        steps: [step(bound(redeem, "token", "never-issued-0000"), { status: refusals })],
+      },
+      ...(binding.expiresAfterMs === undefined
+        ? []
+        : [
+            {
+              name: "an expired token is refused",
+              role: "refused" as const,
+              steps: [
+                issued,
+                step(redeem, { status: refusals }, { waitMs: binding.expiresAfterMs }),
+              ],
+            },
+          ]),
+      {
+        name: "a token redeemed several times at once is honored once",
+        role: "effect",
+        steps: [
+          issued,
+          step(
+            redeem,
+            { status: success, count: { min: 1, max: 1 }, otherwise: refusals },
+            { times: concurrent },
+          ),
+        ],
+      },
+    ];
+  }
+  const { operation, observe, valueAt, by, success, concurrent } = binding;
+  const before = step(observe, { status: [200] }, { capture: { before: valueAt } });
+  const after = step(observe, {
+    status: [200],
+    json: [{ path: valueAt, delta: { of: "before", by } }],
+  });
+  // A repeat may be answered with the first result or refused; what counts is the effect.
+  const repeated = { status: [...success, ...refusals] };
+  const of = (run: string) => bound(operation, "run", run);
+  return [
+    {
+      name: "the operation is applied",
+      role: "allowed",
+      steps: [before, step(of("first"), { status: success }), after],
+    },
+    {
+      name: "a replayed operation is applied once",
+      role: "effect",
+      steps: [before, step(of("replay"), { status: success }), step(of("replay"), repeated), after],
+    },
+    {
+      name: "an operation sent several times at once is applied once",
+      role: "effect",
+      steps: [before, step(of("burst"), repeated, { times: concurrent }), after],
+    },
+  ];
+}

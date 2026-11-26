@@ -50,9 +50,29 @@ export {
   snapshotWorkingTree,
   verify,
 } from "./api/verify.ts";
+export type { BehaviorRecord } from "./behavior/evidence.ts";
+export type { SecurityBinding, SecurityBindingInput } from "./behavior/security.ts";
+export { securityBindingSchema, securityCases } from "./behavior/security.ts";
+export type { BehaviorCheck, BehaviorCheckInput, BehaviorClass } from "./behavior/spec.ts";
+export { behaviorCheckSchema, behaviorClasses, caseId } from "./behavior/spec.ts";
 export { buildVersion as verifierVersion } from "./build-version.ts";
 export { declaredChecks } from "./config/declared.ts";
 export type { DeclaredCheck } from "./config/swarm-toml.ts";
+export type { SourceText, Tally, Violation } from "./conventions/measure.ts";
+export {
+  conventionSources,
+  conventionViolations,
+  measureConventions,
+} from "./conventions/measure.ts";
+export type { ConventionRule, ConventionSet } from "./conventions/rules.ts";
+export {
+  conventionRules,
+  conventionSetSchema,
+  conventionText,
+  conventionValues,
+} from "./conventions/rules.ts";
+export type { UnsafeFinding, UnsafeKind } from "./conventions/unsafe.ts";
+export { unsafePatterns } from "./conventions/unsafe.ts";
 export { acceptancePolicy } from "./verify/acceptance.ts";
 export { reportPlans } from "./verify/per-test.ts";
 export { predicateType } from "./verify/predicate.ts";

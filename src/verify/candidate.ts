@@ -41,6 +41,8 @@ export interface CandidateInput {
    * where the candidate installed its own; null where the base's are still in place.
    */
   readonly reinstallBase: (() => Promise<boolean>) | null;
+  /** Run on the candidate's tree once its checks have, before anything goes back to the base. */
+  readonly onCandidate?: () => Promise<void>;
 }
 
 export interface CandidateJudgment {
@@ -221,13 +223,9 @@ export async function judgeCandidate(input: CandidateInput): Promise<CandidateJu
     input.sealed === null
       ? { hidden: null, problems: [] }
       : await runSealedOnCandidate({ ...input, sealed: input.sealed, tested });
-  const baseSide = await rerunBaseSide(
-    input,
-    rerun,
-    outcomesOf(afterCandidate),
-    firstRuns,
-    otherPaths,
-  );
+  await input.onCandidate?.();
+  const before = outcomesOf(afterCandidate);
+  const baseSide = await rerunBaseSide(input, rerun, before, firstRuns, otherPaths);
   const judged = judgeAll([...candidateReruns, ...baseSide.runs]);
   const runs = judged.map((one) => one.run.result);
   const reasons = judged.flatMap((one) => one.reasons);
