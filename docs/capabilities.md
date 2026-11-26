@@ -1,6 +1,6 @@
 # What swarm-verify supports
 
-What each stage does per ecosystem, as of 3.1.0. Where a row says no, the verifier reports the
+What each stage does per ecosystem, as of 3.2.0. Where a row says no, the verifier reports the
 stage as unmeasured, unverified or blocked with the reason; it never guesses. Mixed projects
 declare their checks explicitly in `swarm.toml` (`[checks]`, with `kind = "test"` where a check
 runs tests) and their setup in `[verify] setup`; an image is named with the request's
@@ -15,6 +15,8 @@ runs tests) and their setup in `[verify] setup`; an image is named with the requ
 | Changed-line coverage | `NODE_V8_COVERAGE` for test checks (Node 22.8 or newer) | coverage.py, where installed and the check is a pytest command | no | no |
 | Mutation (one mutant, a diagnostic) | JS and TS, syntax-checked before it runs | Python, syntax-checked by the host's `python3` | no | no |
 | Structure claims by symbol | TypeScript and JavaScript, by the TypeScript 6.0.3 parser | Python, by its own `ast`, isolated | no | text claims only |
+| Convention evidence | JavaScript and TypeScript, counted from the syntax tree | no | no | no |
+| Behavior checks | any HTTP server one command starts; the driver needs Node in the image (isolated) | the same, with an image that holds Node | no | the same |
 | Version claims and constraints | npm SemVer against `package-lock.json` (every resolution of the name) | PEP 440 against `uv.lock` (every resolution) | no | no |
 
 Version resolution is read only from `package-lock.json` and `uv.lock`. Installing from

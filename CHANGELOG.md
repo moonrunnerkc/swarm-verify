@@ -18,6 +18,38 @@ to each 3.x release; it is not a release tag and pushing it publishes nothing. `
 
 ## Unreleased
 
+### Added
+
+- **Behavior checks: a running application judged from outside it.** A request may carry
+  `behavior` checks. For each, the verifier starts the candidate as a target, in a container
+  with no network but its own loopback, and a driver in a second container sends the HTTP
+  requests the check names and reports each case. The target's own output is never read as a
+  result, and the driver's files are mounted read-only where the target sees them at all. Cases
+  run at the base and on the candidate, bind to requirements, and are kept whole in the signed
+  record, so a replay drives them again. A check with no legitimate use in it, or with nothing
+  else, is refused: refusing everything, or allowing everything, would pass it. On the host the
+  target is a process and the record says `external driver, host target`.
+- **Three security checks built from a project's binding.** `securityCases` makes the cases for
+  resource ownership (owner served; another user, another role and an unauthenticated request
+  refused), expiring single-use tokens (valid redeemed; reused, unknown and expired refused;
+  concurrent redemption honored once) and duplicate operations (applied; replayed or sent at
+  once, applied once). `securityRequirement` and `securityChecks` turn a binding file into a
+  requirement and its checks.
+- **Coding conventions as evidence.** A requirement may name `conventions` in its evidence. Each
+  is measured from the syntax of the JavaScript and TypeScript files the candidate adds or
+  changes, and holds where no file breaks it more often than its base version did.
+  `measureConventions`, `conventionProposal` and `unsafePatterns` say what a set of samples
+  supports, what a repository's lint configuration already settles, and what must never be
+  learned.
+- **A worker sandbox for a caller's own untrusted commands.** `openWorker`, from
+  `swarm-verify/execution`, gives a coding agent the container the checks run in: a fresh
+  container per command, no capabilities, bounded memory, CPU and processes, no network outside
+  a dependency stage, only the workspace and a private HOME writable, and stand-ins such as a
+  copy of the git directory. A worker that cannot be made says why and never becomes the host.
+- Requirements may come from two more sources, `profile` and `security`, and a producer may name
+  the conventions profile it worked under (`producer.profile`). Evidence may be of kind
+  `convention`. A statement made before this release reads as one with no behavior checks.
+
 ### Fixed
 
 - **A check with no per-test report that fails at the base and with the candidate is compared by
