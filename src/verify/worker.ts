@@ -32,6 +32,8 @@ export interface WorkerPolicy {
   readonly cache: string;
   /** Where the container's account files are written; outside the workspace. */
   readonly accounts: string;
+  /** The project's check commands, which decide the image where no manifest does. */
+  readonly commands?: readonly string[] | undefined;
   readonly image?: string | undefined;
   readonly resources?: Resources | undefined;
 }
@@ -73,7 +75,7 @@ export interface Worker {
 export async function openWorker(
   policy: WorkerPolicy,
 ): Promise<Worker | { readonly unavailable: string }> {
-  const image = policy.image ?? (await imageFor(policy.workspace, []));
+  const image = policy.image ?? (await imageFor(policy.workspace, policy.commands ?? []));
   try {
     const imageId = await readyImage(image);
     const limits = policy.resources ?? defaultResources;
