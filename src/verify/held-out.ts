@@ -15,7 +15,7 @@ import { baselineKey, codeSha256 } from "./code-digest.ts";
 import { type MeasuredRun, reportPlans, runMeasured } from "./per-test.ts";
 import type { Baseline, Predicate } from "./predicate.ts";
 import type { ReportPlan } from "./report-plan.ts";
-import { overlaySealed, SealError, type SealedSet } from "./sealed-store.ts";
+import { alteredSealed, overlaySealed, SealError, type SealedSet } from "./sealed-store.ts";
 
 export {
   alteredSealed,
@@ -250,4 +250,18 @@ async function placed(
     if (error instanceof SealError) return error.message;
     throw error;
   }
+}
+
+/** Why sealed checks whose bytes changed after sealing stop the run, as its blocking reason. */
+export async function sealedChanged(
+  workspace: string,
+  sealed: SealedSet | null,
+  home: string,
+): Promise<string[]> {
+  const altered = sealed === null ? [] : await alteredSealed(workspace, sealed, home);
+  return altered.length === 0
+    ? []
+    : [
+        `the sealed held-out files changed after they were sealed: ${altered.join(", ")}; seal them again`,
+      ];
 }

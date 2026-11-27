@@ -20,6 +20,15 @@ export interface GitResult {
   readonly code: number;
 }
 
+/**
+ * Git on the host reads trees untrusted commands wrote: no hook, no filesystem monitor program
+ * and no walk into a nested repository whose config they could have written.
+ */
+const trusting = [
+  ...["core.hooksPath=/dev/null", "core.fsmonitor=false", "core.quotepath=false"],
+  ...["submodule.recurse=false", "diff.ignoreSubmodules=all", "status.submoduleSummary=false"],
+].flatMap((one) => ["-c", one]);
+
 /** Runs git with hooks disabled and no repository overrides from the caller's environment. */
 export function runGit(
   cwd: string,
@@ -41,7 +50,7 @@ export function runGit(
         }
         execFile(
           file,
-          ["-c", "core.hooksPath=/dev/null", "-c", "core.quotepath=false", ...args],
+          [...trusting, ...args],
           { cwd, env, encoding: "buffer", maxBuffer: 256 * 1024 * 1024 },
           (error, stdout, stderr) => {
             const code = error === null ? 0 : typeof error.code === "number" ? error.code : 1;

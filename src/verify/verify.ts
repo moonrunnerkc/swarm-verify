@@ -1,13 +1,16 @@
 import { createHash } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
+import { behaviorMeasure } from "../behavior/measure.ts";
 import { detectChecks } from "../config/detect.ts";
 import { readSwarmToml } from "../config/swarm-toml.ts";
 import { redactionRecord } from "../evidence/redact.ts";
 import {
   blockedRun,
+  emptyTree,
   executionOf,
   independenceReasons,
   judgedPredicate,
+  logDigests,
   notYetMeasured,
   regressionOf,
   unmeasuredOf,
@@ -19,7 +22,7 @@ import { allChecks, type CheckContext, environmentOf, privateHome } from "./chec
 import type { TestOutcome } from "./compare.ts";
 import { dependencyIdentity } from "./deps.ts";
 import { generatedLocks } from "./generated-lock.ts";
-import { alteredSealed, measureBase, readSealed, swarmHome } from "./held-out.ts";
+import { measureBase, readSealed, sealedChanged, swarmHome } from "./held-out.ts";
 import { readiness } from "./isolate.ts";
 import { latestLog, latestLogName, latestTargets, publicRegistries } from "./latest-version.ts";
 import { artifactsOf } from "./paths.ts";
@@ -65,11 +68,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       );
     if (!ready.ready) blocked.push(ready.reason);
     // An oracle whose sealed bytes changed judges nothing: the run stops before any check.
-    const altered = sealed === null ? [] : await alteredSealed(options.workspace, sealed, home);
-    if (altered.length > 0)
-      blocked.push(
-        `the sealed held-out files changed after they were sealed: ${altered.join(", ")}; seal them again`,
-      );
+    blocked.push(...(await sealedChanged(options.workspace, sealed, home)));
     const isolated = ready.ready ? ready.isolated : null;
     // Nothing the project controls runs without a ready execution and nothing blocking it.
     const context: CheckContext | null =
@@ -83,6 +82,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
             checkNetwork: options.policy.network,
           }
         : null;
+    const behavior = behaviorMeasure(options.behavior ?? [], checkout, context);
     let runs: CheckResult[] = [];
     let outcomes: TestOutcome[] = [];
     let sealedTests: TestOutcome[] = [];
@@ -136,6 +136,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       baseline = measured.baseline;
       baseRuns = measured.runs;
       sealedBase = measured.sealedRuns;
+      await behavior.atBase();
     } else if (checks.length > 0) {
       baseline = skipped(
         `the base was not measured: ${blocked[0] ?? "its dependencies did not install"}`,
@@ -200,6 +201,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
         candidateSha256: applied.result.treeSha256,
         behaviorChange: options.behaviorChange ?? "none",
         reruns: options.reruns ?? defaultReruns,
+        onCandidate: behavior.onCandidate,
         reinstallBase: ownDependencies
           ? async () => {
               await locks.restoreBase();
@@ -217,11 +219,13 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       unmeasuredChecks.push(...judged.unmeasured);
     }
 
+    const behaved = behavior.evidence(reasons, failures, logs);
     const regression = regressionOf(runs);
     const requirements = await assessRequirements(options.requirements ?? [], {
       checks: runs,
       outcomes,
-      sealedTests,
+      sealedTests: [...sealedTests, ...behaved.outcomes],
+      changedFiles: changed,
       dir: checkout.dir,
       readBase: baseReader(checkout.dir, change.baseCommit),
       changed: change.patch.length > 0,
@@ -253,6 +257,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
       requirements,
       regression,
       checks: runs,
+      behavior: behaved.records,
       baseline,
       heldOut,
       artifacts,
@@ -275,10 +280,7 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
         coverage,
         mutation,
       }),
-      logs: logs.map(({ name, text }) => ({
-        name,
-        sha256: createHash("sha256").update(text).digest("hex"),
-      })),
+      logs: logDigests(logs),
       verifier: { name: "swarm-verify", version: options.version },
     };
     const predicate = judgedPredicate(draft, blockedRun({ blocked, requirements }));
@@ -294,6 +296,3 @@ export async function verifyChange(options: VerifyOptions): Promise<VerifyOutcom
     await checkout.remove();
   }
 }
-
-/** The tree digest of nothing, for a change that never produced a tree. */
-const emptyTree = createHash("sha256").update("").digest("hex");

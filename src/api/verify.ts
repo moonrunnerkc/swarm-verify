@@ -109,6 +109,7 @@ export async function verify(
     change,
     requirements: request.requirements,
     trustedChecks: request.checks,
+    behavior: request.behavior,
     policy: request.policy.execution,
     behaviorChange: request.policy.behaviorChange,
     reruns: request.policy.reruns,

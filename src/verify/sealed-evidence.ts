@@ -21,7 +21,7 @@ const statusOf = (run: MeasuredRun | undefined): Status => {
 /**
  * Every test of every sealed check as an outcome against the base, carrying the set's authority
  * and the requirements its check names. Where a runner's report was read, test by test; where
- * none was, the check by its exit code, as one outcome named for the check.
+ * none was planned, the check by its exit code, as one outcome named for the check.
  */
 export function sealedOutcomes(
   sealed: SealedSet,
@@ -37,7 +37,11 @@ export function sealedOutcomes(
     const baseReport = before?.evidence.report ?? null;
     if (report === null) {
       const id = `held-out ${check.name}`;
-      const [was, now] = [statusOf(before), statusOf(after)];
+      const was = statusOf(before);
+      // A runner whose report was expected and never came measured nothing by passing: its exit
+      // code is taken for a failure and never for a pass.
+      const silent = after?.evidence.runner != null && statusOf(after) === "pass";
+      const now = silent ? "skip" : statusOf(after);
       outcomes.push({
         id,
         title: id,

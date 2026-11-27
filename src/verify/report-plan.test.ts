@@ -39,12 +39,16 @@ describe("recognizing a runner", () => {
     for (const command of ["node --test", "cd no-tests && node --test", "npm test"]) {
       const plan = reportPlan(command, { test: "node --test test/" });
       expect(plan?.runner).toBe("node");
-      expect(plan?.command(file)).toBe(command);
       expect(plan?.env(file).NODE_OPTIONS).toContain(
         `--test-reporter=junit --test-reporter-destination=${file}`,
       );
     }
     expect(reportPlan("node --test a && node --test b", {})).toBeNull();
+  });
+
+  it("runs node's own runner as declared, since forcing its exit cuts the report short", () => {
+    for (const command of ["node --test", "cd no-tests && node --test", "npm test"])
+      expect(reportPlan(command, { test: "node --test test/" })?.command(file)).toBe(command);
     expect(reportPlan("bun test", { test: "node --test" })).toBeNull();
   });
 

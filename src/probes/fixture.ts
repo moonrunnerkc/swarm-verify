@@ -9,6 +9,7 @@ import type { Requirement } from "../api/request.ts";
 import { requestVersion, type VerifyRequestInput } from "../api/request.ts";
 import type { VerifyResult } from "../api/result.ts";
 import { snapshotWorkingTree, verify } from "../api/verify.ts";
+import type { BehaviorCheckInput } from "../behavior/spec.ts";
 
 /**
  * The disposable repositories of the 2026-10-31 review's Appendix A probes: a `half(n)` module,
@@ -42,6 +43,7 @@ interface RequestExtras {
   readonly resources: { readonly memoryMiB: number; readonly cpus: number };
   /** Where baselines and sealed checks live, if not the fixture's own home. */
   readonly swarmHome: string;
+  readonly behavior: readonly BehaviorCheckInput[];
 }
 
 process.env.SWARM_SIGNING_KEY ??= generateKeyPairSync("ed25519")
@@ -101,6 +103,7 @@ export async function probeFixture(
           base: { commit: snapshot.baseCommit },
           candidate: { kind: "patch", path: snapshot.path, sha256: snapshot.sha256 },
           requirements: [...requirements],
+          behavior: [...(extra.behavior ?? [])],
           policy: {
             behaviorChange: extra.behaviorChange ?? "none",
             ...(extra.reruns === undefined ? {} : { reruns: extra.reruns }),

@@ -13,6 +13,8 @@ an exact version through its public API (ADR 0015 in the orchestrator repository
 - Requirement statuses (`satisfied`, `failed`, `unverified`, `blocked`) and the overall state
   (`complete`, `incomplete`, `blocked`) are derived here and only here, from captured results
   and declared policy. A model may propose requirements and checks; it never sets a status.
+- Behavior checks (a running application driven from outside it), convention evidence and the
+  worker sandbox a caller's untrusted commands run in are part of that ownership.
 - Nothing here imports a model client, the agent loop or a terminal interface, and nothing here
   installs or requires the agent. A build-time boundary test enforces it.
 

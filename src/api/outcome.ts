@@ -22,7 +22,7 @@ export type OverallState = (typeof overallStates)[number];
 
 /** One piece of executed or observed evidence, by reference. Never model prose. */
 export const evidenceRefSchema = z.strictObject({
-  kind: z.enum(["test", "check", "structure", "package", "change"]),
+  kind: z.enum(["test", "check", "structure", "package", "change", "convention"]),
   ref: z.string().min(1),
   authority: z.enum(checkAuthorities),
   outcome: z.string().min(1),

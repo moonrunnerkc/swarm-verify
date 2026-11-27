@@ -13,9 +13,11 @@ recorded in the environment identity. The container sees only the verification's
 directory, mounted at its own path: the checkout, the runner reports, a private HOME, and the
 judge, mounted read-only. The checkout's `.git` is hidden behind an empty mount. Nothing else of
 the host is mounted: not the docker socket, the user's home, credentials, the base-run cache, the
-sealed store or the signing key. Dependencies are installed in one recorded stage with the
-network open (and a dependency cache under the verifier's home mounted); every check runs with
-`--network none` unless the request records that it needs a network. Linked dependencies are
+sealed store or the signing key. Dependencies are fetched in one recorded stage with the
+network open (and a dependency cache under the verifier's home mounted). For npm, pnpm and
+classic yarn nothing a package ships runs during it: install scripts run afterwards with the
+network closed. Every check runs with `--network none` unless the request records that it needs
+a network. Linked dependencies are
 refused in isolation.
 
 Every container that runs project code (dependency setup, base and candidate checks, reruns,
@@ -224,6 +226,56 @@ held-out check (`swarm-verify init --seal <glob>`). A requirement whose every de
 `implementation-authored` (tests or claims the change itself added) is `unverified` with the
 witness recorded as `self-attested`, and the result names the missing independent evidence.
 
+## Behavior checks
+
+A request's `behavior` array holds checks of what the running application does. Each names the
+requirements it witnesses, how to start the target (`start`, `port`, optional `env` and `ready`),
+and cases. A case is a sequence of HTTP requests with what each must answer: a status, how many
+of several requests sent at once may succeed (`times`, `count`), values in the JSON response
+(`json`, by value or by change from a captured one), and text the body must or must not hold.
+A step may wait (`waitMs`) and carry a value forward (`capture`, used as `{{name}}`).
+
+Isolated, the target runs in a container with no network but its own loopback, and the driver
+runs in a second container that shares that loopback and nothing else. The driver's code and
+scenario are written by the verifier and mounted read-only; its report is read from its own
+output. Nothing the target prints or writes is taken for a result. The cases run at the base
+and on the candidate, so a case that already held is `preserved` and one the change made hold is
+`fixed`; a case the candidate fails is a failure of its requirement, and one that could not be
+measured (the target never answered) leaves it unverified, with the reason and a log.
+
+This is stronger evidence than a unit test for the same behavior, which shares a process with
+the code it tests. It is still only the requests that were sent. Every check must hold a case
+with role `allowed` and one with another role.
+
+`securityCases(binding)` builds the cases of three checks from a project's binding. See the
+orchestrator's reference for the binding's shape. A binding is refused where it could not show
+what it claims (the other user is the owner, the redemption never uses the token, the observed
+number cannot move). An ownership binding should name `signedIn`, a request the base already
+answers for any signed-in user and refuses without credentials: without it a credential that
+names nobody is refused like a stranger's, and the check reads that as the restriction working.
+`tryBinding(file, { workspace, baseCommit, policy })` tries a binding on a commit as it stands,
+with the same checkout, target and driver, and says what real requests showed is wrong with it.
+These three checks are what this version makes; they are not a security review.
+
+## Conventions
+
+A requirement's evidence may hold `conventions`: rules with the value the project holds each to
+(`exports: named`, `function-names: camelCase`, `explicit-any: forbidden` and others in
+`conventionValues`). Each becomes one piece of evidence of kind `convention`. It is `observed`
+where no JavaScript or TypeScript file the candidate adds or changes breaks the rule more often
+than its base version did, and `fail` with the file, line and text where one does. Rules are
+read from the syntax tree; comments and strings are not consulted.
+
+## Containing a caller's commands
+
+`openWorker` (`swarm-verify/execution`) runs a caller's untrusted commands in the sandbox the
+checks use. The caller names the workspace, a private HOME, paths to mount read-only and
+stand-ins to mount in place of others. Each command gets a fresh container with no network; a
+run that asks for the dependency stage gets the network and the dependency cache, and the caller
+decides which commands those are. The container does not hold the caller's home, environment,
+credentials or docker socket. It bounds the commands; it is no defense against a compromised
+daemon or host.
+
 ## Mutation
 
 One mutant of a changed source line runs against the test checks, preferring covered lines.
@@ -363,8 +415,11 @@ authenticated (nothing in it ran).
   from outside the process (a black-box acceptance check the request supplies).
 - On the host (`--isolation host`), checks run as the invoking user and can reach the judge, the
   base-run cache, the sealed store and the installed verifier. The result says so.
-- Dependency preparation runs the project's install scripts with the network open. Its output is
-  digested, not inspected.
+- Dependency preparation is not offline. Packages are fetched with the network open; npm, pnpm
+  and classic yarn run no install script while it is, but Yarn 2 and later, bun and Python
+  builds (a build backend, a source distribution) do run in that stage, as does a `[verify]
+  setup` command the base declares. On the host nothing separates the two. The stage's output
+  is digested, not inspected.
 - Trust in a signing key is external to the bundle. A public key shipped beside an attestation
   says who signed it only if you already trust that key from elsewhere.
 - Linked dependencies resolve through the workspace and are never reproducible; a baseline

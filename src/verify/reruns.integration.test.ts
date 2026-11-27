@@ -124,6 +124,59 @@ describe("checking a flaky result offline", () => {
   });
 });
 
+describe("a rerun starts from the untracked paths the first run started from", () => {
+  // Wrong in a clean checkout, right once its own first run has left a marker beside it.
+  const primed = `import {existsSync, writeFileSync} from 'node:fs';
+const marker = new URL('./.primed', import.meta.url);
+const seen = existsSync(marker);
+writeFileSync(marker, '');
+export const half = n => (seen ? n / 2 : n * 2);
+`;
+
+  it("keeps a new failure the candidate's first run would have primed into a pass", async () => {
+    const probe = await probeFixture({
+      "half.mjs": "export const half = n => n / 2;\n",
+      "test/half.test.mjs": halfTest,
+    });
+    await probe.put("half.mjs", primed);
+    const result = await probe.verify();
+    const failing = "test/half.test.mjs::half positive";
+    expect(result.checks[0]?.tests?.reruns).toEqual([
+      { id: failing, snapshot: "candidate", results: ["fail", "fail", "fail", "fail"] },
+    ]);
+    expect(result.regression).toMatchObject({ status: "found", newFailures: [failing], flaky: [] });
+    expect(exitCodeOf(result)).toBe(1);
+  });
+
+  it("runs the checks before the rerun one again, and leaves the candidate's output for the mutant", async () => {
+    // The build check comes first and the test needs what it wrote: run 2, the candidate's, fails.
+    const probe = await probeFixture({
+      ".gitignore": "dist/\n",
+      "swarm.toml":
+        '[checks]\nbuild = "node build.mjs"\ntest = { command = "node --test", kind = "test" }\n',
+      "build.mjs":
+        "import {mkdirSync, writeFileSync} from 'node:fs';\nmkdirSync('dist', {recursive: true});\nwriteFileSync('dist/built', '');\n",
+      "half.mjs": "export const half = n => n / 2;\n",
+    });
+    const counter = join(probe.repo, "..", "runs");
+    await writeFile(counter, "0");
+    await probe.put(
+      "test/half.test.mjs",
+      `${failsOnRun(counter, 2)}test('built', () => assert.ok(readFileSync('dist/built') !== null));\n`,
+    );
+    probe.git("add", "-A");
+    probe.git("commit", "-qm", "the counted test");
+    await probe.put("half.mjs", "export const half = n => n / 2 + 0;\n");
+    const result = await probe.verify();
+    const tests = result.checks[1]?.tests;
+    expect(tests?.reruns).toEqual([{ id, snapshot: "candidate", results: ["fail", "pass"] }]);
+    expect(tests?.newFailures).toEqual([]);
+    // An equivalent mutant: only the build output going missing could make a test fail on it.
+    expect(result.mutation).toMatchObject({ status: "survived", operator: "+ to -" });
+    expect(result.execution.problems).toEqual([]);
+  });
+});
+
 describe("a test that fails on every run", () => {
   it("stays a new failure after its reruns, which are recorded", async () => {
     const probe = await probeFixture({

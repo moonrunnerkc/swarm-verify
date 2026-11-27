@@ -12,5 +12,11 @@ export const verifierCommands: Readonly<Record<"verify" | "init" | "ci" | "repla
   replay: async (args, signal) => (await import("./cli-replay.ts")).replayCommand(args, signal),
 };
 
-export { commandDefinitions, UsageError } from "./cli-command-definitions.ts";
-export type { Handler } from "./cli-main.ts";
+export { describeRunningVersion } from "./build-version.ts";
+export {
+  type CommandDefinition,
+  commandDefinitions,
+  UsageError,
+  usageFor,
+} from "./cli-command-definitions.ts";
+export { dispatch, type Handler } from "./cli-main.ts";

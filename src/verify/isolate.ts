@@ -78,7 +78,10 @@ export async function isolate(
     const resources = await probeResources(image, limits);
     const judge = join(scratch, "judge");
     const cache = join(home, "cache");
+    // The behavior checks' driver and scenarios: the target reads them at most, never writes them.
+    const behavior = join(scratch, "behavior");
     await mkdir(judge, { recursive: true, mode: 0o700 });
+    await mkdir(behavior, { recursive: true, mode: 0o755 });
     await mkdir(cache, { recursive: true, mode: 0o700 });
     const uid = process.getuid?.() ?? 0;
     const gid = process.getgid?.() ?? 0;
@@ -89,7 +92,7 @@ export async function isolate(
       sandbox: {
         image,
         scratch,
-        readOnly: [judge],
+        readOnly: [judge, behavior],
         hidden: [join(dir, ".git")],
         cache,
         user: `${uid}:${gid}`,

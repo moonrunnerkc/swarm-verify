@@ -6,6 +6,7 @@ import {
   requirementOutcomeSchema,
 } from "../api/outcome.ts";
 import { checkAuthorities, producerSchema } from "../api/request.ts";
+import { behaviorRecordSchema } from "../behavior/evidence.ts";
 import { artifactCategories } from "../config/swarm-toml.ts";
 import { statementType } from "./dsse.ts";
 import { runners } from "./test-report.ts";
@@ -191,6 +192,8 @@ export const predicateSchema = z.object({
   requirements: z.array(requirementOutcomeSchema),
   regression: regressionSchema,
   checks: z.array(checkResultSchema),
+  /** Each behavior check with its cases at the base and on the candidate; absent before 3.2.0. */
+  behavior: z.array(behaviorRecordSchema).default([]),
   baseline: baselineSchema,
   heldOut: heldOutSchema,
   /** Every changed path and its kind; none is refused for its kind. */

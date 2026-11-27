@@ -36,6 +36,7 @@ export {
   requirementKinds,
   requirementSchema,
   requirementSources,
+  structureClaimSchema,
   verifyRequestSchema,
   versionConstraintSchema,
 } from "./api/request.ts";
@@ -50,9 +51,53 @@ export {
   snapshotWorkingTree,
   verify,
 } from "./api/verify.ts";
+export { unreadValue } from "./behavior/binding.ts";
+export type { BehaviorRecord } from "./behavior/evidence.ts";
+export { tryBinding } from "./behavior/probe.ts";
+export type {
+  SecurityBinding,
+  SecurityBindingInput,
+  SecurityClass,
+  SecurityFile,
+} from "./behavior/security.ts";
+export {
+  securityBindingSchema,
+  securityCases,
+  securityChecks,
+  securityClasses,
+  securityFileSchema,
+  securityRequirement,
+} from "./behavior/security.ts";
+export type { BehaviorCheck, BehaviorCheckInput, BehaviorClass } from "./behavior/spec.ts";
+export {
+  behaviorCheckSchema,
+  behaviorClasses,
+  caseId,
+  targetSchema as behaviorTargetSchema,
+} from "./behavior/spec.ts";
+export { httpSurface } from "./behavior/surface.ts";
 export { buildVersion as verifierVersion } from "./build-version.ts";
 export { declaredChecks } from "./config/declared.ts";
 export type { DeclaredCheck } from "./config/swarm-toml.ts";
+export { MalformedSwarmTomlError, readSwarmToml } from "./config/swarm-toml.ts";
+export { conventionEvidence } from "./conventions/evidence.ts";
+export type { SourceText, Tally, Violation } from "./conventions/measure.ts";
+export {
+  conventionSources,
+  conventionViolations,
+  measureConventions,
+} from "./conventions/measure.ts";
+export type { ConventionProposal } from "./conventions/propose.ts";
+export { conventionProposal } from "./conventions/propose.ts";
+export type { ConventionRule, ConventionSet } from "./conventions/rules.ts";
+export {
+  conventionRules,
+  conventionSetSchema,
+  conventionText,
+  conventionValues,
+} from "./conventions/rules.ts";
+export type { UnsafeFinding, UnsafeKind } from "./conventions/unsafe.ts";
+export { unsafePatterns } from "./conventions/unsafe.ts";
 export { acceptancePolicy } from "./verify/acceptance.ts";
 export { reportPlans } from "./verify/per-test.ts";
 export { predicateType } from "./verify/predicate.ts";
@@ -67,4 +112,4 @@ export { constraintEvidence, structureEvidence } from "./verify/requirement-evid
 export type { SealedFile, SealedSet } from "./verify/sealed-store.ts";
 export { readSealed, SealError, sealedDirectory, sealFiles } from "./verify/sealed-store.ts";
 export type { TestReport } from "./verify/test-report.ts";
-export { parseReport } from "./verify/test-report.ts";
+export { livesIn, parseReport } from "./verify/test-report.ts";
