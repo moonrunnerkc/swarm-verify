@@ -22,6 +22,7 @@ export const correct: Defenses = {
   atomicPayment: true,
 };
 
+const people = new Set(["ada", "grace", "sam"]);
 const tick = () => new Promise((settle) => setTimeout(settle, 15));
 
 /**
@@ -42,10 +43,14 @@ export async function fixtureApp(
       response.writeHead(status, { "content-type": "application/json" });
       response.end(JSON.stringify(body));
     };
-    const user = request.headers["x-user"];
+    const named = request.headers["x-user"];
+    // A name the application does not know is refused as no name at all is.
+    const user = typeof named === "string" && people.has(named) ? named : undefined;
     const [, area, id] = (request.url ?? "/").split("/");
+    if (area === "me")
+      return user === undefined ? send(403, { error: "sign in" }) : send(200, { user });
     if (area === "invoices" && request.method === "GET") {
-      if (typeof user !== "string") return send(401, { error: "sign in" });
+      if (user === undefined) return send(403, { error: "sign in" });
       const invoice = invoices.get(id ?? "");
       if (invoice === undefined || !defenses.serveOwners) return send(404, { error: "not found" });
       if (defenses.ownerCheck && invoice.owner !== user) return send(404, { error: "not found" });

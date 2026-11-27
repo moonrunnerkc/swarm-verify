@@ -84,6 +84,45 @@ describe("the ownership cases", () => {
   });
 });
 
+describe("a binding that could not show what it claims", () => {
+  // An application that answers a stranger and an unknown name alike: without the signed-in case,
+  // a credential that names nobody is "refused" exactly as another real user should be.
+  it("fails on a user the server does not know, where it names a request signed-in users can make", async () => {
+    const invented = { ...ownership, other: { "x-user": "nobody" } };
+    expect(await failing(invented, {})).toEqual([]);
+    expect(await failing({ ...invented, signedIn: { path: "/me" } }, {})).toEqual([
+      "each named user is signed in, and a request without credentials is not",
+    ]);
+    expect(await failing({ ...ownership, signedIn: { path: "/me" } }, {})).toEqual([]);
+  });
+
+  it("fails where the signed-in request is open to everyone, so it shows nothing", async () => {
+    expect(await failing({ ...ownership, signedIn: { path: "/balance" } }, {})).toEqual([
+      "each named user is signed in, and a request without credentials is not",
+    ]);
+  });
+
+  it("is refused where the other user is the owner, the token is never used, or the number cannot move", () => {
+    const refusal = (binding: SecurityBindingInput) => {
+      try {
+        securityCases(binding);
+        return null;
+      } catch (error) {
+        return (error as { issues: { path: string[]; message: string }[] }).issues[0]?.message;
+      }
+    };
+    expect(refusal({ ...ownership, other: { "x-user": "ada" } })).toMatch(
+      /owner's own credentials/,
+    );
+    expect(refusal({ ...ownership, owner: {} })).toMatch(/holds no header/);
+    expect(refusal({ ...token, redeem: { method: "POST", path: "/redeem/fixed" } })).toMatch(
+      /never uses \{\{token\}\}/,
+    );
+    expect(refusal({ ...payment, by: 0 })).toMatch(/is 0/);
+    expect(refusal({ ...payment, observe: payment.operation })).toMatch(/is the operation itself/);
+  });
+});
+
 describe("the single-use token cases", () => {
   it("pass an application that redeems a token once and only while it lives", async () => {
     expect(await failing(token, {})).toEqual([]);

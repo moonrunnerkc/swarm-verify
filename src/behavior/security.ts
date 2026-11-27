@@ -1,68 +1,28 @@
 import { z } from "zod";
 import { type Requirement, requirementSchema } from "../api/request.ts";
 import {
-  type BehaviorCaseInput,
-  type BehaviorCheckInput,
-  type BehaviorStepInput,
-  targetSchema,
-} from "./spec.ts";
+  type Call,
+  callSchema,
+  type SecurityBinding,
+  type SecurityBindingInput,
+  type SecurityClass,
+  type SecurityFile,
+  securityBindingSchema,
+} from "./binding.ts";
+import type { BehaviorCaseInput, BehaviorCheckInput, BehaviorStepInput } from "./spec.ts";
 
-const headers = z.record(z.string(), z.string());
-const call = z.strictObject({
-  method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).default("GET"),
-  path: z.string().startsWith("/"),
-  headers: headers.default({}),
-  body: z.unknown().optional(),
-});
-type Call = z.output<typeof call>;
+export {
+  type SecurityBinding,
+  type SecurityBindingInput,
+  type SecurityClass,
+  type SecurityFile,
+  securityBindingSchema,
+  securityClasses,
+  securityFileSchema,
+} from "./binding.ts";
 
 /** Statuses that say no without saying the server broke. */
 const refusals = [400, 401, 403, 404, 409, 410, 422];
-
-/**
- * What a project must say about itself for one of the supported security checks to be made for
- * it: which request, as whom. The cases are the same for every project; only these differ.
- */
-export const securityBindingSchema = z.discriminatedUnion("class", [
-  z.strictObject({
-    class: z.literal("ownership"),
-    /** A request for one resource, without credentials. */
-    resource: call,
-    /** Headers that authenticate the resource's owner, another user, and a user of another role. */
-    owner: headers,
-    other: headers,
-    otherRole: headers.optional(),
-    success: z.array(z.int()).min(1).default([200]),
-    /** Text only the owner's response holds; another user's response must not hold it. */
-    ownerSees: z.array(z.string().min(1)).default([]),
-  }),
-  z.strictObject({
-    class: z.literal("single-use-token"),
-    /** The request that issues a token, and where the token is in its JSON response. */
-    issue: call,
-    tokenAt: z.string().min(1),
-    /** The request that redeems it; `{{token}}` stands for the token. */
-    redeem: call,
-    success: z.array(z.int()).min(1).default([200]),
-    /** How long after issue a token must be refused, where the target is started with a short life. */
-    expiresAfterMs: z.int().min(1).max(30_000).optional(),
-    concurrent: z.int().min(2).max(20).default(5),
-  }),
-  z.strictObject({
-    class: z.literal("duplicate-operation"),
-    /** The operation; `{{run}}` differs between cases, for an idempotency key or a fresh resource. */
-    operation: call,
-    /** A request that reads a number the operation changes, and where it is in the JSON response. */
-    observe: call,
-    valueAt: z.string().min(1),
-    /** How much one application of the operation changes that number. */
-    by: z.number(),
-    success: z.array(z.int()).min(1).default([200, 201]),
-    concurrent: z.int().min(2).max(20).default(5),
-  }),
-]);
-export type SecurityBinding = z.output<typeof securityBindingSchema>;
-export type SecurityBindingInput = z.input<typeof securityBindingSchema>;
 
 const step = (
   request: Call,
@@ -78,8 +38,12 @@ const withHeaders = (request: Call, extra: Readonly<Record<string, string>>): Ca
 /** `{{name}}` replaced through a request, where the value is known before the case runs. */
 function bound(request: Call, name: string, value: string): Call {
   const put = (text: string) => text.replaceAll(`{{${name}}}`, value);
-  return z.parse(call, JSON.parse(put(JSON.stringify(request))));
+  return z.parse(callSchema, JSON.parse(put(JSON.stringify(request))));
 }
+
+/** The case that shows each user an ownership binding names is one the server knows. */
+export const signedInCase =
+  "each named user is signed in, and a request without credentials is not";
 
 /**
  * The cases of one supported security check for a project's binding. Every set holds a
@@ -96,7 +60,21 @@ export function securityCases(input: SecurityBindingInput): BehaviorCaseInput[] 
       role: "refused" as const,
       steps: [step(withHeaders(resource, as), { status, bodyExcludes: ownerSees })],
     });
+    const users = [binding.owner, binding.other, ...(binding.otherRole ? [binding.otherRole] : [])];
+    const { signedIn } = binding;
     return [
+      ...(signedIn === undefined
+        ? []
+        : [
+            {
+              name: signedInCase,
+              role: "allowed" as const,
+              steps: [
+                ...users.map((as) => step(withHeaders(signedIn, as), { status: [200] })),
+                step(signedIn, { status: [401, 403] }),
+              ],
+            },
+          ]),
       {
         name: "the owner is served",
         role: "allowed",
@@ -183,17 +161,6 @@ export function securityCases(input: SecurityBindingInput): BehaviorCaseInput[] 
     },
   ];
 }
-
-/** The security checks this version can make, for JavaScript and TypeScript Node web APIs. */
-export const securityClasses = ["ownership", "single-use-token", "duplicate-operation"] as const;
-export type SecurityClass = (typeof securityClasses)[number];
-
-/** How a project binds the checks to itself: how its server starts, and one binding per check. */
-export const securityFileSchema = z.strictObject({
-  target: targetSchema,
-  checks: z.array(securityBindingSchema).min(1),
-});
-export type SecurityFile = z.output<typeof securityFileSchema>;
 
 const obligations: Readonly<Record<SecurityClass, string>> = {
   ownership:
