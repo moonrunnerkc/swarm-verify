@@ -66,6 +66,8 @@ export interface TestOutcome {
   readonly authority?: "user-acceptance" | "independently-generated";
   /** The requirements its sealed check was written to witness. */
   readonly requirements?: readonly string[];
+  /** Why a behavior case was never sent, and what would let it be. */
+  readonly unobserved?: string;
 }
 
 export const titleOf = (id: string) => {

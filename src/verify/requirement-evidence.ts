@@ -205,7 +205,13 @@ export function testRef(outcome: TestOutcome): EvidenceRef {
                 : "passes against the base's source too",
           };
     case "skipped":
-      return { kind: "test", ref, authority, outcome: "not observed", detail: "skipped" };
+      return {
+        kind: "test",
+        ref,
+        authority,
+        outcome: "not observed",
+        detail: outcome.unobserved ?? "skipped",
+      };
     case "flaky":
       // Failed and passed on the same snapshot: it shows neither the fix nor a failure.
       return {

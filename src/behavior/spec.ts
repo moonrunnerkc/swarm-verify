@@ -48,11 +48,21 @@ export type BehaviorStepInput = z.input<typeof stepSchema>;
  */
 export const caseRoles = ["allowed", "refused", "effect"] as const;
 
-const caseSchema = z.strictObject({
-  name: z.string().min(1),
-  role: z.enum(caseRoles),
-  steps: z.array(stepSchema).min(1),
-});
+const caseSchema = z
+  .strictObject({
+    name: z.string().min(1),
+    role: z.enum(caseRoles),
+    steps: z.array(stepSchema).default([]),
+    /**
+     * Why the case could not be made from what the check was given, and what would make it. Such
+     * a case is never sent and never passes: the requirements it would witness stay unverified.
+     */
+    unobserved: z.string().min(1).optional(),
+  })
+  .refine((one) => (one.unobserved === undefined) === one.steps.length > 0, {
+    path: ["steps"],
+    message: "a case holds the steps it sends, or says why it is unobserved, and never both",
+  });
 export type BehaviorCase = z.output<typeof caseSchema>;
 export type BehaviorCaseInput = z.input<typeof caseSchema>;
 
@@ -98,17 +108,18 @@ export const behaviorCheckSchema = z
   })
   .superRefine((check, context) => {
     const names = check.cases.map((one) => one.name);
+    const sent = check.cases.filter((one) => one.unobserved === undefined);
     const twice = names.find((name, index) => names.indexOf(name) !== index);
     if (twice !== undefined)
       context.addIssue({ code: "custom", path: ["cases"], message: `case ${twice} appears twice` });
-    if (!check.cases.some((one) => one.role === "allowed"))
+    if (!sent.some((one) => one.role === "allowed"))
       context.addIssue({
         code: "custom",
         path: ["cases"],
         message:
           "no case is a legitimate use that must succeed, so an application that refuses everything would pass; add one with role allowed",
       });
-    if (!check.cases.some((one) => one.role !== "allowed"))
+    if (!sent.some((one) => one.role !== "allowed"))
       context.addIssue({
         code: "custom",
         path: ["cases"],

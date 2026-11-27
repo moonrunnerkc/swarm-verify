@@ -44,7 +44,9 @@ const resultSchema = z.strictObject({
 /** What the driver is handed of a check: where to wait for the target, and the cases. */
 export const scenarioOf = (check: BehaviorCheck): Scenario => ({
   ready: check.target.ready,
-  cases: check.cases.map(({ name, steps }) => ({ name, steps })),
+  cases: check.cases.flatMap(({ name, steps, unobserved }) =>
+    unobserved === undefined ? [{ name, steps }] : [],
+  ),
 });
 
 /** Longest a driver may take: readiness, every wait, and time for each request to answer. */

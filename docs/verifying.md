@@ -254,7 +254,14 @@ number cannot move). An ownership binding should name `signedIn`, a request the 
 answers for any signed-in user and refuses without credentials: without it a credential that
 names nobody is refused like a stranger's, and the check reads that as the restriction working.
 `tryBinding(file, { workspace, baseCommit, policy })` tries a binding on a commit as it stands,
-with the same checkout, target and driver, and says what real requests showed is wrong with it.
+with the same checkout, target and driver, and says what real requests showed is wrong with it:
+a target that does not come up, a named user the server does not know, or a legitimate use the
+server calls malformed (400 or 422).
+A case a binding cannot make is kept as `unobserved` with the reason, never dropped: a token
+binding with no `expiresAfterMs` leaves "an expired token is refused" unsent, and the token
+requirement unverified until the target is started with a short lifetime the application reads
+(`target.env`) and `expiresAfterMs` says how long to wait. Where the application has no such
+setting, expiry is not observable in a bounded check and stays unverified.
 These three checks are what this version makes; they are not a security review.
 
 ## Conventions

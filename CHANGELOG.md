@@ -16,6 +16,39 @@ provenance; 2.0.2 is the first release published by the workflow. `v3` is the Ac
 to each 3.x release; it is not a release tag and pushing it publishes nothing. `v2` stays at
 2.1.0.
 
+## 3.3.0 - 2026-11-27
+
+A minor release, following 3.1.0 and 3.2.0: one optional field is added and nothing is removed.
+The change under "Compatibility" turns a run that 3.2.0 called complete into an incomplete one.
+
+### Compatibility
+
+- **A single-use token check no longer satisfies its requirement without exercising expiry.**
+  A binding with no `expiresAfterMs` made four cases and left out "an expired token is refused",
+  while the requirement those cases witness still says an expired token is refused. In a
+  verification on 3.2.0, an application that never expires a token, with reuse, unknown tokens
+  and concurrent redemption handled, had that requirement `satisfied` and the run `complete`.
+  The case is now always made. Without `expiresAfterMs` it is unobserved: it is not sent, it is
+  recorded with no result at the base or on the candidate, and the requirement is `unverified`
+  with what to supply (a short token lifetime in `target.env`, by a setting the application
+  reads, and `expiresAfterMs` a little above it). This holds whoever wrote the binding. An
+  application with no lifetime setting cannot have expiry observed by a bounded check, and its
+  token requirement stays unverified; nothing waits out a long-lived token.
+- **An ownership requirement claims the refusal of another role only where its binding names a
+  user of one.** With no `otherRole` the case was never made, and the requirement's text said
+  it was. The text now leaves the role out and says none was tried. No verdict changes.
+- **`unreadValue` also holds a binding's `target.env` names to the text it is given**, so a
+  drafted binding cannot start the target with a variable the repository never reads.
+
+### Added
+
+- A behavior case may carry `unobserved`, a reason, in place of `steps`. Such a case is never
+  sent and never passes; the requirements of its check stay unverified and the reason is the
+  next action. It does not count as the refused or allowed case every check must hold.
+- `tryBinding` lists each case a binding leaves unexercised among what it observed.
+- `tryBinding` reports a binding whose legitimate use the base answers 400 or 422: the request
+  lacks what its handler asks for, and no change to the application mends that.
+
 ## 3.2.0 - 2026-11-26
 
 A minor release: nothing a caller sends or reads is removed or renamed. The changes under

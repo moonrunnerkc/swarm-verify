@@ -45,6 +45,10 @@ function bound(request: Call, name: string, value: string): Call {
 export const signedInCase =
   "each named user is signed in, and a request without credentials is not";
 
+const expiredCase = "an expired token is refused";
+const noExpiry =
+  'the binding gives no "expiresAfterMs", so no token was redeemed after its lifetime. Where the application reads a token lifetime from its environment, set that variable to a short life in "target.env" and give "expiresAfterMs" a little more than it (at most 30000); where it has no such setting, a bounded check cannot observe expiry and this stays unverified';
+
 /**
  * The cases of one supported security check for a project's binding. Every set holds a
  * legitimate use that must succeed beside the uses that must be refused, so neither refusing
@@ -110,18 +114,19 @@ export function securityCases(input: SecurityBindingInput): BehaviorCaseInput[] 
         role: "refused",
         steps: [step(bound(redeem, "token", "never-issued-0000"), { status: refusals })],
       },
-      ...(binding.expiresAfterMs === undefined
-        ? []
-        : [
-            {
-              name: "an expired token is refused",
-              role: "refused" as const,
+      // Always a case: a binding with no wait leaves expiry unobserved, never out of the count.
+      {
+        name: expiredCase,
+        role: "refused",
+        ...(binding.expiresAfterMs === undefined
+          ? { unobserved: noExpiry }
+          : {
               steps: [
                 issued,
                 step(redeem, { status: refusals }, { waitMs: binding.expiresAfterMs }),
               ],
-            },
-          ]),
+            }),
+      },
       {
         name: "a token redeemed several times at once is honored once",
         role: "effect",
@@ -193,9 +198,11 @@ export function securityRequirement(
   name: SecurityClass,
   binding: SecurityBinding | null,
 ): Requirement {
+  // A binding that names no user of another role tries none, and the requirement says so.
+  const roleless = binding?.class === "ownership" && binding.otherRole === undefined;
   return requirementSchema.parse({
     id,
-    text: `${obligations[name]}${binding === null ? "" : ` (its check sends ${requested(binding)} and requests like it straight to the server)`}`,
+    text: `${roleless ? obligations[name].replace(", another role and", " and") : obligations[name]}${binding === null ? "" : ` (its check sends ${requested(binding)} and requests like it straight to the server${roleless ? "; its binding names no user of another role, so none is tried" : ""})`}`,
     source: "security",
     kind: "other",
   });
