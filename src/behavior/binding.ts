@@ -70,6 +70,12 @@ export const securityBindingSchema = bindingSchema.superRefine((binding, context
       refuse("owner", "holds no header, so the owner's request is an unauthenticated one");
     if (same(binding.owner, binding.other))
       refuse("other", "is the owner's own credentials; name a different user");
+    const { resource, signedIn } = binding;
+    if (signedIn?.method === resource.method && signedIn.path === resource.path)
+      refuse(
+        "signedIn",
+        "is the resource itself: a request every signed-in user can make is not one only an owner can",
+      );
     if (binding.otherRole !== undefined && same(binding.owner, binding.otherRole))
       refuse("otherRole", "is the owner's own credentials; name a user of another role");
   } else if (binding.class === "single-use-token") {

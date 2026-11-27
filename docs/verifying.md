@@ -13,9 +13,11 @@ recorded in the environment identity. The container sees only the verification's
 directory, mounted at its own path: the checkout, the runner reports, a private HOME, and the
 judge, mounted read-only. The checkout's `.git` is hidden behind an empty mount. Nothing else of
 the host is mounted: not the docker socket, the user's home, credentials, the base-run cache, the
-sealed store or the signing key. Dependencies are installed in one recorded stage with the
-network open (and a dependency cache under the verifier's home mounted); every check runs with
-`--network none` unless the request records that it needs a network. Linked dependencies are
+sealed store or the signing key. Dependencies are fetched in one recorded stage with the
+network open (and a dependency cache under the verifier's home mounted). For npm, pnpm and
+classic yarn nothing a package ships runs during it: install scripts run afterwards with the
+network closed. Every check runs with `--network none` unless the request records that it needs
+a network. Linked dependencies are
 refused in isolation.
 
 Every container that runs project code (dependency setup, base and candidate checks, reruns,
@@ -246,7 +248,14 @@ the code it tests. It is still only the requests that were sent. Every check mus
 with role `allowed` and one with another role.
 
 `securityCases(binding)` builds the cases of three checks from a project's binding. See the
-orchestrator's reference for the binding's shape.
+orchestrator's reference for the binding's shape. A binding is refused where it could not show
+what it claims (the other user is the owner, the redemption never uses the token, the observed
+number cannot move). An ownership binding should name `signedIn`, a request the base already
+answers for any signed-in user and refuses without credentials: without it a credential that
+names nobody is refused like a stranger's, and the check reads that as the restriction working.
+`tryBinding(file, { workspace, baseCommit, policy })` tries a binding on a commit as it stands,
+with the same checkout, target and driver, and says what real requests showed is wrong with it.
+These three checks are what this version makes; they are not a security review.
 
 ## Conventions
 
@@ -406,8 +415,11 @@ authenticated (nothing in it ran).
   from outside the process (a black-box acceptance check the request supplies).
 - On the host (`--isolation host`), checks run as the invoking user and can reach the judge, the
   base-run cache, the sealed store and the installed verifier. The result says so.
-- Dependency preparation runs the project's install scripts with the network open. Its output is
-  digested, not inspected.
+- Dependency preparation is not offline. Packages are fetched with the network open; npm, pnpm
+  and classic yarn run no install script while it is, but Yarn 2 and later, bun and Python
+  builds (a build backend, a source distribution) do run in that stage, as does a `[verify]
+  setup` command the base declares. On the host nothing separates the two. The stage's output
+  is digested, not inspected.
 - Trust in a signing key is external to the bundle. A public key shipped beside an attestation
   says who signed it only if you already trust that key from elsewhere.
 - Linked dependencies resolve through the workspace and are never reproducible; a baseline

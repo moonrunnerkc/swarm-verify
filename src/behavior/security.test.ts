@@ -130,6 +130,9 @@ describe("a binding that could not show what it claims", () => {
       /owner's own credentials/,
     );
     expect(refusal({ ...ownership, owner: {} })).toMatch(/holds no header/);
+    expect(refusal({ ...ownership, signedIn: { path: "/invoices/1" } })).toMatch(
+      /is the resource itself/,
+    );
     expect(refusal({ ...token, redeem: { method: "POST", path: "/redeem/fixed" } })).toMatch(
       /never uses \{\{token\}\}/,
     );

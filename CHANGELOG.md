@@ -16,7 +16,31 @@ provenance; 2.0.2 is the first release published by the workflow. `v3` is the Ac
 to each 3.x release; it is not a release tag and pushing it publishes nothing. `v2` stays at
 2.1.0.
 
-## Unreleased
+## 3.2.0 - 2026-11-26
+
+A minor release: nothing a caller sends or reads is removed or renamed. The changes under
+"Compatibility" can turn a run that passed on 3.1.0 into a blocked, failed or unverified one,
+which is the precedent 3.1.0 set for a minor. Its release candidates were local
+packs and were never published.
+
+### Compatibility
+
+- **Install scripts no longer run with the network open in a container.** npm, pnpm and classic
+  yarn fetch with scripts off during the dependency stage, the one stage with the network, and
+  the packages' scripts run afterwards with the network closed (`npm rebuild`, `pnpm rebuild`).
+  A project whose install script downloads something now fails its setup; declare the command
+  under `[verify] setup` in the base's `swarm.toml`, which runs as written with the network open.
+  Yarn 2 and later, bun and Python are fetched as before: their builds still run in the
+  dependency stage, and a Python build backend runs there with the network open.
+- **A rerun starts from the untracked paths the first run started from**, and replays the checks
+  before the suspect's. A file the candidate's first run left could turn its failing test into
+  a pass on the rerun, which recorded a real regression as flaky (`incomplete`, exit 4, where
+  it is now `failed`, exit 1). It could never produce `complete`.
+- **A sealed check whose runner was to write a report and wrote none is not a pass.** Its exit
+  code was read instead, so a runner that exits 0 without a report, after failing at the base,
+  counted as fixed. It is now skipped, and its requirement stays unverified.
+- **A changed file that does not parse leaves its conventions unobserved**, where it read as
+  conforming in the part the parser recovered.
 
 ### Added
 
@@ -34,7 +58,14 @@ to each 3.x release; it is not a release tag and pushing it publishes nothing. `
   refused), expiring single-use tokens (valid redeemed; reused, unknown and expired refused;
   concurrent redemption honored once) and duplicate operations (applied; replayed or sent at
   once, applied once). `securityRequirement` and `securityChecks` turn a binding file into a
-  requirement and its checks.
+  requirement and its checks. A binding that cannot show what it claims is refused: an owner
+  with no credentials, another user who is the owner, a redemption that never uses the issued
+  token, an observed number that cannot move. An ownership binding may name `signedIn`, a
+  request any signed-in user can already make; each named user is then held to it, since a
+  credential that names nobody is refused exactly as another real user should be. The refusals
+  are asked before the owner's own request, so a request that removes the resource cannot make
+  a wrongly served stranger look refused. `tryBinding` tries a binding on a commit before
+  anything is built on it, and `unreadValue` names a credential a text does not hold.
 - **Coding conventions as evidence.** A requirement may name `conventions` in its evidence. Each
   is measured from the syntax of the JavaScript and TypeScript files the candidate adds or
   changes, and holds where no file breaks it more often than its base version did.
@@ -46,12 +77,18 @@ to each 3.x release; it is not a release tag and pushing it publishes nothing. `
   container per command, no capabilities, bounded memory, CPU and processes, no network outside
   a dependency stage, only the workspace and a private HOME writable, and stand-ins such as a
   copy of the git directory. A worker that cannot be made says why and never becomes the host.
+- `swarm-verify/cli` exports the dispatcher and usage text, `swarm-verify/execution` the git
+  helper, `trustedExecutable`, `installScripts` and `swarmHome`, and `swarm-verify/node-floor-check`
+  the runtime check, for a program that offers the verifier's commands under its own name. A run
+  stopped by a signal says which one.
 - Requirements may come from two more sources, `profile` and `security`, and a producer may name
   the conventions profile it worked under (`producer.profile`). Evidence may be of kind
   `convention`. A statement made before this release reads as one with no behavior checks.
 
 ### Fixed
 
+- Host git runs with no filesystem monitor program and does not walk into nested repositories,
+  whose configuration a candidate's commands could have written.
 - **A check with no per-test report that fails at the base and with the candidate is compared by
   its compiler diagnostics.** It was always `unresolved`, so a repository whose `typecheck` or
   `build` fails at the base could never have a change judged complete. Each run's diagnostics
