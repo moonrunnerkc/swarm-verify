@@ -10,7 +10,7 @@ export type { ChildEnvironment, ChildEnvironmentOptions } from "./exec/child-env
 export { childEnvironment, UnauthorizableEnvironmentName } from "./exec/child-environment.ts";
 export type { ProcessRunOptions, ProcessRunResult } from "./exec/run-process.ts";
 export { refusedBeforeSpawn, runProcessGroup } from "./exec/run-process.ts";
-export { lockfileInstall } from "./verify/prepare.ts";
+export { fetchOnly, installScripts, lockfileInstall } from "./verify/prepare.ts";
 export type { ResourceRecord, Resources } from "./verify/resources.ts";
 export type { SandboxRunResult } from "./verify/sandbox.ts";
 export type { Worker, WorkerPolicy, WorkerRun } from "./verify/worker.ts";

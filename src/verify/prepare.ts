@@ -43,6 +43,20 @@ export async function lockfileInstall(
   return null;
 }
 
+/** Package managers told to fetch without running what they fetch, while the network is open. */
+export const fetchOnly = { npm_config_ignore_scripts: "true", YARN_ENABLE_SCRIPTS: "false" };
+
+/**
+ * The command that runs the installed packages' own scripts, for an install made with scripts
+ * off; null where the package manager has none this knows, and its scripts stay unrun.
+ */
+export const installScripts = (install: string): string | null =>
+  install.startsWith("npm ") || /\byarn install --frozen-lockfile$/.test(install)
+    ? "npm rebuild --foreground-scripts"
+    : install.includes("pnpm ")
+      ? "corepack pnpm rebuild"
+      : null;
+
 export interface Preparation {
   /** refused: preparation was asked for and could not start; `refused` says why. */
   readonly mode: "prepared" | "setup" | "linked" | "none" | "refused";
@@ -88,7 +102,21 @@ export async function prepareDependencies(
       return { mode: "refused", failure: null, localPackages: [], refused: error.message };
     }
     const command = [...localInstalls(localPackages), install].join(" && ");
-    const ran = await runCheck({ name: "setup", command, kind: "other" }, context, {}, "prepare");
+    // In a container the network is open only while packages are fetched, and nothing a package
+    // ships runs then: install scripts run after, with the network closed, like any other code
+    // the project brings. A `[verify] setup` the base declares runs as written, network open.
+    const split = isolated && setup === null;
+    const fetched = await runCheck(
+      { name: "setup", command, kind: "other" },
+      context,
+      split ? fetchOnly : {},
+      "prepare",
+    );
+    const scripts = split && fetched.result.result === "pass" ? installScripts(install) : null;
+    const ran =
+      scripts === null
+        ? fetched
+        : await runCheck({ name: "setup-scripts", command: scripts, kind: "other" }, context);
     return {
       mode: setup === null ? "prepared" : "setup",
       failure: ran.result.result === "pass" ? null : ran,
