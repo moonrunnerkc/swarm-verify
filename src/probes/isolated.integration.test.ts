@@ -21,6 +21,25 @@ afterAll(async () => {
 const manifest =
   '{"name":"fixture","version":"1.0.0","type":"module","private":true,"scripts":{"test":"node --test"}}\n';
 
+// One real pinned dependency, so the installed tree is digested and the environment reproducible.
+const pinned = {
+  version: "7.0.0",
+  resolved: "https://registry.npmjs.org/is-number/-/is-number-7.0.0.tgz",
+  integrity:
+    "sha512-41Cifkg6e8TylSpdtTpeLVMqvSBEVzTttHvERD741+pnZ8ANv0004MRL43QKPDlK9cGvNp6NZWZUBlbGXYxxng==",
+};
+const packages = {
+  "": { name: "fixture", version: "1.0.0", dependencies: { "is-number": "7.0.0" } },
+  "node_modules/is-number": pinned,
+};
+const pinnedFiles = {
+  "half.mjs": "export const half = n => n;\n",
+  "test/half.test.mjs": halfTest,
+  "package.json":
+    '{"name":"fixture","version":"1.0.0","type":"module","private":true,"scripts":{"test":"node --test"},"dependencies":{"is-number":"7.0.0"}}\n',
+  "package-lock.json": `${JSON.stringify({ name: "fixture", version: "1.0.0", lockfileVersion: 3, requires: true, packages })}\n`,
+};
+
 describe("verifying in a container", () => {
   it("runs the checks in a pinned image with the network closed and says so", async () => {
     const files = {
@@ -48,31 +67,37 @@ describe("verifying in a container", () => {
   });
 
   it("reuses the base run in isolation, where the candidate cannot reach the cache", async () => {
-    // One real pinned dependency, so the installed tree is digested and the environment reproducible.
-    const pinned = {
-      version: "7.0.0",
-      resolved: "https://registry.npmjs.org/is-number/-/is-number-7.0.0.tgz",
-      integrity:
-        "sha512-41Cifkg6e8TylSpdtTpeLVMqvSBEVzTttHvERD741+pnZ8ANv0004MRL43QKPDlK9cGvNp6NZWZUBlbGXYxxng==",
-    };
-    const packages = {
-      "": { name: "fixture", version: "1.0.0", dependencies: { "is-number": "7.0.0" } },
-      "node_modules/is-number": pinned,
-    };
-    const files = {
-      "half.mjs": "export const half = n => n;\n",
-      "test/half.test.mjs": halfTest,
-      "package.json":
-        '{"name":"fixture","version":"1.0.0","type":"module","private":true,"scripts":{"test":"node --test"},"dependencies":{"is-number":"7.0.0"}}\n',
-      "package-lock.json": `${JSON.stringify({ name: "fixture", version: "1.0.0", lockfileVersion: 3, requires: true, packages })}\n`,
-    };
-    const probe = await probeFixture(files, "node --test", parent);
+    const probe = await probeFixture(pinnedFiles, "node --test", parent);
     await probe.put("half.mjs", "export const half = n => n / 2;\n");
     const policy = { mode: "isolated", dependencies: "prepare", network: "closed" } as const;
     const first = await probe.verify([], policy);
     expect(first.baseline).toMatchObject({ status: "measured", cached: false });
     const again = await probe.verify([], policy);
     expect(again.baseline).toMatchObject({ status: "measured", cached: true });
+    expect(again.state).toBe("complete");
+  });
+
+  // A cached base keeps no output, so a check compared by its diagnostics read none at the base
+  // and was unresolved on every run after the first.
+  it("compares a check's diagnostics with a cached base as with a fresh one", async () => {
+    const files = {
+      ...pinnedFiles,
+      "swarm.toml": '[checks]\ntest = "node --test"\ntypecheck = "node typecheck.mjs"\n',
+      "typecheck.mjs":
+        'console.log("half.mjs(1,1): error TS2322: not a number."); process.exit(2);\n',
+    };
+    const probe = await probeFixture(files, "node --test", parent);
+    await probe.put("half.mjs", "export const half = n => n / 2;\n");
+    const policy = { mode: "isolated", dependencies: "prepare", network: "closed" } as const;
+    const typecheck = (result: Awaited<ReturnType<typeof probe.verify>>) =>
+      result.checks.find((check) => check.name === "typecheck")?.result;
+    const first = await probe.verify([], policy);
+    expect(first.baseline).toMatchObject({ status: "measured", cached: false });
+    expect(typecheck(first)).toBe("inherited-failures");
+    const again = await probe.verify([], policy);
+    expect(again.baseline).toMatchObject({ status: "measured", cached: true });
+    expect(typecheck(again)).toBe("inherited-failures");
+    expect(again.regression).toMatchObject({ status: "none", inherited: ["check typecheck"] });
     expect(again.state).toBe("complete");
   });
 

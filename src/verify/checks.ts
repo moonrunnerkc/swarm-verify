@@ -8,6 +8,7 @@ import { redactText } from "../evidence/redact.ts";
 import { childEnvironment } from "../exec/child-environment.ts";
 import { type ProcessRunResult, runProcessGroup } from "../exec/run-process.ts";
 import { gitText } from "./change.ts";
+import { readDiagnostics } from "./diagnostics.ts";
 import { type CheckResult, checkResultSchema, type Predicate } from "./predicate.ts";
 import { runInSandbox, type Sandbox } from "./sandbox.ts";
 import { collectedFromOutput, testEvidenceSchema } from "./test-report.ts";
@@ -20,6 +21,11 @@ export interface CheckRun {
   readonly outputTail: string;
   /** Why the command could not run (it timed out, was cancelled or never started), or null. */
   readonly notRun: string | null;
+  /**
+   * The compiler diagnostics a failing run printed, without line and column; null where it
+   * passed, never ran, printed none or its output was cut at the cap.
+   */
+  readonly diagnostics: readonly string[] | null;
 }
 
 /**
@@ -112,6 +118,7 @@ export async function runCheck(
     },
     output,
     outputTail: `${output.slice(-tailBytes)}${note}`,
+    diagnostics: failedToRun || ran.exitCode === 0 ? null : readDiagnostics(output, ran.truncated),
   };
 }
 
@@ -190,6 +197,11 @@ const storedBaseSchema = z.object({
   checks: z.array(checkResultSchema),
   /** Each declared check's runner report at base, in the same order as `checks`. */
   tests: z.array(testEvidenceSchema),
+  /**
+   * Each declared check's diagnostics at base, in the same order as `checks`: a check with no
+   * report that fails at both commits is compared by them, and the base's output is not kept.
+   */
+  diagnostics: z.array(z.array(z.string()).nullable()).default([]),
   heldOut: z.array(checkResultSchema),
   /** Each sealed check's runner report at base, in the same order as `heldOut`. */
   heldOutTests: z.array(testEvidenceSchema).default([]),

@@ -41,6 +41,28 @@ describe("running a check", () => {
   });
 });
 
+describe("a check's diagnostics", () => {
+  const context = () => ({ dir, home: dir, timeoutMs: 30_000, execution: hostExecution });
+  const typecheck = (command: string) => ({ name: "typecheck", command, kind: "other" as const });
+  const error = "src/a.ts(3,7): error TS2322: Type 'string' is not assignable to type 'number'.";
+
+  it("are read from a failing run, and from no passing one", async () => {
+    const failing = await runCheck(typecheck(`echo "${error}"; exit 2`), context());
+    expect(failing.diagnostics).toEqual([
+      "src/a.ts: TS2322: Type 'string' is not assignable to type 'number'.",
+    ]);
+    expect((await runCheck(typecheck(`echo "${error}"`), context())).diagnostics).toBeNull();
+  });
+
+  it("are none where the output was cut at the cap", async () => {
+    // Past the 4 MiB kept, the diagnostic printed first is still in the part that was kept.
+    const flood = `echo "${error}"; head -c 5000000 /dev/zero | tr '\\0' x; exit 2`;
+    const cut = await runCheck(typecheck(flood), context());
+    expect(cut.output).toContain("TS2322");
+    expect(cut.diagnostics).toBeNull();
+  });
+});
+
 describe("the checks of one run", () => {
   it("refuses two checks whose logs would be written to the same file", () => {
     const declared = [
@@ -63,6 +85,13 @@ describe("the base cache", () => {
       expect(
         (await readdir(join(home, "baselines"))).filter((name) => name.endsWith(".partial")),
       ).toEqual([]);
+      // A cached base keeps no output: the diagnostics a later comparison reads come back with it.
+      const kept = { ...entry(0), diagnostics: [["a.ts: TS1: x"], null] };
+      await baseCache.write(baseCache.file(home, "d"), kept);
+      expect((await baseCache.read(baseCache.file(home, "d")))?.diagnostics).toEqual([
+        ["a.ts: TS1: x"],
+        null,
+      ]);
       await writeFile(file, '{"checks": [');
       expect(await baseCache.read(file)).toBeNull();
     } finally {

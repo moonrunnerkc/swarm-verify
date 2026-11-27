@@ -137,14 +137,24 @@ export async function measureBase(input: {
   const cached = reuse && !input.fresh ? await baseCache.read(file) : null;
   if (cached !== null) {
     const { checks, heldOut, tests, heldOutTests } = cached;
-    const replayed = (results: readonly CheckRun["result"][], reports: typeof tests) =>
+    const replayed = (
+      results: readonly CheckRun["result"][],
+      reports: typeof tests,
+      diagnostics: typeof cached.diagnostics = [],
+    ) =>
       results.map((result, at) => ({
-        run: { result, output: "", outputTail: "", notRun: null },
+        run: {
+          result,
+          output: "",
+          outputTail: "",
+          notRun: null,
+          diagnostics: diagnostics[at] ?? null,
+        },
         evidence: reports[at] ?? { runner: null, report: null, unreadable: null, judge: null },
       }));
     return {
       baseline: { status: "measured", cached: true, environmentSha256, checks, heldOut },
-      runs: replayed(checks, tests),
+      runs: replayed(checks, tests, cached.diagnostics),
       sealedRuns: replayed(heldOut, heldOutTests),
     };
   }
@@ -183,7 +193,8 @@ export async function measureBase(input: {
   await removeWrittenSince(input.checkout, before);
   const heldOut = sealedRuns.map((one) => one.run.result);
   const heldOutTests = sealedRuns.map((one) => one.evidence);
-  if (reuse) await baseCache.write(file, { checks, tests, heldOut, heldOutTests });
+  const diagnostics = runs.map((one) => one.run.diagnostics?.slice() ?? null);
+  if (reuse) await baseCache.write(file, { checks, tests, diagnostics, heldOut, heldOutTests });
   return {
     baseline: { status: "measured", cached: false, environmentSha256, checks, heldOut },
     runs,

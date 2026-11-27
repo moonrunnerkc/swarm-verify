@@ -16,6 +16,32 @@ provenance; 2.0.2 is the first release published by the workflow. `v3` is the Ac
 to each 3.x release; it is not a release tag and pushing it publishes nothing. `v2` stays at
 2.1.0.
 
+## Unreleased
+
+### Fixed
+
+- **A check with no per-test report that fails at the base and with the candidate is compared by
+  its compiler diagnostics.** It was always `unresolved`, so a repository whose `typecheck` or
+  `build` fails at the base could never have a change judged complete. Each run's diagnostics
+  (`tsc` and `path:line[:col]: error: message` forms) are read as file, code and message, without
+  line and column, and compared as a multiset: none added is `inherited-failures`, listed in the
+  regression as `check <name>`; any added is `fail` and names them; none readable, or output cut
+  at the cap, stays `unresolved`. The base cache keeps each check's diagnostics, so a run on a
+  cached base and its replay agree. No schema changes.
+- **Every run of a candidate starts from the untracked paths the base's run started from.** The
+  base's tests against the candidate's source, and the candidate's tests against the base's
+  source, ran after the candidate's checks in one checkout and read the untracked output those
+  left: a `build` check's `dist/` let test files that cannot load at the base load there, and
+  their file-level failure was read as a new failure. Both variants now run first, each followed
+  by removing what it wrote outside git, and the candidate runs last, so the mutation pass and
+  the held-out checks follow the candidate's own checks.
+- **A test file that could not load at the base is judged by its own tests once it loads.** A
+  runner reports such a file as one failing entry; once the file loads, that entry is gone and
+  was read as a new failure "passing at the base commit", and the file's failing tests as
+  failures the candidate added. The whole-file entry is now fixed where every test in the file
+  passes and inherited otherwise, and the base's tests in it that fail are inherited. A failing
+  test only the candidate's version of the file holds still blocks.
+
 ## 3.1.0 - 2026-11-19
 
 A minor release: nothing a caller sends or reads is removed or renamed, but the behavior changes

@@ -68,13 +68,15 @@ policy is not met, and the result is not complete.
 5. The candidate is applied with `git apply --index`. Every changed path is a candidate artifact:
    source, tests, manifests, lockfiles, configuration and CI files may change together. When the
    candidate changes its lockfile or manifest, its dependencies are prepared again from its own.
-6. The checks run on the candidate (the **candidate run**), with V8 or coverage.py measuring the
-   changed lines.
-7. Where the candidate modified or deleted test files, the checks run again with the base's
-   versions of those files restored (the **obligation run**): the original regression
-   obligations judge the new source.
-8. Where the candidate added or rewrote test files, the checks run with the base's source and the
+6. Where the candidate modified or deleted test files, the checks run with the base's versions
+   of those files restored (the **obligation run**): the original regression obligations judge
+   the new source.
+7. Where the candidate added or rewrote test files, the checks run with the base's source and the
    candidate's tests (the **witness run**), to see which new tests fail before the change.
+8. The checks run on the candidate (the **candidate run**), with V8 or coverage.py measuring the
+   changed lines. It runs last, and each of these three runs starts from the untracked paths the
+   base's run started from: what an earlier run's checks wrote outside git (build output, caches)
+   is removed first, so no run's tests load what another run built.
 9. One mutant of a changed line, syntax-checked first, runs against the test checks.
 10. The base's tests are put back, the sealed files copied in, and the held-out checks run with the
     judge loaded.
@@ -132,6 +134,7 @@ Each base test is judged by its original version against the candidate:
 | fail | pass | fixed |
 | fail | fail | inherited: reported, does not block |
 | pass | fail, skipped or missing | new failure: blocks |
+| its file could not load | the file loads | the whole-file failure is fixed where every test in the file passes, inherited otherwise; the base's tests in it that fail are inherited, and a failing test only the candidate's version of the file holds blocks |
 | present | its file deleted by the candidate | removed: blocks |
 | any | fails, but the candidate's rewrite of it passes | expectation changed: blocks, unless the task authorized a behavior change and the rewrite fails against the base's source (superseded) |
 
@@ -153,7 +156,8 @@ A check's result is `pass`, `inherited-failures` (nothing new fails, inherited f
 `fail`, `error` (it could not run with the candidate), `no-tests` (it collected none, read from
 the report or from the summary its runner printed; exit code zero is not test success), or
 `unresolved`: a report did not parse, no collected test passes against the candidate, or the
-check has no report read and fails at both commits. Unresolved never claims inheritance.
+check has no report read and fails at both commits with no diagnostics to compare. Unresolved
+never claims inheritance.
 
 A failing run decides some verdicts by itself: a new failure, a rewritten expectation, a failing
 added test, a fix (failing at the base), a witness (failing against the base's source). Each such
@@ -174,7 +178,15 @@ A check without a report read is judged by its exit code and the count its runne
 | pass | pass | `pass` |
 | pass | fail | `fail`: a regression |
 | fail | pass | `pass` |
-| fail | fail | `unresolved` |
+| fail | fail | by the diagnostics both runs printed, below; `unresolved` where either printed none |
+
+A check such as `typecheck` or `build` that fails at both commits is compared by the compiler
+diagnostics each run printed: the `tsc` forms and `path:line[:col]: error: message`, each read as
+file, code and message with the line and column dropped, and counted, so a repeat is one more.
+Where the candidate adds none the check is `inherited-failures` and the regression lists it as
+`check <name>`; where it adds any the check is `fail` and names them. Where either run printed
+none that could be read, or its output was cut at the 4 MiB kept, it stays `unresolved`. A base
+run reused from the cache is compared by the diagnostics kept with it.
 
 ## Requirements
 

@@ -144,4 +144,41 @@ describe("classifying tests across the base and the candidate", () => {
       "t.js::t.js": "added-failing",
     });
   });
+
+  // fix-depose-09b01c1 (Arm C, 2026-11-07): a test file that could not load at the base is one
+  // failing entry for the whole file; where it loads after the change, its own tests report
+  // instead, and the missing whole-file entry was called a new failure that passed at the base.
+  it("judges a test file that failed to load at the base by its tests once it loads", () => {
+    const base = report({ "t.js::t.js": "fail", "u.js": "fail", "v.js::a": "pass" });
+    const after = report({
+      "t.js::x": "pass",
+      "t.js::y": "pass",
+      "u.js::x": "pass",
+      "u.js::y": "fail",
+      "v.js::a": "pass",
+    });
+    const runs: CheckRuns = { base, obligation: after, candidate: after, witness: null };
+    expect(classes(compareRuns(runs, none, "none"))).toEqual({
+      "t.js::t.js": "fixed",
+      "t.js::x": "added",
+      "t.js::y": "added",
+      "u.js": "inherited",
+      "u.js::x": "added",
+      "u.js::y": "inherited",
+      "v.js::a": "preserved",
+    });
+  });
+
+  it("still blocks on a failing test the candidate wrote into a file that now loads", () => {
+    const base = report({ "u.js": "fail" });
+    const obligation = report({ "u.js::x": "pass", "u.js::y": "fail" });
+    const candidate = report({ "u.js::x": "pass", "u.js::y": "fail", "u.js::z": "fail" });
+    const runs: CheckRuns = { base, obligation, candidate, witness: obligation };
+    const modified = { ...none, modified: new Set(["u.js"]) };
+    expect(classes(compareRuns(runs, modified, "none"))).toMatchObject({
+      "u.js": "inherited",
+      "u.js::y": "inherited",
+      "u.js::z": "added-failing",
+    });
+  });
 });

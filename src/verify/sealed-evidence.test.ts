@@ -28,6 +28,7 @@ const run = (result: CheckResult["result"], report: TestReport | null): Measured
     output: "",
     outputTail: "",
     notRun: null,
+    diagnostics: null,
   },
   evidence: { runner: report === null ? null : "vitest", report, unreadable: null, judge: null },
 });

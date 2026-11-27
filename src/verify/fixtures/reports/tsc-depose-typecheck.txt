@@ -1,0 +1,14 @@
+> depose@0.1.0 typecheck /work/tree
+> tsc --build --noEmit
+
+packages/core/src/reconstruct/destructive-rules.ts(19,36): error TS2307: Cannot find module 'yaml' or its corresponding type declarations.
+packages/chain/src/hash-chain.ts(18,59): error TS2307: Cannot find module '@depose/core' or its corresponding type declarations.
+packages/narrative/tsconfig.json(12,5): error TS6310: Referenced project '/work/tree/packages/core' may not disable emit.
+packages/bundle/tsconfig.json(13,5): error TS6310: Referenced project '/work/tree/packages/core' may not disable emit.
+packages/bundle/tsconfig.json(14,5): error TS6310: Referenced project '/work/tree/packages/chain' may not disable emit.
+packages/bundle/tsconfig.json(15,5): error TS6310: Referenced project '/work/tree/packages/narrative' may not disable emit.
+packages/capture-claude/tsconfig.json(12,18): error TS6310: Referenced project '/work/tree/packages/core' may not disable emit.
+packages/bundle/tsconfig.json(14,5): error TS6310: Referenced project '/work/tree/packages/chain' may not disable emit.
+packages/bundle/tsconfig.json(15,5): error TS6310: Referenced project '/work/tree/packages/narrative' may not disable emit.
+packages/cli/tsconfig.json(12,18): error TS6310: Referenced project '/work/tree/packages/core' may not disable emit.
+packages/cli/tsconfig.json(12,41): error TS6310: Referenced project '/work/tree/packages/bundle' may not disable emit.

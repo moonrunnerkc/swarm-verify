@@ -91,6 +91,19 @@ function counterpart(candidate: TestReport, path: string, title: string): string
   return found.length === 1 ? (found[0]?.[0] ?? null) : null;
 }
 
+/** A failing entry for a whole test file, as a runner reports a file it could not load. */
+const loadFailure = (id: string, entry: TestReport[string]) =>
+  entry.status === "fail" &&
+  entry.file !== null &&
+  (id === entry.file || titleOf(id) === entry.file);
+
+/** A file that failed to load at the base, by its tests in a later run: null where it still did not. */
+function loaded(report: TestReport, file: string): Status | null {
+  const tests = Object.values(report).filter((entry) => entry.file === file);
+  if (tests.length === 0) return null;
+  return tests.every((entry) => entry.status === "pass") ? "pass" : "fail";
+}
+
 function beforeAfter(base: Status, after: Status | null): Classification {
   if (after === null) return "new-failure";
   if (base === "pass") return after === "pass" ? "preserved" : "new-failure";
@@ -110,6 +123,13 @@ export function compareRuns(
 ): TestOutcome[] {
   const outcomes: TestOutcome[] = [];
   const claimed = new Set<string>();
+  // Files no test of which ran at the base: the base's own tests in them that fail now broke
+  // nothing that ran then. A failing test only the candidate's version holds is still its own.
+  const unloaded = new Set(
+    Object.entries(runs.base).flatMap(([id, entry]) =>
+      loadFailure(id, entry) && entry.file !== null ? [entry.file] : [],
+    ),
+  );
   const witnessOf = (id: string) =>
     runs.witness?.[id]?.status ?? (runs.witness === null ? null : "fail");
   for (const [id, entry] of Object.entries(runs.base)) {
@@ -132,7 +152,8 @@ export function compareRuns(
     const edited = [...changes.movedAndEdited].find(([from]) => livesIn(file, from));
     // The candidate's version of this test: in place, or in the file it moved to.
     const own = edited === undefined ? id : counterpart(runs.candidate, edited[1], title);
-    const obliged = runs.obligation[id]?.status ?? null;
+    const whole = file !== null && loadFailure(id, entry) && !(id in runs.obligation);
+    const obliged = whole ? loaded(runs.obligation, file) : (runs.obligation[id]?.status ?? null);
     let classification = beforeAfter(entry.status, obliged);
     if (deleted) {
       classification = "removed";
@@ -166,7 +187,13 @@ export function compareRuns(
       file: entry.file,
       origin,
       classification:
-        entry.status === "pass" ? "added" : entry.status === "fail" ? "added-failing" : "skipped",
+        entry.status === "pass"
+          ? "added"
+          : entry.status !== "fail"
+            ? "skipped"
+            : entry.file !== null && unloaded.has(entry.file) && id in runs.obligation
+              ? "inherited"
+              : "added-failing",
       base: null,
       after: entry.status,
       before: runs.witness === null ? null : witnessOf(id),
