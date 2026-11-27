@@ -10,15 +10,17 @@ export async function dispatch(
   program: string,
   handlers: Readonly<Record<string, Handler>>,
   argv: readonly string[],
+  /** A program offering these commands under its own name gives its own usage and version. */
+  own: { readonly usage?: string; readonly version?: string } = {},
 ): Promise<number> {
-  const usage = usageFor(program);
+  const usage = own.usage ?? usageFor(program);
   const [command, ...rest] = argv;
   if (command === undefined || command === "help" || command === "--help" || command === "-h") {
     process.stdout.write(`${usage}\n`);
     return 0;
   }
   if (command === "--version") {
-    process.stdout.write(`${buildVersion}\n`);
+    process.stdout.write(`${own.version ?? buildVersion}\n`);
     return 0;
   }
   const handler = handlers[command];

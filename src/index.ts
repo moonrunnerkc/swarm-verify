@@ -50,8 +50,9 @@ export {
   snapshotWorkingTree,
   verify,
 } from "./api/verify.ts";
+export { unreadValue } from "./behavior/binding.ts";
 export type { BehaviorRecord } from "./behavior/evidence.ts";
-export { probeBehavior } from "./behavior/probe.ts";
+export { tryBinding } from "./behavior/probe.ts";
 export type {
   SecurityBinding,
   SecurityBindingInput,
@@ -65,7 +66,6 @@ export {
   securityClasses,
   securityFileSchema,
   securityRequirement,
-  signedInCase,
 } from "./behavior/security.ts";
 export type { BehaviorCheck, BehaviorCheckInput, BehaviorClass } from "./behavior/spec.ts";
 export {

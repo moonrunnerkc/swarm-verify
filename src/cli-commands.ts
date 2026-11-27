@@ -13,4 +13,4 @@ export const verifierCommands: Readonly<Record<"verify" | "init" | "ci" | "repla
 };
 
 export { commandDefinitions, UsageError } from "./cli-command-definitions.ts";
-export type { Handler } from "./cli-main.ts";
+export { dispatch, type Handler } from "./cli-main.ts";

@@ -7,6 +7,8 @@ import { allChecks, type CheckContext, privateHome } from "../verify/checks.ts";
 import { swarmHome } from "../verify/held-out.ts";
 import { readiness } from "../verify/isolate.ts";
 import { prepareDependencies } from "../verify/prepare.ts";
+import { type SecurityFile, securityClasses } from "./binding.ts";
+import { securityChecks, signedInCase } from "./security.ts";
 import { type BehaviorCheckInput, behaviorCheckSchema } from "./spec.ts";
 import { type BehaviorRun, runBehavior } from "./target.ts";
 
@@ -16,7 +18,7 @@ import { type BehaviorRun, runBehavior } from "./target.ts";
  * binding nobody has read yet is tried before anything is built on it: whether its target
  * starts, and which of its cases already hold. `blocked` says why nothing could be run.
  */
-export async function probeBehavior(input: {
+async function probeBehavior(input: {
   readonly workspace: string;
   readonly baseCommit: string;
   readonly checks: readonly BehaviorCheckInput[];
@@ -60,4 +62,41 @@ export async function probeBehavior(input: {
   } finally {
     await checkout.remove();
   }
+}
+
+/**
+ * A security binding tried on a commit before anything is built on it. `problem` says what real
+ * requests showed is wrong with the binding itself: its target did not come up, or a user it
+ * names is not one the server knows. A legitimate use the commit does not serve yet is not a
+ * problem, since the change may be what adds it; `observed` lists what every case did.
+ */
+export async function tryBinding(
+  file: SecurityFile,
+  at: Omit<Parameters<typeof probeBehavior>[0], "checks">,
+): Promise<{ readonly problem: string | null; readonly observed: readonly string[] }> {
+  const ids = new Map(securityClasses.map((name, index) => [name, `R${index + 1}`]));
+  const probe = await probeBehavior({
+    ...at,
+    checks: securityChecks(file, "independently-generated", ids),
+  });
+  if (probe.blocked !== null)
+    return { problem: `it could not be tried at the base: ${probe.blocked}`, observed: [] };
+  const observed: string[] = [];
+  for (const run of probe.runs) {
+    if (run.notRun !== null)
+      return {
+        problem: `at the base, ${run.notRun}; the target printed: ${run.log.slice(-400)}`,
+        observed,
+      };
+    const signed = run.cases.find((one) => one.name === signedInCase);
+    if (signed?.status === "fail")
+      return {
+        problem: `at the base, the users it names did not check out: ${signed.detail}`,
+        observed,
+      };
+    observed.push(
+      `${run.check}: ${run.cases.map((one) => `${one.name}: ${one.status}`).join("; ")}`,
+    );
+  }
+  return { problem: null, observed };
 }

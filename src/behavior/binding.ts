@@ -94,3 +94,33 @@ export const securityFileSchema = z.strictObject({
   checks: z.array(securityBindingSchema).min(1),
 });
 export type SecurityFile = z.output<typeof securityFileSchema>;
+
+const credential = /authorization|cookie|key|token|user|session|auth/i;
+
+/**
+ * A value of a binding that a text does not hold: a credential in a header, or text only the
+ * owner should see. A binding drafted from a repository is held to what its author was shown; a
+ * check built on an invented value fails every change, or passes for the wrong reason.
+ */
+export function unreadValue(file: SecurityFile, shown: string): string | null {
+  const values: string[] = [];
+  const held = (headers: Readonly<Record<string, string>> | undefined) => {
+    for (const [name, value] of Object.entries(headers ?? {}))
+      if (credential.test(name)) values.push(value.replace(/^(?:Bearer|Basic|Token)\s+/i, ""));
+  };
+  for (const check of file.checks) {
+    if (check.class === "ownership") {
+      for (const one of [check.owner, check.other, check.otherRole, check.resource.headers])
+        held(one);
+      held(check.signedIn?.headers);
+      values.push(...check.ownerSees);
+    } else if (check.class === "single-use-token") {
+      held(check.issue.headers);
+      held(check.redeem.headers);
+    } else {
+      held(check.operation.headers);
+      held(check.observe.headers);
+    }
+  }
+  return values.find((one) => !one.includes("{{") && !shown.includes(one)) ?? null;
+}
