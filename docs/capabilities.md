@@ -1,6 +1,6 @@
 # What swarm-verify supports
 
-What each stage does per ecosystem, as of 3.2.0. Where a row says no, the verifier reports the
+What each stage does per ecosystem, as of 3.3.0. Where a row says no, the verifier reports the
 stage as unmeasured, unverified or blocked with the reason; it never guesses. Mixed projects
 declare their checks explicitly in `swarm.toml` (`[checks]`, with `kind = "test"` where a check
 runs tests) and their setup in `[verify] setup`; an image is named with the request's

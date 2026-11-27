@@ -293,3 +293,10 @@ Open choices made while building Swarm Verify, dated, with the reason. Append on
 - An ownership binding's `signedIn` is optional in the schema, since a hand-written binding predates it, and a producer may require it of drafts. The refusals are asked before the owner's request for every method, so the order of cases in a record does not depend on the method.
 - 3.2.0 and not 4.0.0: nothing a caller sends or reads is removed, and 3.1.0 shipped tightenings of the same kind as a minor with a Compatibility section.
 
+## 2026-11-27: a case that cannot be made stays in the count
+
+- A token binding without `expiresAfterMs` dropped the expiry case, and the requirement, whose text names expiry, was satisfied by the four cases left (reproduced on v3.2.0 with `src/behavior/token-expiry.integration.test.ts`: an application that never expires a token read `satisfied`, `complete`). The fix is in the case builder and the case schema, not in the wording: the case is always there, `unobserved` with the reason where there is nothing to wait for, and an unobserved case is evidence `not observed`, which no requirement is satisfied over.
+- `expiresAfterMs` stays optional. Requiring it would make a binding for an application with no lifetime setting unwritable, or invite an invented variable; such an application's expiry is reported unverified instead.
+- The other optional parts were read for the same fault. `otherRole` had it in wording only (the text claimed a refusal no case tried) and many applications have no second role, so the text follows the binding. `signedIn` and `ownerSees` are claimed by no requirement text. Every duplicate-operation case is always made.
+- 3.3.0, not 3.2.1: `unobserved` is a new field of the public case schema.
+

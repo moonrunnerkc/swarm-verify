@@ -255,6 +255,11 @@ answers for any signed-in user and refuses without credentials: without it a cre
 names nobody is refused like a stranger's, and the check reads that as the restriction working.
 `tryBinding(file, { workspace, baseCommit, policy })` tries a binding on a commit as it stands,
 with the same checkout, target and driver, and says what real requests showed is wrong with it.
+A case a binding cannot make is kept as `unobserved` with the reason, never dropped: a token
+binding with no `expiresAfterMs` leaves "an expired token is refused" unsent, and the token
+requirement unverified until the target is started with a short lifetime the application reads
+(`target.env`) and `expiresAfterMs` says how long to wait. Where the application has no such
+setting, expiry is not observable in a bounded check and stays unverified.
 These three checks are what this version makes; they are not a security review.
 
 ## Conventions

@@ -102,7 +102,7 @@ JSON
 4. Verify the change from `main` to `fix`. The project has no dependencies to install:
 
 ```sh
-npx --yes swarm-verify@3.2.0 verify --range main..fix --requirements ../requirements.json \
+npx --yes swarm-verify@3.3.0 verify --range main..fix --requirements ../requirements.json \
   --dependencies none --out ../evidence
 ```
 
@@ -130,7 +130,7 @@ before the change failed at the base and passes with it.
 runs the verification again and compares every result:
 
 ```sh
-npx --yes swarm-verify@3.2.0 replay ../evidence --key ../evidence/attestation.pub.pem
+npx --yes swarm-verify@3.3.0 replay ../evidence --key ../evidence/attestation.pub.pem
 ```
 
 Here you can trust `attestation.pub.pem` because your own machine just produced it. Evidence from
@@ -139,7 +139,7 @@ To validate the signature, the file digests and the recorded state without runni
 use `verify.mjs` from an installed copy of the package:
 
 ```sh
-npm install --prefix ../tools swarm-verify@3.2.0
+npm install --prefix ../tools swarm-verify@3.3.0
 node ../tools/node_modules/swarm-verify/verify.mjs ../evidence/attestation.sigstore.json \
   --key ../evidence/attestation.pub.pem --patch ../evidence/change.patch --evidence ../evidence
 ```
@@ -229,7 +229,7 @@ where you need an exact verifier. All inputs and outputs are in
 ## From code
 
 The package exports the same verifier as a Node API. Run this beside `swarm-quickstart` and
-`requirements.json` from the quickstart, after `npm install swarm-verify@3.2.0`:
+`requirements.json` from the quickstart, after `npm install swarm-verify@3.3.0`:
 
 ```js
 // verify-fix.mjs
