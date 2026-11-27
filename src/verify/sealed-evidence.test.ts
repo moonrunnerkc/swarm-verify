@@ -74,4 +74,31 @@ describe("sealed tests as outcomes", () => {
       `${file}::sorts`,
     ]);
   });
+
+  // A runner that exits 0 and writes no report, after failing at the base, fixed nothing anyone saw.
+  it("never reads a pass from the exit code of a runner whose report did not come", () => {
+    const base = run("fail", { [`${file}::a`]: { status: "fail", file } });
+    const silent = {
+      ...run("pass", null),
+      evidence: {
+        runner: "vitest" as const,
+        report: null,
+        unreadable: "the vitest report could not be parsed: the command wrote none",
+        judge: null,
+      },
+    };
+    expect(sealedOutcomes(sealed, [base], [silent]).map((one) => one.classification)).toEqual([
+      "skipped",
+    ]);
+    const crashed = { ...run("fail", null), evidence: silent.evidence };
+    expect(sealedOutcomes(sealed, [base], [crashed]).map((one) => one.classification)).toEqual([
+      "new-failure",
+    ]);
+    // A command with no report planned is judged by its exit code, which is all it has.
+    expect(
+      sealedOutcomes(sealed, [run("fail", null)], [run("pass", null)]).map(
+        (one) => one.classification,
+      ),
+    ).toEqual(["fixed"]);
+  });
 });
