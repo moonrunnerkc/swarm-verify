@@ -72,4 +72,17 @@ describe("conventions as a requirement", () => {
     expect(result.state).toBe("complete");
     checksOffline(result);
   });
+
+  it("is not satisfied by a changed file that does not parse, whose conventions nobody measured", async () => {
+    const probe = await probeFixture(files);
+    await probe.put("price.mjs", "export function totalPrice(a, b) {\n  return a + ;\n");
+    const result = await probe.verify([profile]);
+    const [outcome] = result.requirements;
+    expect(outcome?.status).not.toBe("satisfied");
+    expect(
+      outcome?.evidence.some(
+        (one) => one.outcome === "not observed" && /does not parse/.test(one.detail ?? ""),
+      ),
+    ).toBe(true);
+  });
 });

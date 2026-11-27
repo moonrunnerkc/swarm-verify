@@ -72,6 +72,23 @@ const literalKinds = new Set([
   ts.SyntaxKind.NullKeyword,
 ]);
 
+/**
+ * Whether a file's text does not parse. Sites are still read from what the parser recovered, and
+ * a file it could not read to the end shows no violation in the part it never reached.
+ */
+export function unparsed(file: SourceText): boolean {
+  const source = ts.createSourceFile(
+    file.path,
+    file.text,
+    ts.ScriptTarget.Latest,
+    false,
+    scriptKind(file.path),
+  );
+  const found = (source as unknown as { readonly parseDiagnostics?: readonly unknown[] })
+    .parseDiagnostics;
+  return (found?.length ?? 0) > 0;
+}
+
 /** Every site in one file, read from its syntax tree. Comments are never read as code. */
 function fileSites(file: SourceText): Site[] {
   const { path, text } = file;

@@ -1,6 +1,7 @@
 import type { EvidenceRef } from "../api/outcome.ts";
 import { readCandidateText } from "../verify/candidate-read.ts";
 import { conventionSources, conventionViolations, type Violation } from "./measure.ts";
+import { unparsed } from "./measure-sites.ts";
 import { type ConventionRule, type ConventionSet, conventionRules } from "./rules.ts";
 
 interface ChangedPath {
@@ -46,6 +47,8 @@ export async function conventionEvidence(
       unread = `${file.path} could not be read in the candidate`;
       continue;
     }
+    if (unparsed({ path: file.path, text: read.text }))
+      unread = `${file.path} does not parse in the candidate, so its conventions were not measured`;
     const before = file.status === "added" ? null : await input.readBase(file.path);
     const now = conventionViolations(set, [{ path: file.path, text: read.text }]);
     const was =
