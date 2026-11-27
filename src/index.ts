@@ -78,6 +78,7 @@ export { httpSurface } from "./behavior/surface.ts";
 export { buildVersion as verifierVersion } from "./build-version.ts";
 export { declaredChecks } from "./config/declared.ts";
 export type { DeclaredCheck } from "./config/swarm-toml.ts";
+export { MalformedSwarmTomlError, readSwarmToml } from "./config/swarm-toml.ts";
 export { conventionEvidence } from "./conventions/evidence.ts";
 export type { SourceText, Tally, Violation } from "./conventions/measure.ts";
 export {
@@ -110,4 +111,4 @@ export { constraintEvidence, structureEvidence } from "./verify/requirement-evid
 export type { SealedFile, SealedSet } from "./verify/sealed-store.ts";
 export { readSealed, SealError, sealedDirectory, sealFiles } from "./verify/sealed-store.ts";
 export type { TestReport } from "./verify/test-report.ts";
-export { parseReport } from "./verify/test-report.ts";
+export { livesIn, parseReport } from "./verify/test-report.ts";

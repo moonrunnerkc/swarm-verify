@@ -10,6 +10,7 @@ export type { ChildEnvironment, ChildEnvironmentOptions } from "./exec/child-env
 export { childEnvironment, UnauthorizableEnvironmentName } from "./exec/child-environment.ts";
 export type { ProcessRunOptions, ProcessRunResult } from "./exec/run-process.ts";
 export { refusedBeforeSpawn, runProcessGroup } from "./exec/run-process.ts";
+export { trustedExecutable } from "./exec/trusted-executable.ts";
 export { gitText } from "./verify/change.ts";
 export { fetchOnly, installScripts, lockfileInstall } from "./verify/prepare.ts";
 export type { ResourceRecord, Resources } from "./verify/resources.ts";

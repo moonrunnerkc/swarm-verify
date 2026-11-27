@@ -39,11 +39,15 @@ export class UsageError extends Error {
   }
 }
 
-export function usageFor(program: string): string {
+/** The usage text of a program offering `definitions`, which default to the verifier's own. */
+export function usageFor(
+  program: string,
+  definitions: readonly CommandDefinition[] = commandDefinitions,
+): string {
   return [
     `${program} <command> [options]`,
     "",
-    ...commandDefinitions.flatMap((command) => [
+    ...definitions.flatMap((command) => [
       `  ${program} ${command.syntax}`,
       `      ${command.description}`,
     ]),

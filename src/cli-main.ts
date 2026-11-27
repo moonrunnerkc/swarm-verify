@@ -26,8 +26,11 @@ export async function dispatch(
   const handler = handlers[command];
   // A signal cancels the run: its process groups and containers are stopped, then it exits 3.
   const controller = new AbortController();
-  const cancel = () => controller.abort(new Error("the run was cancelled by a signal"));
-  for (const name of stopping) process.once(name, cancel);
+  const cancels = stopping.map((name) => {
+    const cancel = () => controller.abort(new Error(`stopped by ${name}`));
+    process.once(name, cancel);
+    return [name, cancel] as const;
+  });
   try {
     if (handler === undefined) throw new UsageError(`"${command}" is not a ${program} command`);
     const code = await handler(rest, controller.signal);
@@ -45,6 +48,6 @@ export async function dispatch(
     process.stderr.write(usageProblem ? `${message}\n\n${usage}\n` : `${program}: ${message}\n`);
     return usageProblem ? 2 : 1;
   } finally {
-    for (const name of stopping) process.removeListener(name, cancel);
+    for (const [name, cancel] of cancels) process.removeListener(name, cancel);
   }
 }
