@@ -44,15 +44,9 @@ function nodePlan(command: string, scripts: Readonly<Record<string, unknown>>): 
   if (typeof body !== "string" || [...body.matchAll(nodeTest)].length !== 1) return null;
   return {
     runner: "node",
-    // A test that leaves a server or timer open keeps node's runner alive until the check's
-    // time runs out. Where the command names the run itself, the runner is told to exit once
-    // every test has finished; what each test did is read from the report as before.
-    command: () =>
-      script !== null || command.includes("--test-force-exit")
-        ? command
-        : command.replace(nodeTest, (run, at: number) =>
-            command[at + run.length] === "=" ? run : `${run} --test-force-exit`,
-          ),
+    // Not `--test-force-exit`, which would end a run whose test left a server open: it also
+    // ends the reporter early, and a suite of 150 tests wrote 141 to its report.
+    command: () => command,
     env: (file) => ({
       NODE_OPTIONS: `--test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=${file}`,
     }),

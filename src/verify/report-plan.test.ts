@@ -46,17 +46,9 @@ describe("recognizing a runner", () => {
     expect(reportPlan("node --test a && node --test b", {})).toBeNull();
   });
 
-  // A test that left a server listening after a failed assertion kept node's runner alive for
-  // the check's whole twenty minutes (a live run on the notes example, 2026-11-26).
-  it("tells node's runner to exit once its tests finish, where the command names the run itself", () => {
-    const run = (command: string) => reportPlan(command, { test: "node --test" })?.command(file);
-    expect(run("node --test")).toBe("node --test --test-force-exit");
-    expect(run("cd pkg && node --experimental-strip-types --test spec/")).toBe(
-      "cd pkg && node --experimental-strip-types --test --test-force-exit spec/",
-    );
-    expect(run("node --test --test-force-exit")).toBe("node --test --test-force-exit");
-    // A script's own text is the project's to change; it runs as declared.
-    expect(run("npm test")).toBe("npm test");
+  it("runs node's own runner as declared, since forcing its exit cuts the report short", () => {
+    for (const command of ["node --test", "cd no-tests && node --test", "npm test"])
+      expect(reportPlan(command, { test: "node --test test/" })?.command(file)).toBe(command);
     expect(reportPlan("bun test", { test: "node --test" })).toBeNull();
   });
 
