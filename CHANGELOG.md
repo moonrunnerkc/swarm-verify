@@ -46,6 +46,8 @@ The change under "Compatibility" turns a run that 3.2.0 called complete into an 
   sent and never passes; the requirements of its check stay unverified and the reason is the
   next action. It does not count as the refused or allowed case every check must hold.
 - `tryBinding` lists each case a binding leaves unexercised among what it observed.
+- `tryBinding` reports a binding whose legitimate use the base answers 400 or 422: the request
+  lacks what its handler asks for, and no change to the application mends that.
 
 ## 3.2.0 - 2026-11-26
 

@@ -9,7 +9,7 @@ import { readiness } from "../verify/isolate.ts";
 import { prepareDependencies } from "../verify/prepare.ts";
 import { type SecurityFile, securityClasses } from "./binding.ts";
 import { securityCases, securityChecks, signedInCase } from "./security.ts";
-import { type BehaviorCheckInput, behaviorCheckSchema } from "./spec.ts";
+import { type BehaviorCheck, type BehaviorCheckInput, behaviorCheckSchema } from "./spec.ts";
 import { type BehaviorRun, runBehavior } from "./target.ts";
 
 /**
@@ -25,7 +25,11 @@ async function probeBehavior(input: {
   readonly policy: ExecutionPolicy;
   readonly swarmHome?: string | undefined;
   readonly signal?: AbortSignal | undefined;
-}): Promise<{ readonly blocked: string | null; readonly runs: readonly BehaviorRun[] }> {
+}): Promise<{
+  readonly blocked: string | null;
+  readonly runs: readonly BehaviorRun[];
+  readonly checks: readonly BehaviorCheck[];
+}> {
   const checks = input.checks.map((one) => behaviorCheckSchema.parse(one));
   const home = resolve(input.swarmHome ?? swarmHome());
   const parent = input.policy.mode === "isolated" ? join(home, "work") : undefined;
@@ -35,7 +39,7 @@ async function probeBehavior(input: {
     const declared = allChecks(config?.checks ?? (await detectChecks(checkout.dir)), []);
     const scratch = dirname(checkout.dir);
     const ready = await readiness(input.policy, checkout.dir, scratch, home, declared);
-    if (!ready.ready) return { blocked: ready.reason, runs: [] };
+    if (!ready.ready) return { blocked: ready.reason, runs: [], checks };
     const context: CheckContext = {
       dir: checkout.dir,
       home: await privateHome(scratch),
@@ -55,10 +59,11 @@ async function probeBehavior(input: {
       return {
         blocked: `the base's dependencies did not install: ${failed ?? "setup failed"}`,
         runs: [],
+        checks,
       };
     const runs: BehaviorRun[] = [];
     for (const check of checks) runs.push(await runBehavior(check, context, "base"));
-    return { blocked: null, runs };
+    return { blocked: null, runs, checks };
   } finally {
     await checkout.remove();
   }
@@ -67,8 +72,8 @@ async function probeBehavior(input: {
 /**
  * A security binding tried on a commit before anything is built on it. `problem` says what real
  * requests showed is wrong with the binding itself: its target did not come up, or a user it
- * names is not one the server knows. A legitimate use the commit does not serve yet is not a
- * problem, since the change may be what adds it; `observed` lists what every case did.
+ * names is not one the server knows, or a legitimate use is answered 400 or 422. A legitimate use
+ * the commit does not serve yet is not a problem, since the change may be what adds it; `observed` lists what every case did.
  */
 export async function tryBinding(
   file: SecurityFile,
@@ -97,6 +102,22 @@ export async function tryBinding(
     if (signed?.status === "fail")
       return {
         problem: `at the base, the users it names did not check out: ${signed.detail}`,
+        observed,
+      };
+    // A legitimate use the base calls malformed is the binding's fault: no change to the
+    // application mends a request that lacks what its handler asks for.
+    const allowed = new Set(
+      probe.checks[observed.length]?.cases.flatMap((one) =>
+        one.role === "allowed" ? [one.name] : [],
+      ),
+    );
+    const malformed = run.cases.find(
+      (one) =>
+        allowed.has(one.name) && one.status === "fail" && /got (?:400|422)\b/.test(one.detail),
+    );
+    if (malformed !== undefined)
+      return {
+        problem: `at the base, the request of "${malformed.name}" is one the server calls malformed: ${malformed.detail}`,
         observed,
       };
     observed.push(
