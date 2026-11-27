@@ -22,6 +22,8 @@ export interface CandidateRuns {
   readonly obligation: readonly MeasuredRun[];
   /** The base's source with the candidate's test files; null for each check where none changed. */
   readonly witness: readonly (MeasuredRun | null)[];
+  /** The untracked paths every one of these runs started from. */
+  readonly untracked: ReadonlySet<string>;
 }
 
 interface RunInput {
@@ -102,5 +104,5 @@ export async function measureCandidate(input: RunInput): Promise<CandidateRuns> 
   const candidate = await runAll(input, "candidate", input.wrap, rewrites);
   const witness: readonly (MeasuredRun | null)[] =
     witnessRuns ?? (authored.length > 0 ? candidate : input.checks.map(() => null));
-  return { candidate, obligation: obligation ?? candidate, witness, rewrites };
+  return { candidate, obligation: obligation ?? candidate, witness, rewrites, untracked };
 }

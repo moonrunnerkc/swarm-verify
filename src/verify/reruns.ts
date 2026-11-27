@@ -1,5 +1,13 @@
+import { mkdtemp, rename, rm } from "node:fs/promises";
+import { join } from "node:path";
 import type { DeclaredCheck } from "../config/swarm-toml.ts";
-import { type BaseCheckout, restoreFrom, treeDigest } from "./checkout.ts";
+import {
+  type BaseCheckout,
+  removeWrittenSince,
+  restoreFrom,
+  treeDigest,
+  untrackedPaths,
+} from "./checkout.ts";
 import type { CheckContext } from "./checks.ts";
 import type { TestOutcome } from "./compare.ts";
 import { type MeasuredRun, runMeasured } from "./per-test.ts";
@@ -71,6 +79,8 @@ export interface RerunInput {
   /** The tree the candidate produced, laid back after each snapshot. */
   readonly candidateTree: string;
   readonly times: number;
+  /** The untracked paths the candidate's first runs started from; every round starts there. */
+  readonly start: ReadonlySet<string>;
 }
 
 export interface Reruns {
@@ -85,6 +95,9 @@ export interface Reruns {
  * the rounds at its first pass, since one pass after a failure already makes it flaky; one that
  * keeps failing is run every round, so its record says how often it failed. The snapshot is the
  * candidate tree with `paths` laid out as the base has them, and the candidate is put back after.
+ * A round removes what earlier runs wrote outside git and runs every check up to the suspect's,
+ * in order, as the first run did: a file the first run left could otherwise turn its failure into
+ * a pass, and a test may need what an earlier check builds.
  */
 export async function rerunSnapshot(
   input: RerunInput,
@@ -102,8 +115,10 @@ export async function rerunSnapshot(
   try {
     for (let round = 1; round <= input.times; round += 1) {
       const open = suspects.filter((one) => !results.get(one)?.includes("pass"));
-      for (const at of new Set(open.map((one) => one.check))) {
-        const check = input.checks[at] as DeclaredCheck;
+      if (open.length === 0) break;
+      await removeWrittenSince(checkout, input.start);
+      const last = Math.max(...open.map((one) => one.check));
+      for (const [at, check] of input.checks.slice(0, last + 1).entries()) {
         const plan = input.plans[at] ?? null;
         const label = `rerun-${snapshot}-${round}`;
         const before = await treeDigest(checkout.dir);
@@ -118,12 +133,39 @@ export async function rerunSnapshot(
     }
   } finally {
     await restoreFrom(checkout, input.candidateTree, paths);
+    await removeWrittenSince(checkout, input.start);
   }
   const runs = suspects.map((one) => ({
     check: one.check,
     test: { id: one.id, snapshot, results: results.get(one) ?? ["fail"] },
   }));
   return { runs, rewrites };
+}
+
+type Side = readonly [RerunSnapshot, readonly string[], readonly Suspect[]];
+
+/**
+ * The candidate's side rerun, snapshot by snapshot, with what the candidate's first run wrote
+ * outside git moved aside and put back after: the mutation pass and the held-out checks run on
+ * what that run left, and no rerun starts from it.
+ */
+export async function rerunSides(input: RerunInput, sides: readonly Side[]): Promise<Reruns[]> {
+  if (input.times === 0 || sides.every(([, , suspects]) => suspects.length === 0)) return [];
+  const { checkout, start } = input;
+  const aside = await mkdtemp(join(checkout.dir, "..", "left-"));
+  const left = [...(await untrackedPaths(checkout))].filter((path) => !start.has(path));
+  for (const [at, path] of left.entries())
+    await rename(join(checkout.dir, path), join(aside, String(at)));
+  try {
+    const reruns: Reruns[] = [];
+    for (const [snapshot, paths, suspects] of sides)
+      reruns.push(await rerunSnapshot(input, snapshot, paths, suspects));
+    return reruns;
+  } finally {
+    for (const [at, path] of left.entries())
+      await rename(join(aside, String(at)), join(checkout.dir, path));
+    await rm(aside, { recursive: true, force: true });
+  }
 }
 
 /**

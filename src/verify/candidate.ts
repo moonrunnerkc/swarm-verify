@@ -11,7 +11,7 @@ import { type ChangedArtifact, categoryOf } from "./paths.ts";
 import { type MeasuredRun, mutantOutcome, runMeasured } from "./per-test.ts";
 import type { CheckResult, Coverage, HeldOut, Mutation, RerunSnapshot } from "./predicate.ts";
 import type { ReportPlan } from "./report-plan.ts";
-import { type RerunInput, type Reruns, rerunSnapshot, suspectsOn } from "./reruns.ts";
+import { type RerunInput, type Reruns, rerunSides, rerunSnapshot, suspectsOn } from "./reruns.ts";
 import { measureCandidate } from "./runs.ts";
 import { sealedOutcomes } from "./sealed-evidence.ts";
 
@@ -187,7 +187,7 @@ export async function judgeCandidate(input: CandidateInput): Promise<CandidateJu
       }),
     );
   const outcomesOf = (judged: ReturnType<typeof judgeAll>) => judged.map((one) => one.outcomes);
-  const rerun: RerunInput = { ...input, times: input.reruns };
+  const rerun: RerunInput = { ...input, times: input.reruns, start: sets.untracked };
   // The candidate's side first: whether a check fails there decides the mutation pass.
   const first = outcomesOf(judgeAll([]));
   const rewrittenTests = [
@@ -197,10 +197,10 @@ export async function judgeCandidate(input: CandidateInput): Promise<CandidateJu
   ];
   const atObligation = suspectsOn(["obligation"], first, firstRuns);
   const atCandidate = suspectsOn(["candidate"], first, firstRuns);
-  const candidateSide = [
-    await rerunSnapshot(rerun, "obligation", rewrittenTests, atObligation),
-    await rerunSnapshot(rerun, "candidate", [], atCandidate),
-  ];
+  const candidateSide = await rerunSides(rerun, [
+    ["obligation", rewrittenTests, atObligation],
+    ["candidate", [], atCandidate],
+  ]);
   const candidateReruns = candidateSide.flatMap((one) => one.runs);
   const afterCandidate = judgeAll(candidateReruns);
   const failing = afterCandidate.some(
