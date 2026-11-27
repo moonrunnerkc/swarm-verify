@@ -8,7 +8,7 @@ import { swarmHome } from "../verify/held-out.ts";
 import { readiness } from "../verify/isolate.ts";
 import { prepareDependencies } from "../verify/prepare.ts";
 import { type SecurityFile, securityClasses } from "./binding.ts";
-import { securityChecks, signedInCase } from "./security.ts";
+import { securityCases, securityChecks, signedInCase } from "./security.ts";
 import { type BehaviorCheckInput, behaviorCheckSchema } from "./spec.ts";
 import { type BehaviorRun, runBehavior } from "./target.ts";
 
@@ -82,6 +82,11 @@ export async function tryBinding(
   if (probe.blocked !== null)
     return { problem: `it could not be tried at the base: ${probe.blocked}`, observed: [] };
   const observed: string[] = [];
+  const unsent = file.checks.flatMap((one) =>
+    securityCases(one).flatMap((made) =>
+      made.unobserved === undefined ? [] : [`${made.name}: not exercised (${made.unobserved})`],
+    ),
+  );
   for (const run of probe.runs) {
     if (run.notRun !== null)
       return {
@@ -98,5 +103,5 @@ export async function tryBinding(
       `${run.check}: ${run.cases.map((one) => `${one.name}: ${one.status}`).join("; ")}`,
     );
   }
-  return { problem: null, observed };
+  return { problem: null, observed: [...observed, ...unsent] };
 }
