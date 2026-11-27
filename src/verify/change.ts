@@ -41,7 +41,13 @@ export function runGit(
         }
         execFile(
           file,
-          ["-c", "core.hooksPath=/dev/null", "-c", "core.quotepath=false", ...args],
+          [
+            // No hook and no filesystem monitor program: a tree untrusted commands wrote names neither.
+            ...["core.hooksPath=/dev/null", "core.fsmonitor=false", "core.quotepath=false"].flatMap(
+              (one) => ["-c", one],
+            ),
+            ...args,
+          ],
           { cwd, env, encoding: "buffer", maxBuffer: 256 * 1024 * 1024 },
           (error, stdout, stderr) => {
             const code = error === null ? 0 : typeof error.code === "number" ? error.code : 1;
