@@ -104,8 +104,8 @@ export type SecurityFile = z.output<typeof securityFileSchema>;
 const credential = /authorization|cookie|key|token|user|session|auth/i;
 
 /**
- * A value of a binding that a text does not hold: a credential in a header, or text only the
- * owner should see. A binding drafted from a repository is held to what its author was shown; a
+ * A value of a binding that a text does not hold: a credential in a header, text only the owner
+ * should see, or the name of a variable the target is started with. A binding drafted from a repository is held to what its author was shown; a
  * check built on an invented value fails every change, or passes for the wrong reason.
  */
 export function unreadValue(file: SecurityFile, shown: string): string | null {
@@ -128,5 +128,7 @@ export function unreadValue(file: SecurityFile, shown: string): string | null {
       held(check.observe.headers);
     }
   }
+  // A variable the application never reads sets nothing: a lifetime it ignores, say.
+  values.push(...Object.keys(file.target.env));
   return values.find((one) => !one.includes("{{") && !shown.includes(one)) ?? null;
 }
