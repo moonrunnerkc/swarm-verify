@@ -36,6 +36,7 @@ export {
   requirementKinds,
   requirementSchema,
   requirementSources,
+  structureClaimSchema,
   verifyRequestSchema,
   versionConstraintSchema,
 } from "./api/request.ts";

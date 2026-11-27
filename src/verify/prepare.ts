@@ -116,7 +116,10 @@ export async function prepareDependencies(
     const ran =
       scripts === null
         ? fetched
-        : await runCheck({ name: "setup-scripts", command: scripts, kind: "other" }, context);
+        : // A native build finds node's headers in the image, where node-gyp would fetch them.
+          await runCheck({ name: "setup-scripts", command: scripts, kind: "other" }, context, {
+            npm_config_nodedir: "/usr/local",
+          });
     return {
       mode: setup === null ? "prepared" : "setup",
       failure: ran.result.result === "pass" ? null : ran,

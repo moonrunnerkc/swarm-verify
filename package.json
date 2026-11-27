@@ -1,6 +1,6 @@
 {
   "name": "swarm-verify",
-  "version": "3.2.0-rc.9",
+  "version": "3.2.0-rc.10",
   "description": "Check a code change against the project's own tests and declared requirements in a clean checkout, and record signed, tamper-evident evidence of the result.",
   "keywords": [
     "verification",

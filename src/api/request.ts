@@ -59,7 +59,7 @@ const claimAuthority = z.enum([
  * A structural fact about the candidate tree, for refactors: a file exists, holds a text, no longer
  * holds it (`contains` with `absent`), or is gone.
  */
-const structureClaimSchema = z
+export const structureClaimSchema = z
   .strictObject({
     path: z.string().min(1),
     contains: z.string().min(1).optional(),
