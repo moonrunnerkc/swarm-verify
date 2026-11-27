@@ -75,6 +75,13 @@ export function securityCases(input: SecurityBindingInput): BehaviorCaseInput[] 
               ],
             },
           ]),
+      // The refusals first: where the request changes or removes the resource, a wrongly served
+      // stranger must not find it already gone, which would read as a refusal.
+      refused("another user is refused", binding.other, [403, 404]),
+      refused("an unauthenticated request is refused", {}, [401, 403]),
+      ...(binding.otherRole === undefined
+        ? []
+        : [refused("a user of another role is refused", binding.otherRole, [403, 404])]),
       {
         name: "the owner is served",
         role: "allowed",
@@ -82,11 +89,6 @@ export function securityCases(input: SecurityBindingInput): BehaviorCaseInput[] 
           step(withHeaders(resource, binding.owner), { status: success, bodyIncludes: ownerSees }),
         ],
       },
-      refused("another user is refused", binding.other, [403, 404]),
-      refused("an unauthenticated request is refused", {}, [401, 403]),
-      ...(binding.otherRole === undefined
-        ? []
-        : [refused("a user of another role is refused", binding.otherRole, [403, 404])]),
     ];
   }
   if (binding.class === "single-use-token") {

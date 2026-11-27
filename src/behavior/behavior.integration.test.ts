@@ -91,9 +91,9 @@ describe("a behavior check in a verification, on the host", () => {
     );
     expect(result.behavior[0]).toMatchObject({ assurance: "external driver, host target" });
     expect(result.behavior[0]?.cases.map((one) => [one.name, one.base, one.candidate])).toEqual([
-      ["the owner is served", "fail", "pass"],
       ["another user is refused", "pass", "fail"],
       ["an unauthenticated request is refused", "fail", "pass"],
+      ["the owner is served", "fail", "pass"],
     ]);
   });
 

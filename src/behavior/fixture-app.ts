@@ -41,7 +41,7 @@ export async function fixtureApp(
   const server = createServer(async (request, response) => {
     const send = (status: number, body: unknown) => {
       response.writeHead(status, { "content-type": "application/json" });
-      response.end(JSON.stringify(body));
+      response.end(status === 204 ? undefined : JSON.stringify(body));
     };
     const named = request.headers["x-user"];
     // A name the application does not know is refused as no name at all is.
@@ -49,6 +49,14 @@ export async function fixtureApp(
     const [, area, id] = (request.url ?? "/").split("/");
     if (area === "me")
       return user === undefined ? send(403, { error: "sign in" }) : send(200, { user });
+    if (area === "invoices" && request.method === "DELETE") {
+      if (user === undefined) return send(403, { error: "sign in" });
+      const invoice = invoices.get(id ?? "");
+      if (invoice === undefined) return send(404, { error: "not found" });
+      if (defenses.ownerCheck && invoice.owner !== user) return send(404, { error: "not found" });
+      invoices.delete(id ?? "");
+      return send(204, null);
+    }
     if (area === "invoices" && request.method === "GET") {
       if (user === undefined) return send(403, { error: "sign in" });
       const invoice = invoices.get(id ?? "");

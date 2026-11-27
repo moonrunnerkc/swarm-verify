@@ -79,6 +79,21 @@ describe("the ownership cases", () => {
     });
   });
 
+  // Asked in the other order, the owner's own delete would leave the stranger a 404 either way.
+  it("fail an application that lets another user delete the resource, asked before the owner does", async () => {
+    const removal = {
+      ...ownership,
+      resource: { method: "DELETE" as const, path: "/invoices/1" },
+      success: [204],
+      ownerSees: [],
+    };
+    expect(await failing(removal, {})).toEqual([]);
+    expect(await failing(removal, { ownerCheck: false })).toEqual([
+      "another user is refused",
+      "the owner is served",
+    ]);
+  });
+
   it("fail an application that refuses everyone, the owner included", async () => {
     expect(await failing(ownership, { serveOwners: false })).toEqual(["the owner is served"]);
   });
