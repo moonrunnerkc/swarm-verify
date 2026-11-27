@@ -69,8 +69,9 @@ export function behaviorEvidence(
       const now = statusIn(after, one.name);
       // What the target answered is the candidate's text: redacted like any captured output.
       const said = after?.cases.find((found) => found.name === one.name)?.detail ?? "";
-      const detail = redactText(said).text;
+      const detail = one.unobserved ?? redactText(said).text;
       const id = caseId(check.name, one.name);
+      if (one.unobserved !== undefined) reasons.push(`${id} was not exercised: ${one.unobserved}`);
       outcomes.push({
         id,
         title: one.name,
@@ -83,6 +84,7 @@ export function behaviorEvidence(
         movedTo: null,
         authority: check.authority,
         requirements: check.requirements,
+        ...(one.unobserved === undefined ? {} : { unobserved: one.unobserved }),
       });
       if (now === "fail") failures.push(`${id} failed: ${detail}`);
       return { name: one.name, role: one.role, base: was, candidate: now, detail };

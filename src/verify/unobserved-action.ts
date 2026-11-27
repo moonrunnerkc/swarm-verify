@@ -62,7 +62,11 @@ export function unobservedAction(
     .filter(isConstraint)
     .map((one) => `${one.ref}: ${one.detail}`)
     .join("; ");
+  const unsent = unobserved.filter(
+    (one) => one.kind === "test" && one.detail !== noSuchTest && one.detail !== "skipped",
+  );
   const steps = [
+    ...(unsent.length > 0 ? [`give the check what it lacked (${named(unsent)})`] : []),
     ...(constraints.length > 0
       ? [
           `a version constraint holds where the candidate's lockfile resolves the package, each version it resolves can be judged within the range, and any latest asked for was read from the registry (${constraints})`,
